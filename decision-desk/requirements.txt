@@ -1,5 +1,6 @@
 discord.py>=2.4
 python-dotenv>=1.0
+aiohttp>=3.9
 pillow>=10.1
 tzdata
 openpyxl>=3.1

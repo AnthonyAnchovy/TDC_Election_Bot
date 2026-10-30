@@ -234,8 +234,17 @@ def prediction_check_text(guild, rid: str, winner: str) -> str | None:
     return "\n".join(parts)
 
 
-async def make_official(guild, rid: str, party: str, how: str, fallback=None):
+def claim_official(rid: str, party: str, how: str) -> bool:
+    """Record the official call unless the race is already called. There's no await in here, so when two
+    /call or /realcall handlers reach it at the same moment, only the first one wins."""
+    if store.get(rid):
+        return False
     store.call(rid, party, {"how": how})
+    return True
+
+
+async def make_official(guild, rid: str, party: str, how: str, fallback=None):
+    """Post the card and map for a call already recorded with claim_official."""
     who = cand(rid, party)
     card = G.call_card(rid, party, candidate=load_candidates().get(rid, {}).get(party), tally=how,
                        when=datetime.now(TZ))
@@ -266,6 +275,8 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None):
 
 async def retract_official(guild, rid: str, how: str, fallback=None):
     prev = store.get(rid)
+    if not prev:  # a simultaneous retraction already went through
+        return
     store.uncall(rid, {"how": how})
     card = G.call_card(rid, prev["party"] if prev else None, tally=how, when=datetime.now(TZ), retracted=True)
     text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{flavor('retract') or ''}".strip()
@@ -334,16 +345,18 @@ async def call_cmd(interaction: discord.Interaction, race: str, winner: app_comm
         ephemeral=True)
 
     switched = f" (switched from {S.EMOJI[prev['party']]})" if prev else ""
+    how = f"Called by {len(support)} of {len(ids)} Election Junkies"
+    reached = len(support) >= need and claim_official(rid, party, how)
     text = (f"🗳️ **{user.display_name}** has voted to call {race_phrase(rid)} for "
             f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**{switched}\n"
-            f"-# {len(support)} of {need} votes needed for an official call")
-    reached = len(support) >= need
+            f"-# {min(len(support), need)} of {need} votes needed for an official call")
     if reached:
         text += f"\n✅ That's a majority. Official call posted in {channel_note(guild, 'desk_channel')}."
+    elif store.get(rid):  # another vote completed the majority while this one was being recorded
+        text += "\n-# The desk had just called it."
     await post(guild, "board_channel", interaction.channel, content=text)
     if reached:
-        await make_official(guild, rid, party, f"Called by {len(support)} of {len(ids)} Election Junkies",
-                            interaction.channel)
+        await make_official(guild, rid, party, how, interaction.channel)
 
 
 @tree.command(name="unvote", description="Take back your vote on a race.")
@@ -419,10 +432,11 @@ async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_
     if not is_junkie(user):
         return await interaction.response.send_message(f"You need the **{CFG['junkie_role']}** role.",
                                                        ephemeral=True)
-    if store.get(rid):
+    party = winner.value
+    how = f"Called by {user.display_name} (override)"
+    if not claim_official(rid, party, how):
         return await interaction.response.send_message(
             f"{label(rid)} is already called. `/uncall` it first if the desk got it wrong.", ephemeral=True)
-    party = winner.value
     # the override counts as this person's call vote too, so the scoreboard credits them
     if not store.active_vote(user.id, rid, "call") or store.active_vote(user.id, rid, "call")["party"] != party:
         store.cast(user.id, rid, "call", party)
@@ -431,7 +445,7 @@ async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_
     await post(guild, "board_channel", interaction.channel,
                content=f"⚡ **{user.display_name}** called {race_phrase(rid)} without waiting for a majority: "
                        f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**")
-    await make_official(guild, rid, party, f"Called by {user.display_name} (override)", interaction.channel)
+    await make_official(guild, rid, party, how, interaction.channel)
 
 
 @tree.command(name="procall", description="Log a call made by an outlet or analyst (AP, NYT, Wasserman...).")
@@ -993,25 +1007,39 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
     return e
 
 
+async def send_alert(guild, key: str, **kwargs):
+    """Post a one-time alert, and mark it sent only once it's actually posted, so a failure is retried next pass."""
+    try:
+        await post(guild, "board_channel", **kwargs)
+    except Exception:
+        log.exception("Couldn't post alert %s; retrying on the next pass", key)
+        return
+    store.mark_alert(key)
+
+
 @tasks.loop(seconds=30)
 async def alert_loop():
-    guild = main_guild()
-    if guild is None or not find_channel(guild, "board_channel"):
-        return
-    t = now()
-    if t >= deadline() and not store.alert_sent("predictions-locked"):
-        store.mark_alert("predictions-locked")
-        n = len(store.predictors())
-        await post(guild, "board_channel", content=f"🔒 **Predictions are locked.** {n} entr{'y' if n == 1 else 'ies'}. "
-                                                    f"Use `/predictions` and `/compare` to see everyone's picks.")
-    for when, states in N.waves():
-        key = f"wave-{when.isoformat()}"
-        if t < when or store.alert_sent(key):
-            continue
-        store.mark_alert(key)
-        if (t - when).total_seconds() > 1800:  # bot started late: skip stale alerts
-            continue
-        await post(guild, "board_channel", embed=wave_embed(when, states))
+    # an exception escaping here would stop the task loop for the rest of the night, so nothing may escape
+    try:
+        guild = main_guild()
+        if guild is None or not find_channel(guild, "board_channel"):
+            return
+        t = now()
+        if t >= deadline() and not store.alert_sent("predictions-locked"):
+            n = len(store.predictors())
+            await send_alert(guild, "predictions-locked",
+                             content=f"🔒 **Predictions are locked.** {n} entr{'y' if n == 1 else 'ies'}. "
+                                     f"Use `/predictions` and `/compare` to see everyone's picks.")
+        for when, states in N.waves():
+            key = f"wave-{when.isoformat()}"
+            if t < when or store.alert_sent(key):
+                continue
+            if (t - when).total_seconds() > 1800:  # bot started late: skip stale alerts
+                store.mark_alert(key)
+                continue
+            await send_alert(guild, key, embed=wave_embed(when, states))
+    except Exception:
+        log.exception("Alert loop failed")
 
 
 @tree.command(name="closings", description="Poll closing schedule for election night.")
@@ -1503,7 +1531,8 @@ async def county_loop():
     workbook_seconds (120) so a slow rebuild never holds up the feeds."""
     try:
         src = CF.load_sources()
-        if time.time() - _cw["early_at"] > 6 * 3600 and now() < N.ELECTION_DAY.replace(day=4):
+        # stops when the first polls close: the NC pull takes ~20 s and would hold up live pulls on the night
+        if time.time() - _cw["early_at"] > 6 * 3600 and now() < N.ELECTION_DAY.replace(hour=18):
             _cw["early_at"] = time.time()
             await CWR.refresh_early()
             _cw["dirty"] = True
@@ -1546,9 +1575,11 @@ async def _announce_file(guild, res: dict, how: str):
             f"({res['votes']:,} votes). Polls haven't closed there yet, so these numbers weren't used."))
         return
     _cw["dirty"] = True
-    first_grab = res.get("grab") and st not in _cw.setdefault("grabbed", set())
+    grabbed = _cw.setdefault("grabbed", set())
+    first_grab = res.get("grab") and st not in grabbed
     if not res.get("grab") or first_grab:      # repeat grab-button loads stay quiet; alerts still post
-        _cw["grabbed"].add(st)
+        if first_grab:
+            grabbed.add(st)
         await post(guild, "board_channel", content=(
             f"📥 Loaded {CM.STATES[st]} results ({res['kind']}) from {how}: {res['counties']} of {res['of']} counties, "
             f"{res['votes']:,} votes, {res['complete']} fully counted."
