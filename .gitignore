@@ -1,0 +1,28 @@
+# secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# bot state (created at runtime; a fresh clone should start empty)
+decision-desk/desk.db
+decision-desk/desk.db-journal
+
+# County Watch runtime caches and night-of inputs
+decision-desk/countywatch/live.json
+decision-desk/countywatch/early.json
+decision-desk/countywatch/alerts.json
+decision-desk/countywatch/discord_entries.json
+decision-desk/countywatch/feed_overrides.json
+decision-desk/countywatch/inbox/
+decision-desk/County Watch live.csv
+
+# Excel lock files and editor clutter
+~$*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
