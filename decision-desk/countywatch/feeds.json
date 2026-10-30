@@ -1,0 +1,140 @@
+{
+  "_note": "Live county-level feeds for the Senate race. Every feed is re-checked every refresh_seconds; unchanged files cost almost nothing (the bot asks 'changed since last time?'). The workbook is rebuilt at most every workbook_seconds. 'test' overrides point at the Nov 2024 files for /countytest. post_alerts posts key-county and projection changes to the board channel. States not listed here are typed in by hand. Sites marked bot_check sit behind Cloudflare: if they answer the bot with a challenge page, the bot stops trying for 15 minutes and you use the County Watch grab button instead (it saves countywatch-XX.json to Downloads, which the bot loads). /countyfeed sets a Clarity election link (SC, IA) if the site doesn't list the election by date.",
+  "refresh_seconds": 30,
+  "states": {
+    "GA": {
+      "format": "ga_item",
+      "election_date": "2026-11-03",
+      "contest": "US Senate",
+      "source": "Georgia Secretary of State (results.sos.ga.gov)",
+      "test": {
+        "election_id": "2024NovGen",
+        "contest": "President of the US"
+      }
+    },
+    "NC": {
+      "format": "nc_pct",
+      "url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip",
+      "contest": "US SENATE",
+      "source": "NC State Board of Elections",
+      "test": {
+        "url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2024_11_05/results_pct_20241105.zip",
+        "contest": "US PRESIDENT"
+      }
+    },
+    "MN": {
+      "format": "mn_media",
+      "url": "https://electionresultsfiles.sos.mn.gov/20261103/allracesbycounty.txt",
+      "contest": "U.S. Senator",
+      "source": "Minnesota Secretary of State",
+      "test": {
+        "url": "https://electionresultsfiles.sos.mn.gov/20241105/allracesbycounty.txt",
+        "contest": "U.S. President"
+      }
+    },
+    "NE": {
+      "format": "ne_ws",
+      "url": "https://neresultswebservice.azurewebsites.us/ResultsAjax.svc/GetMapData?type=SW&category=CTY&raceID=13224&osn=102&county=0&party=0",
+      "d_name": "Osborn",
+      "source": "Nebraska Secretary of State",
+      "test": {}
+    },
+    "FL": {
+      "format": "fl_txt",
+      "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20261103_ElecResultsFL.txt",
+      "contest": "United States Senator",
+      "source": "Florida Division of Elections",
+      "test": {
+        "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20241105_ElecResultsFL.txt",
+        "contest": "President"
+      }
+    },
+    "VA": {
+      "format": "ga_item",
+      "api": "https://enr.elections.virginia.gov/results/public/api",
+      "jurisdiction": "Virginia",
+      "election_date": "2026-11-03",
+      "contest": "United States Senate",
+      "source": "Virginia Department of Elections (enr.elections.virginia.gov)",
+      "test": {
+        "election_id": "2025-November-General",
+        "contest": "Governor"
+      }
+    },
+    "IA": {
+      "format": "clarity_enr",
+      "base": "https://electionresults.iowa.gov/IA",
+      "election_date": "11/3/2026",
+      "source": "Iowa Secretary of State (electionresults.iowa.gov)",
+      "test": {
+        "eid": "122322",
+        "contest_re": "^President",
+        "contest": "President"
+      },
+      "contest_re": "(united states|u\\.\\s?s\\.)\\s+senat"
+    },
+    "SC": {
+      "format": "clarity_enr",
+      "base": "https://www.enr-scvotes.org/SC",
+      "election_date": "11/3/2026",
+      "source": "SC Election Commission (enr-scvotes.org)",
+      "test": {
+        "count_only": true,
+        "note": "no 2024 file set; checks only that the site answers"
+      },
+      "contest_re": "(united states|u\\.\\s?s\\.)\\s+senat"
+    },
+    "OH": {
+      "format": "oh_api",
+      "contest": "U.S. Senator",
+      "source": "Ohio Secretary of State (liveresults.ohiosos.gov)",
+      "bot_check": true,
+      "test": {
+        "count_only": true,
+        "contest": "U.S. Senator"
+      }
+    },
+    "TX": {
+      "format": "tx_static",
+      "election_year": "2026",
+      "source": "Texas Secretary of State (results.texas-election.com)",
+      "bot_check": true,
+      "test": {
+        "url": "https://results.texas-election.com/static/data/election/49664/1012/County.json",
+        "contest_re": "^PRESIDENT"
+      }
+    },
+    "AK": {
+      "format": "ak_csv",
+      "url": "https://www.elections.alaska.gov/results/26GENR/ENRbyPrecinct.csv",
+      "contest": "U.S. Senator",
+      "source": "Alaska Division of Elections",
+      "test": {
+        "url": "https://www.elections.alaska.gov/results/24GENR/ENRbyPrecinct.csv",
+        "contest": "U.S. President",
+        "count_only": true
+      }
+    }
+  },
+  "result_pages": {
+    "AK": "https://www.elections.alaska.gov/election-results/",
+    "GA": "https://results.sos.ga.gov/results/public/Georgia",
+    "IA": "https://electionresults.iowa.gov/",
+    "KS": "https://ent.sos.ks.gov/kssos_ent.html",
+    "ME": "https://www.maine.gov/sos/cec/elec/results/index.html",
+    "MI": "https://www.michigan.gov/sos/elections (the state posts only after every county reports; use county clerk sites)",
+    "MN": "https://electionresults.sos.mn.gov/",
+    "MS": "https://www.sos.ms.gov/elections-voting/election-results",
+    "NC": "https://er.ncsbe.gov/",
+    "NE": "https://electionresults.nebraska.gov/",
+    "NH": "https://www.sos.nh.gov/elections/elections/election-results",
+    "OH": "https://liveresults.ohiosos.gov/",
+    "SC": "https://scvotes.gov/elections-statistics/election-results/",
+    "TX": "https://results.texas-election.com/",
+    "VA": "https://enr.elections.virginia.gov/results/public/virginia/2026-November-General",
+    "KY": "https://vrsws.sos.ky.gov/liveresults/"
+  },
+  "workbook_seconds": 120,
+  "post_alerts": true,
+  "watch_downloads": true
+}

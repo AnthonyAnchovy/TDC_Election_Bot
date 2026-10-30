@@ -1,0 +1,750 @@
+{
+  "_note": "Key counties per state: why each one matters and what to look for. Numbers (2024 margin, share of the state vote, break-even benchmark) are computed from data in the workbook; this file holds only the judgment calls. Edit freely.",
+  "GA": [
+    [
+      "Fulton",
+      "Largest vote bank for Democrats (Atlanta).",
+      "Raw D vote margin matters more than the percentage. If turnout lags 2022, Democrats need bigger margins elsewhere."
+    ],
+    [
+      "Gwinnett",
+      "Most diverse big county in the state; swung slightly R from 2020 to 2024 as Hispanic and Asian voters moved.",
+      "Whether the 2024 drift toward R continues or snaps back. Best single read on nonwhite swing voters."
+    ],
+    [
+      "Cobb",
+      "College-educated suburbs that flipped D in 2016 and kept moving left.",
+      "A margin above 2024 means the suburban realignment is still paying Democrats."
+    ],
+    [
+      "DeKalb",
+      "Heavily Black, highly educated D base.",
+      "Turnout versus 2022. Its margin barely moves, so the vote count is the signal."
+    ],
+    [
+      "Henry",
+      "Fast-growing Black suburb south of Atlanta, and the biggest D gain of any large Georgia county from 2020 to 2024 (about 9 points).",
+      "Whether that gain holds in a midterm with lower Black turnout."
+    ],
+    [
+      "Clayton",
+      "Most Democratic county in Georgia, majority Black.",
+      "Turnout. Its margin barely moves, so the raw vote count is what matters."
+    ],
+    [
+      "Forsyth",
+      "Wealthy, college-educated exurb that's still strongly R.",
+      "Any shrinking of the R margin here signals college-educated Republicans defecting."
+    ],
+    [
+      "Chatham",
+      "Savannah. A mid-size D county with a large Black population.",
+      "A non-Atlanta check on Black turnout and margin."
+    ],
+    [
+      "Cherokee",
+      "Georgia's biggest Republican vote bank: a fast-growing exurb north of Atlanta that gave Trump about 63,000 net votes in 2024.",
+      "Republican turnout. Its margin barely moves (R+40 in 2020, 2022 and 2024), so a turnout index under 100 here is the clearest sign of a Republican enthusiasm gap."
+    ],
+    [
+      "Hall",
+      "Gainesville. The third-biggest R net-vote county, and nearly 30% Hispanic.",
+      "Margin and turnout both. An R margin well under R+44 points to Hispanic voters moving back toward Democrats; turnout under the state pace means the exurban base isn't showing up."
+    ],
+    [
+      "Bartow",
+      "Northwest Georgia exurb along I-75 at R+51, a stand-in for the small-town Republican base.",
+      "Turnout. The margin is locked in (R+51 in 2020, 2022 and 2024), so the vote count is the signal."
+    ]
+  ],
+  "NC": [
+    [
+      "Wake",
+      "Largest county (Raleigh), with fast-growing college-educated suburbs.",
+      "Turnout growth plus margin. Wake has been adding thousands of net D votes every cycle."
+    ],
+    [
+      "Mecklenburg",
+      "Charlotte. Second-biggest D vote bank, with a large Black population.",
+      "Its margin slipped 2.2 points toward R in 2024. A rebound is a good D sign."
+    ],
+    [
+      "Durham",
+      "Deep-blue Research Triangle county.",
+      "Turnout. The margin is near its ceiling."
+    ],
+    [
+      "Guilford",
+      "Greensboro. A big, racially mixed county that tracks the statewide trend.",
+      "Margin compared with its 2022 and 2024 baselines."
+    ],
+    [
+      "New Hanover",
+      "Wilmington. A true swing county, almost exactly tied in 2024.",
+      "Whichever side wins it by a few points is usually having a good night statewide."
+    ],
+    [
+      "Buncombe",
+      "Asheville. Hurricane Helene hit it in 2024, and it still swung D.",
+      "Turnout recovery after Helene, and whether the 2024 D gain holds."
+    ],
+    [
+      "Johnston",
+      "Booming exurb southeast of Raleigh, still strongly R but trending D.",
+      "R margin under about 20 means Democrats are making suburban growth work for them."
+    ],
+    [
+      "Robeson",
+      "Lumbee Native American, Black and white rural county that swung hard R (about 9 points in 2024).",
+      "Bellwether for rural working-class nonwhite voters. A Cooper bounce-back here is a strong D signal."
+    ],
+    [
+      "Union",
+      "Charlotte's fast-growing southeastern exurb, about 35,000 net R votes in 2024.",
+      "Suburban Republicans. College-educated growth has kept it flat (R+24.5 in 2020, R+25.5 in 2024). Well under that, with turnout on pace, means suburban Republicans are slipping."
+    ],
+    [
+      "Randolph",
+      "The most Republican county in North Carolina with 100,000+ people (R+58), in the Piedmont between Greensboro and Charlotte.",
+      "Turnout. The margin is near its ceiling, so whether small-town Republicans turn out in a midterm is the question."
+    ],
+    [
+      "Davidson",
+      "The state's biggest R net-vote county (about 44,000 in 2024), working-class Piedmont.",
+      "Turnout and margin together: R+48 at a turnout index of 100 or better means the Republican base is fully there."
+    ]
+  ],
+  "MI": [
+    [
+      "Wayne",
+      "Detroit and its inner suburbs. The biggest D vote bank, which collapsed 8.6 points toward R in 2024 (including Dearborn's Arab American vote).",
+      "Detroit turnout and Dearborn-area margins. A rebound toward 2022's +44 is the clearest D path."
+    ],
+    [
+      "Oakland",
+      "Large, educated suburban county that anchors D statewide wins.",
+      "Margin. It was D+23 in 2022 (Whitmer) but only D+11 for Harris."
+    ],
+    [
+      "Macomb",
+      "Classic blue-collar bellwether that went R+14 in 2024.",
+      "Whether Democrats get it back toward even, as Whitmer did in 2022 (D+5)."
+    ],
+    [
+      "Kent",
+      "Grand Rapids. West Michigan swing county, D since 2020.",
+      "College-educated and religious voters. A margin above +10 is very good for D."
+    ],
+    [
+      "Washtenaw",
+      "Ann Arbor. Students and university staff.",
+      "Turnout, especially campus precincts. Midterm youth turnout drops are the risk."
+    ],
+    [
+      "Genesee",
+      "Flint. A union-heavy county where the D margin has been eroding.",
+      "Working-class Black and white voters. A margin near 2022's +19 is a strong D sign."
+    ],
+    [
+      "Saginaw",
+      "Long-running bellwether that has gone with the statewide winner in most recent races.",
+      "Whoever wins it likely wins the state."
+    ],
+    [
+      "Ottawa",
+      "Deep-red, religious, increasingly college-educated West Michigan suburb.",
+      "The R margin shrinking below 20 means GOP erosion with educated conservatives."
+    ],
+    [
+      "Livingston",
+      "Affluent, college-educated exurb between Detroit and Lansing: R+24 in 2024 but only R+13 in the 2022 governor race.",
+      "Whether Republicans hold their presidential margin in a midterm. Closer to 2022's R+13 than 2024's R+24 means suburban Republicans are defecting or staying home."
+    ],
+    [
+      "St. Clair",
+      "Blue-collar Thumb county (Port Huron) that moved 4.4 pts toward R from 2020 to 2024.",
+      "Working-class Republican turnout. Its 2022 margin (R+17) was half its 2024 margin, so a midterm drop-off among these voters shows up here first."
+    ]
+  ],
+  "OH": [
+    [
+      "Franklin",
+      "Columbus. The largest and fastest-growing D county.",
+      "Turnout and margin. Brown needs big numbers here to offset rural Ohio."
+    ],
+    [
+      "Cuyahoga",
+      "Cleveland. Historic D base with declining population.",
+      "Turnout. Weak Cleveland turnout sank Democrats in 2022."
+    ],
+    [
+      "Hamilton",
+      "Cincinnati. Formerly R, now reliably D because of suburban college voters.",
+      "Margin compared with 2024's +15."
+    ],
+    [
+      "Summit",
+      "Akron. A union-heavy swing-ish county.",
+      "A D margin of +10 or more is needed to run competitively statewide."
+    ],
+    [
+      "Montgomery",
+      "Dayton. Roughly even in 2024, about 11 points left of the state.",
+      "Democrats need to win it clearly to be competitive statewide."
+    ],
+    [
+      "Mahoning",
+      "Youngstown. Former D stronghold that swung 7.6 points R in 2024.",
+      "Blue-collar ancestral Democrats. Brown's comeback depends on voters like these."
+    ],
+    [
+      "Lorain",
+      "Blue-collar county west of Cleveland that went narrowly R in 2020 and further R in 2024.",
+      "Whether working-class white voters return to Brown."
+    ],
+    [
+      "Delaware",
+      "Wealthy, college-educated Columbus exurb, still R.",
+      "A shrinking R margin shows suburban defections."
+    ],
+    [
+      "Butler",
+      "Cincinnati's northern suburbs and Ohio's biggest R net-vote county (about 48,000 in 2024).",
+      "An R margin at R+26 or better with turnout on pace means Republicans are fine. Back near its 2022 level (R+24) or lower is a warning for them."
+    ],
+    [
+      "Warren",
+      "College-educated exurb between Cincinnati and Dayton, R+32 and barely moved from 2020 to 2024.",
+      "College-educated Republicans. Any real slippage here suggests the Democrat is winning crossover votes."
+    ],
+    [
+      "Stark",
+      "Canton. A classic working-class bellwether that went from R+19 in 2020 to R+22 in 2024.",
+      "Whether working-class voters come back to Democrats. Near its 2022 level (R+16) is a good D sign; R+22 or worse means the 2024 coalition held."
+    ]
+  ],
+  "TX": [
+    [
+      "Harris",
+      "Houston. The largest county, and it swung 7.8 points R in 2024.",
+      "Margin. Above +10 means Democrats regained ground with Hispanic and Black voters."
+    ],
+    [
+      "Dallas",
+      "Big D base that swung 9.6 points R in 2024.",
+      "Margin recovery toward 2020's +32."
+    ],
+    [
+      "Tarrant",
+      "Fort Worth. The classic Texas swing county: Beto narrowly won it in 2018 and Biden barely won it in 2020, then it went R+5 in 2024.",
+      "If Democrats win Tarrant, they're likely within striking distance statewide."
+    ],
+    [
+      "Bexar",
+      "San Antonio. Majority Hispanic, D, swung R in 2024.",
+      "Hispanic swing in an urban setting."
+    ],
+    [
+      "Travis",
+      "Austin. Very high D turnout and margin.",
+      "Turnout. Democrats need it to keep growing."
+    ],
+    [
+      "Collin",
+      "Rich, college-educated Dallas suburb, R+11 in 2024.",
+      "Suburban shift. Talarico needs it close to single digits."
+    ],
+    [
+      "Fort Bend",
+      "One of the most diverse counties in America (Houston suburbs). Nearly flipped R in 2024.",
+      "Asian, Black and Hispanic suburban voters."
+    ],
+    [
+      "Hidalgo",
+      "Rio Grande Valley. Swung 20 points R from 2020 to 2024.",
+      "The headline Hispanic-realignment test. Any D rebound here is huge news."
+    ],
+    [
+      "Montgomery",
+      "Houston's northern exurb and the biggest Republican vote bank in Texas (about 140,000 net R votes in 2024).",
+      "Republican turnout. Republicans offset Harris, Dallas and Travis with exurban turnout; an index under 100 here is a red flag for them."
+    ],
+    [
+      "Lubbock",
+      "West Texas hub, 37% Hispanic, that moved 7 pts toward R from 2020 to 2024.",
+      "Whether the 2024 Hispanic shift toward R holds. A margin back toward 2020 (R+33) is good for Democrats."
+    ],
+    [
+      "Comal",
+      "Fast-growing Hill Country exurb between San Antonio and Austin, college-educated and R+46.",
+      "Turnout. It's adding voters every cycle, so it should take a bigger share of the state vote; if it doesn't, Republican turnout is soft."
+    ]
+  ],
+  "IA": [
+    [
+      "Polk",
+      "Des Moines. The D vote bank, about 15% of the state's vote.",
+      "Margin and turnout. Democrats need it well above 2024's +11."
+    ],
+    [
+      "Linn",
+      "Cedar Rapids. A union county that's been sliding toward R.",
+      "A D margin near +15 is a good sign."
+    ],
+    [
+      "Johnson",
+      "Iowa City. University of Iowa, very D.",
+      "Student turnout."
+    ],
+    [
+      "Dallas",
+      "Fast-growing, college-educated Des Moines suburb, still R.",
+      "Suburban defections. Flipping it would be a big D night."
+    ],
+    [
+      "Scott",
+      "Davenport. Former D county that went R in 2024.",
+      "Classic Mississippi River swing county."
+    ],
+    [
+      "Black Hawk",
+      "Waterloo. Union and Black voters, almost tied in 2024.",
+      "Working-class D strength."
+    ],
+    [
+      "Dubuque",
+      "Catholic working-class river county that went from D to R.",
+      "Ancestral Democrats returning or not."
+    ],
+    [
+      "Sioux",
+      "Iowa's most Republican county (R+72), the core of northwest Iowa's Republican base.",
+      "Turnout. The margin is maxed out, so the R vote count is the signal."
+    ],
+    [
+      "Woodbury",
+      "Sioux City, 20% Hispanic; moved 7.5 pts toward R from 2020 to 2024.",
+      "Hispanic and working-class voters. A margin back toward 2020 (R+16) is good for Democrats."
+    ],
+    [
+      "Pottawattamie",
+      "Council Bluffs, Iowa's side of metro Omaha: working-class and R+20.",
+      "Working-class swing: R+17 in 2020, R+20 in 2024. Its turnout also tests whether the Republican base outside the big metros is showing up."
+    ]
+  ],
+  "ME": [
+    [
+      "Cumberland",
+      "Portland. A quarter of the state's vote and very D.",
+      "Margin and turnout. Collins has historically cut into it."
+    ],
+    [
+      "York",
+      "Southern Maine. Bigger and more swingy than Cumberland.",
+      "Collins's crossover strength. Democrats want about +15."
+    ],
+    [
+      "Kennebec",
+      "Augusta. Roughly even, about 10 points right of the state in 2024.",
+      "A Jackson win here would point to a comfortable statewide win."
+    ],
+    [
+      "Penobscot",
+      "Bangor. The 2nd District's population center, leans R.",
+      "Jackson is from northern Maine. Watch whether he cuts into the R margin here."
+    ],
+    [
+      "Androscoggin",
+      "Lewiston-Auburn. A blue-collar former D county that now leans R.",
+      "Working-class swing."
+    ],
+    [
+      "Aroostook",
+      "The County. Rural far north, where Jackson is from.",
+      "A home-region bounce for Jackson would show up here first."
+    ],
+    [
+      "Somerset",
+      "Rural central Maine (Skowhegan), R+28 and among the three biggest R net-vote counties.",
+      "Rural Republican turnout in the 2nd District. It moved 3.5 pts toward R from 2020 to 2024 but was only R+19 in the 2022 governor race."
+    ]
+  ],
+  "NH": [
+    [
+      "Hillsborough",
+      "Manchester and Nashua. The biggest county, and it votes close to the state.",
+      "Margin. Whoever wins it big usually wins NH."
+    ],
+    [
+      "Rockingham",
+      "Seacoast and Boston-commuter suburbs. Lean R, and the GOP's biggest vote source.",
+      "Sununu-name strength. A big R margin here is the GOP path."
+    ],
+    [
+      "Merrimack",
+      "Concord. A swingy D-leaning county.",
+      "Margin versus 2024's +5."
+    ],
+    [
+      "Strafford",
+      "Dover and UNH. A D-leaning college county.",
+      "Student turnout."
+    ],
+    [
+      "Grafton",
+      "Hanover and Dartmouth. Very D.",
+      "D turnout."
+    ],
+    [
+      "Belknap",
+      "Lakes Region. Rural R stronghold.",
+      "R margin and turnout."
+    ],
+    [
+      "Coos",
+      "The North Country: rural and working-class, and the biggest 2020-to-2024 shift toward R in the state (about 8 pts).",
+      "Whether that shift holds in a midterm: it was only R+3 in 2022 versus R+14 in 2024."
+    ]
+  ],
+  "MN": [
+    [
+      "Hennepin",
+      "Minneapolis. The giant D vote bank, about 22% of the state.",
+      "Turnout. Its margin is near the ceiling."
+    ],
+    [
+      "Ramsey",
+      "St. Paul. Very D.",
+      "Turnout."
+    ],
+    [
+      "Dakota",
+      "Southern Twin Cities suburbs, D-leaning swing.",
+      "Margin above +13 (2024) is good for Flanagan."
+    ],
+    [
+      "Anoka",
+      "Northern suburbs, R-leaning blue-collar swing.",
+      "Tafoya needs a clear win here."
+    ],
+    [
+      "Washington",
+      "Eastern suburbs, college-educated, D-leaning.",
+      "Suburban margin."
+    ],
+    [
+      "Olmsted",
+      "Rochester (Mayo Clinic). Educated, D-leaning, a few points left of the state.",
+      "Margin compared with 2024's +11."
+    ],
+    [
+      "St. Louis",
+      "Duluth and the Iron Range. Historic DFL labor country, eroding.",
+      "Range towns moving R would be bad news for Flanagan."
+    ],
+    [
+      "Stearns",
+      "St. Cloud. Strongly R central Minnesota.",
+      "R turnout and margin."
+    ],
+    [
+      "Wright",
+      "Fast-growing exurb northwest of the Twin Cities and Minnesota's biggest R net-vote county (about 26,000 in 2024).",
+      "Exurban Republican turnout. An index under 100 here plus strong Hennepin turnout is a bad night for Republicans."
+    ],
+    [
+      "Sherburne",
+      "Exurban corridor northwest of the Twin Cities, R+35.",
+      "Margin and turnout. It moved 2 pts toward R from 2020 to 2024; a reversal is an early D sign."
+    ]
+  ],
+  "KS": [
+    [
+      "Johnson",
+      "Kansas City suburbs. A quarter of the state's vote, college-educated, trending D.",
+      "A big D margin here is required for any upset."
+    ],
+    [
+      "Sedgwick",
+      "Wichita. R-leaning swing county.",
+      "If Democrats get within single digits, they're competitive statewide."
+    ],
+    [
+      "Shawnee",
+      "Topeka. Roughly even in 2024.",
+      "Democrats need to win it clearly for an upset."
+    ],
+    [
+      "Douglas",
+      "Lawrence (KU). Very D.",
+      "Student turnout."
+    ],
+    [
+      "Wyandotte",
+      "Kansas City, Kansas. Black and Hispanic D base that swung R in 2024.",
+      "Turnout and Hispanic swing."
+    ],
+    [
+      "Riley",
+      "Manhattan (K-State, Fort Riley). Swingy college town.",
+      "Youth turnout."
+    ],
+    [
+      "Butler",
+      "Wichita's eastern exurb and the biggest R net-vote county after Sedgwick.",
+      "Turnout plus a margin near R+42. A softer margin means suburban Wichita Republicans are drifting."
+    ],
+    [
+      "Reno",
+      "Hutchinson. A small-city county that stands in for central Kansas.",
+      "Midterm turnout leans R here: R+45 in the 2022 Senate race vs R+35 in 2024. Republicans want it closer to 2022."
+    ]
+  ],
+  "NE": [
+    [
+      "Douglas",
+      "Omaha. The largest county.",
+      "Osborn needs a big win in Omaha on top of rural crossover."
+    ],
+    [
+      "Lancaster",
+      "Lincoln. University and state government.",
+      "Margin. Osborn needs it comfortably."
+    ],
+    [
+      "Sarpy",
+      "Omaha suburbs, R-leaning.",
+      "Close to even here would be a great Osborn sign."
+    ],
+    [
+      "Hall",
+      "Grand Island. A third Hispanic, meatpacking.",
+      "Osborn's working-class pitch and Hispanic voters."
+    ],
+    [
+      "Buffalo",
+      "Kearney. Rural central Nebraska.",
+      "Osborn's 2024 strategy was cutting rural R margins. Watch whether he does it again."
+    ],
+    [
+      "Lincoln",
+      "North Platte. Rural western Nebraska, railroad and union history.",
+      "Same test, further west."
+    ]
+  ],
+  "SC": [
+    [
+      "Charleston",
+      "College-educated coastal county. D in 2024, but 7 points less so than in 2020.",
+      "Suburban shift. Democrats need a clear win."
+    ],
+    [
+      "Richland",
+      "Columbia. Large Black population, D base.",
+      "Turnout."
+    ],
+    [
+      "Greenville",
+      "The Upstate's largest county, strongly R but educated.",
+      "R margin shrinking means suburban defections."
+    ],
+    [
+      "Horry",
+      "Myrtle Beach. Fast-growing retiree R stronghold.",
+      "R turnout."
+    ],
+    [
+      "York",
+      "Charlotte exurbs.",
+      "Suburban growth and margin."
+    ],
+    [
+      "Beaufort",
+      "Hilton Head. Wealthy retirees, and a growing Black and military population.",
+      "Margin."
+    ],
+    [
+      "Spartanburg",
+      "Upstate. Moved 6 pts toward R from 2020 to 2024, about 52,000 net R votes.",
+      "Upstate Republican turnout. The Upstate is where Republicans bank their statewide margin."
+    ],
+    [
+      "Lexington",
+      "Columbia's suburbs, about 49,000 net R votes and nearly 6% of the state's vote.",
+      "Suburban Republicans. It was R+42 in the 2022 Senate race; Republicans want something close to that, not 2024's R+34."
+    ]
+  ],
+  "MS": [
+    [
+      "Hinds",
+      "Jackson. Majority Black, the D base.",
+      "Black turnout. Democrats need it high everywhere in the Delta too."
+    ],
+    [
+      "DeSoto",
+      "Memphis suburbs, fast-growing, increasingly Black.",
+      "The R margin shrinking is a long-term D trend."
+    ],
+    [
+      "Madison",
+      "Affluent Jackson suburb, educated.",
+      "Suburban defections."
+    ],
+    [
+      "Harrison",
+      "Gulfport and Biloxi. The Gulf Coast.",
+      "R margin."
+    ],
+    [
+      "Rankin",
+      "White suburban Jackson, very R.",
+      "R turnout."
+    ],
+    [
+      "Lee",
+      "Tupelo. Northeast Mississippi.",
+      "R margin."
+    ]
+  ],
+  "FL": [
+    [
+      "Miami-Dade",
+      "Majority Hispanic and the biggest county. It swung about 19 points R from 2020 to 2024 and voted R for president for the first time since 1988.",
+      "The best early test of whether 2024's Hispanic shift toward R holds or snaps back. Read it alongside Hidalgo (TX) and Osceola."
+    ],
+    [
+      "Broward",
+      "Florida's largest D vote bank, with a large Black and Caribbean population.",
+      "Margin recovery toward 2020's D+30, and turnout."
+    ],
+    [
+      "Palm Beach",
+      "Wealthy, mixed, and roughly even in 2024.",
+      "Suburban and retiree swing."
+    ],
+    [
+      "Hillsborough",
+      "Tampa. A swing county that went R in 2024.",
+      "Its margin compared with 2024's R+3 is a clean read of the suburban environment."
+    ],
+    [
+      "Pinellas",
+      "St. Petersburg. An old bellwether that has moved R.",
+      "Same read as Hillsborough, with older voters."
+    ],
+    [
+      "Orange",
+      "Orlando. A large Puerto Rican and Hispanic population, solidly D.",
+      "Non-Cuban Hispanic swing. Pair it with Osceola."
+    ],
+    [
+      "Osceola",
+      "Majority Hispanic (mostly Puerto Rican). Flipped R in 2024.",
+      "Whether Puerto Rican voters swing back."
+    ],
+    [
+      "Duval",
+      "Jacksonville. About 29% Black, flips back and forth.",
+      "Black turnout plus suburban swing in one county."
+    ],
+    [
+      "Lee",
+      "Fort Myers. The biggest R vote bank outside Miami-Dade (about 111,000 net R votes), and it moved 9 pts toward R from 2020 to 2024.",
+      "Retiree and exurban Republican turnout. Republicans need it at R+29 or better on full turnout."
+    ],
+    [
+      "Polk",
+      "Lakeland, on the I-4 corridor; 30% Hispanic and moved 6 pts toward R from 2020 to 2024.",
+      "Puerto Rican and other Hispanic voters on I-4. A margin back toward 2020 (R+15) is a good D sign."
+    ],
+    [
+      "Pasco",
+      "Tampa's northern exurb, about 80,000 net R votes.",
+      "Republican turnout. If Pasco's share of the vote lags, the Tampa-area R base isn't showing up."
+    ]
+  ],
+  "VA": [
+    [
+      "Fairfax",
+      "Northern Virginia's giant: highly educated, many federal workers, D+36.",
+      "Margin compared with 2024's D+36. Home to many federal workers, so it's a read on how they're voting."
+    ],
+    [
+      "Loudoun",
+      "Fast-growing, college-educated exurb that swung R in 2024.",
+      "Read it with Collin (TX), Forsyth (GA) and Delaware (OH)."
+    ],
+    [
+      "Prince William",
+      "Diverse suburb, with large Hispanic and Black populations.",
+      "Suburban swing among voters of color."
+    ],
+    [
+      "Virginia Beach",
+      "Military-heavy swing city, D+3 in 2024.",
+      "A bellwether for the Kiggans-Luria House race (VA-02) too."
+    ],
+    [
+      "Chesterfield",
+      "Richmond suburb that has trended D.",
+      "College suburbs outside Northern Virginia."
+    ],
+    [
+      "Henrico",
+      "Richmond suburb, about 30% Black and educated.",
+      "Black and suburban turnout."
+    ],
+    [
+      "Richmond city",
+      "The D base in central Virginia.",
+      "Turnout."
+    ],
+    [
+      "Hanover",
+      "Richmond's college-educated Republican suburb, the R counterpart to Henrico and Chesterfield.",
+      "College-educated Republicans. It moved 1.3 pts toward D from 2020 to 2024; more of that is a national suburban signal."
+    ],
+    [
+      "Bedford",
+      "Lynchburg-area Republican base at R+51, the biggest R net-vote county in Virginia.",
+      "Rural Republican turnout. The margin is locked in, so the vote count is the signal."
+    ]
+  ],
+  "KY": [
+    [
+      "Jefferson",
+      "Louisville. Kentucky's D base, where Booker is from.",
+      "Booker's home margin and Black turnout."
+    ],
+    [
+      "Fayette",
+      "Lexington. A college town that's solidly D.",
+      "Educated-voter swing."
+    ],
+    [
+      "Kenton",
+      "Northern Kentucky suburbs of Cincinnati, R+22.",
+      "Suburban swing in the earliest-closing state."
+    ],
+    [
+      "Boone",
+      "Fast-growing Cincinnati exurb, very R.",
+      "R turnout."
+    ],
+    [
+      "Warren",
+      "Bowling Green. Growing, R+25.",
+      "Mid-size metro swing."
+    ],
+    [
+      "Pike",
+      "Eastern Kentucky coal country, where polls close at 6 PM ET. Among the first counties in the nation to report.",
+      "Ancestral Democrats. Booker ran far ahead of Harris in eastern Kentucky in 2022, so compare against both 2024 and 2022."
+    ],
+    [
+      "Floyd",
+      "Eastern Kentucky, R+60 in 2024 but only R+31 for Senate in 2022.",
+      "Same as Pike."
+    ]
+  ]
+}

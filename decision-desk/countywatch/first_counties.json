@@ -1,0 +1,191 @@
+{
+  "_note": "First counties to watch on election night, in poll-closing order. 'first' says what usually arrives first in that state; it's sourced where a source is given and otherwise marked unverified. Counties are picked for being big, early, or telling. Edit freely.",
+  "states": [
+    {
+      "state": "KY",
+      "first": "The first polls in the country close at 6 PM ET in eastern Kentucky; the western part closes at 7 PM ET. Small eastern counties can report within the hour.",
+      "source": "",
+      "counties": [
+        "Pike",
+        "Floyd",
+        "Kenton",
+        "Jefferson"
+      ]
+    },
+    {
+      "state": "GA",
+      "first": "Advance (early in-person) and absentee votes. State law requires counties to report these by 8 PM ET; in 2024 the SOS expected 70-75% of all votes to be in by 8 PM. Election Day precincts follow.",
+      "source": "Atlanta News First, Nov 1 2024",
+      "counties": [
+        "Cobb",
+        "Gwinnett",
+        "Fulton",
+        "DeKalb",
+        "Henry",
+        "Forsyth"
+      ]
+    },
+    {
+      "state": "FL",
+      "first": "Early and mail votes. Florida law requires counties to report them within 30 minutes of polls closing at 7 PM ET (the Panhandle closes at 8 PM ET). Election Day precincts follow quickly.",
+      "source": "FactCheck.org, Nov 2022",
+      "counties": [
+        "Miami-Dade",
+        "Hillsborough",
+        "Pinellas",
+        "Osceola",
+        "Duval"
+      ]
+    },
+    {
+      "state": "VA",
+      "first": "Unverified for 2026. Virginia's early and mail votes have often come in as large batches from central absentee precincts. In 2022 they were much more Democratic than Election Day votes.",
+      "source": "MEDSL 2022 returns",
+      "counties": [
+        "Loudoun",
+        "Prince William",
+        "Virginia Beach",
+        "Chesterfield"
+      ]
+    },
+    {
+      "state": "SC",
+      "first": "Unverified: the order varies by county. Assume the first batches can be heavy on early votes.",
+      "source": "",
+      "counties": [
+        "Charleston",
+        "Richland",
+        "Greenville",
+        "Horry"
+      ]
+    },
+    {
+      "state": "NH",
+      "first": "Town by town, small towns first. New Hampshire has almost no early voting, so partial counts aren't skewed by vote method. They are skewed by geography: small rural towns report before Manchester and Nashua.",
+      "source": "",
+      "counties": [
+        "Hillsborough",
+        "Rockingham",
+        "Merrimack",
+        "Strafford"
+      ]
+    },
+    {
+      "state": "NC",
+      "first": "Mail ballots that arrived before Election Day come first, then early votes, which counties can't start tabulating until 7:30 PM. Both arrive between about 7:30 and 9:30 PM. Election Day precincts come in between about 8:30 PM and 1 AM.",
+      "source": "ABC11, 2024 counting guide",
+      "counties": [
+        "Wake",
+        "Mecklenburg",
+        "Guilford",
+        "Durham",
+        "New Hanover",
+        "Johnston"
+      ]
+    },
+    {
+      "state": "OH",
+      "first": "Early in-person and mail ballots come first, right after polls close at 7:30 PM. Counties can process them for two weeks beforehand. Election Day precincts follow.",
+      "source": "Mahoning Matters, 2024",
+      "counties": [
+        "Franklin",
+        "Cuyahoga",
+        "Hamilton",
+        "Montgomery"
+      ]
+    },
+    {
+      "state": "MI",
+      "first": "Absentees can be pre-processed but not tabulated until polls close. County and clerk sites update before the state's page, which is last. In the 2024 primary, Detroit had more than 80% of its absentees in by 10:30 PM. Four Upper Peninsula counties close at 9 PM ET.",
+      "source": "Votebeat Michigan, Aug 2026",
+      "counties": [
+        "Kent",
+        "Oakland",
+        "Macomb",
+        "Wayne"
+      ]
+    },
+    {
+      "state": "TX",
+      "first": "Early vote and mail ballots received so far are released shortly after polls close (8 PM ET in most of the state). In 2020, 88% of Harris County's votes were in that first batch, so the first number is most of the vote. Election Day counts are slow in Harris, Dallas, Tarrant and Collin.",
+      "source": "Texas Tribune, Oct 31 2024",
+      "counties": [
+        "Harris",
+        "Dallas",
+        "Tarrant",
+        "Bexar",
+        "Travis",
+        "Collin"
+      ]
+    },
+    {
+      "state": "ME",
+      "first": "Town by town, through the media. There's no state live feed, and Portland and other big towns take longer.",
+      "source": "",
+      "counties": [
+        "Cumberland",
+        "York",
+        "Kennebec",
+        "Penobscot"
+      ]
+    },
+    {
+      "state": "MS",
+      "first": "Unverified.",
+      "source": "",
+      "counties": [
+        "Hinds",
+        "DeSoto",
+        "Madison"
+      ]
+    },
+    {
+      "state": "KS",
+      "first": "Unverified. Johnson County's advance votes have usually been an early, large batch.",
+      "source": "",
+      "counties": [
+        "Johnson",
+        "Sedgwick",
+        "Shawnee"
+      ]
+    },
+    {
+      "state": "IA",
+      "first": "Unverified for 2026. In 2022, Iowa's early and absentee vote was about D+20 and its Election Day vote about R+26, so whichever comes first will mislead.",
+      "source": "MEDSL 2022 returns",
+      "counties": [
+        "Polk",
+        "Linn",
+        "Johnson",
+        "Scott"
+      ]
+    },
+    {
+      "state": "MN",
+      "first": "Unverified. Rural precincts usually finish before Hennepin and Ramsey.",
+      "source": "",
+      "counties": [
+        "Hennepin",
+        "Ramsey",
+        "Dakota",
+        "Anoka"
+      ]
+    },
+    {
+      "state": "NE",
+      "first": "Unverified.",
+      "source": "",
+      "counties": [
+        "Douglas",
+        "Lancaster",
+        "Sarpy"
+      ]
+    },
+    {
+      "state": "AK",
+      "first": "Most results arrive after 1 AM ET and keep coming for days. Not useful on election night.",
+      "source": "",
+      "counties": []
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+discord.py>=2.4
+python-dotenv>=1.0
+pillow>=10.1
+tzdata
+openpyxl>=3.1
+xlwings; sys_platform == "win32"

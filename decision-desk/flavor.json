@@ -1,0 +1,182 @@
+{
+  "_note": "Lines the bot picks from at random. Edit freely; changes apply without restarting. {outlet} and {lead} work where shown.",
+  "call": [
+    "The desk has seen enough.",
+    "Projection confirmed. No further questions.",
+    "Counting continues. The desk has stopped waiting.",
+    "The desk has spoken."
+  ],
+  "flip": [
+    "Seat changes hands.",
+    "That's a pickup. Somebody update the wall map.",
+    "Flip confirmed. Somewhere a consultant is updating their resume."
+  ],
+  "retract": [
+    "The desk regrets the error. Mostly.",
+    "Back to the counting room.",
+    "This call never happened. Please disregard."
+  ],
+  "desk_ahead": [
+    "The desk beat {outlet} by {lead}.",
+    "{outlet} catches up to the desk, {lead} late."
+  ],
+  "desk_behind": [
+    "{outlet} got there first, by {lead}.",
+    "The pros beat us by {lead}. We were being careful."
+  ],
+  "desk_wrong": [
+    "⚠️ The desk called this the other way. Awkward."
+  ],
+  "_races_note": "Race-specific lines, used instead of the generic call/flip line when that race is called for that party. Each references a real 2026 campaign moment (see the meme file). Add, edit or delete freely; changes apply live.",
+  "races": {
+    "TX-SEN": {
+      "D": [
+        "Proof of life: confirmed. James Talarico has been located, and he's headed to the Senate.",
+        "The Tala-Freak-Out Tip Line can stop taking calls. He's been found. In the Senate.",
+        "He had the flu. Now he has a Senate seat."
+      ],
+      "R": [
+        "The steaks couldn't be higher, and Texas just ordered brisket.",
+        "Paxton holds Texas. The missing posters can come down."
+      ]
+    },
+    "ME-SEN": {
+      "D": [
+        "Susan Collins is deeply concerned.",
+        "Troy Jackson's victory speech is expected to be two words long."
+      ],
+      "R": [
+        "Collins survives again. She is cautiously relieved.",
+        "Maine keeps Collins. The desk was going to add something, but was told to shut up."
+      ]
+    },
+    "AK-SEN": {
+      "D": [
+        "Happy to help, Dan.",
+        "Peltola wins. Sullivan has been seen glancing at her paddle for how to concede."
+      ],
+      "R": [
+        "Sullivan holds. The desk has confirmed it was the right Dan Sullivan.",
+        "Copied the right answer when it counted."
+      ]
+    },
+    "NC-SEN": {
+      "D": [
+        "The trash poll was right.",
+        "Cooper flips it. Michael Whatley has called this projection a trash poll."
+      ],
+      "R": [
+        "Every single poll showed this race tightening. Apparently.",
+        "The trash poll owes Michael Whatley an apology."
+      ]
+    },
+    "MI-SEN": {
+      "D": [
+        "Florida Man may now return to Florida.",
+        "Mike Dodgers couldn't dodge this one."
+      ],
+      "R": [
+        "Florida Man wins Michigan.",
+        "Rogers wins. The Cape Coral listing can come down."
+      ]
+    },
+    "MN-SEN": {
+      "D": [
+        "Back to Michele on the sidelines.",
+        "Minnesotans may continue to say where they're from."
+      ],
+      "R": [
+        "Sideline report: Tafoya scores.",
+        "Minnesota elects its first Republican senator since 2008. Skip the coffee shop and celebrate."
+      ]
+    },
+    "SC-SEN": {
+      "D": [
+        "The surgeon gets the scalpel.",
+        "Appendectomy successful."
+      ],
+      "R": [
+        "National security may not be her thing, but winning is.",
+        "The Graham seat stays in the Graham family."
+      ]
+    },
+    "IA-SEN": {
+      "D": [
+        "Turek flips Iowa. He'll be doing the full Grassley on the victory tour.",
+        "Both Tureks won."
+      ],
+      "R": [
+        "It was a tale of two Tureks, and neither of them won.",
+        "Hinson holds Iowa. Millennials, start saving."
+      ]
+    },
+    "KS-SEN": {
+      "D": [
+        "The preacher wins Kansas. Pinocchio filter retracted.",
+        "Kansas gets religion."
+      ],
+      "R": [
+        "The dark blue danger has been contained.",
+        "Marshall holds Kansas. Sermon's over."
+      ]
+    },
+    "NH-SEN": {
+      "D": [
+        "Pappas holds New Hampshire. The Sununu franchise takes a season off."
+      ],
+      "R": [
+        "Another Sununu. New Hampshire's longest-running franchise is renewed for another season."
+      ]
+    },
+    "OH-SEN": {
+      "D": [
+        "Sherrod's back.",
+        "The comeback tour sells out. Brown returns to the Senate."
+      ],
+      "R": [
+        "Husted holds Ohio. Sherrod's comeback tour has been cancelled."
+      ]
+    },
+    "GA-SEN": {
+      "D": [
+        "Ossoff holds Georgia. He'd like to remind you he's still not running in 2028."
+      ],
+      "R": [
+        "Collins flips Georgia. Ossoff's 2028 non-campaign is now moot."
+      ]
+    },
+    "NE-SEN": {
+      "I": [
+        "The mechanic fixed it.",
+        "An independent wins Nebraska. The desk needs a third color."
+      ],
+      "R": [
+        "Ricketts holds. Osborn goes back to the shop."
+      ]
+    },
+    "OH-GOV": {
+      "D": [
+        "The doctor is in. Amy Acton wins Ohio."
+      ],
+      "R": [
+        "Vivek wins Ohio. The town hall tour never ends."
+      ]
+    },
+    "GA-GOV": {
+      "D": [
+        "Bottoms up."
+      ],
+      "R": [
+        "Rick Jackson wins Georgia. Bottoms down."
+      ]
+    },
+    "US-HOUSE": {
+      "D": [
+        "The gavel changes hands. Somebody find the new Speaker a podium."
+      ],
+      "R": [
+        "Republicans keep the gavel. Same Speaker's office, same view."
+      ]
+    }
+  }
+}

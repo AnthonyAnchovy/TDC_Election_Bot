@@ -1,0 +1,20 @@
+{
+  "junkie_role": "Election Junkie",
+  "admin_role": "",
+  "threshold": "majority",
+  "board_channel": "decision-desk-board",
+  "desk_channel": "decision-desk",
+  "post_map_after_call": true,
+  "predictions_deadline": "2026-11-03T18:00:00-05:00",
+  "hide_predictions_until_deadline": false,
+  "points": {
+    "senate": 1,
+    "house_control": 5,
+    "governor": 1,
+    "battleground": 1,
+    "flip_bonus": 1
+  },
+  "score_against": "pros_then_desk",
+  "timezone": "America/Chicago",
+  "post_prediction_check": true
+}

@@ -1,0 +1,12 @@
+{
+ "shares": {
+  "DEM_BLACK": 0.95,
+  "DEM_NONBLACK": 0.95,
+  "REP": 0.03,
+  "UNA_BLACK": 0.95,
+  "UNA_NONBLACK": 0.5483
+ },
+ "r2": 0.811,
+ "mae_pts": 6.18,
+ "counties": 100
+}

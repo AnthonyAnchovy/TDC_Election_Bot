@@ -1,0 +1,554 @@
+{
+  "_note": "Names shown on call cards and board posts. Governors verified Oct 22, 2026 against three sources (Wikipedia, 270toWin, a Sept 23 race overview) plus direct checks of every late primary, runoff and recount. Battleground House nominees from 270toWin's state pages, cross-checked with Wikipedia and local news. An I entry adds an Independent option to the /predict picker. Blank or missing = 'the Democrat' / 'the Republican'.",
+  "US-HOUSE": {
+    "D": "Democrats",
+    "R": "Republicans"
+  },
+  "AK-SEN": {
+    "D": "Mary Peltola",
+    "R": "Dan Sullivan"
+  },
+  "AL-SEN": {
+    "D": "Everett Wess",
+    "R": "Barry Moore"
+  },
+  "AR-SEN": {
+    "D": "Hallie Shoffner",
+    "R": "Tom Cotton"
+  },
+  "CO-SEN": {
+    "D": "John Hickenlooper",
+    "R": "Mark Baisley"
+  },
+  "DE-SEN": {
+    "D": "Chris Coons",
+    "R": "Michael Katz"
+  },
+  "FL-SEN": {
+    "D": "Angie Nixon",
+    "R": "Ashley Moody"
+  },
+  "GA-SEN": {
+    "D": "Jon Ossoff",
+    "R": "Mike Collins"
+  },
+  "IA-SEN": {
+    "D": "Josh Turek",
+    "R": "Ashley Hinson"
+  },
+  "ID-SEN": {
+    "R": "Jim Risch",
+    "I": "Todd Achilles"
+  },
+  "IL-SEN": {
+    "D": "Juliana Stratton",
+    "R": "Don Tracy"
+  },
+  "KS-SEN": {
+    "D": "Adam Hamilton",
+    "R": "Roger Marshall"
+  },
+  "KY-SEN": {
+    "D": "Charles Booker",
+    "R": "Andy Barr"
+  },
+  "LA-SEN": {
+    "D": "Jamie Davis",
+    "R": "Julia Letlow"
+  },
+  "MA-SEN": {
+    "D": "Ed Markey",
+    "R": "John Deaton"
+  },
+  "ME-SEN": {
+    "D": "Troy Jackson",
+    "R": "Susan Collins"
+  },
+  "MI-SEN": {
+    "D": "Abdul El-Sayed",
+    "R": "Mike Rogers"
+  },
+  "MN-SEN": {
+    "D": "Peggy Flanagan",
+    "R": "Michele Tafoya"
+  },
+  "MS-SEN": {
+    "D": "Scott Colom",
+    "R": "Cindy Hyde-Smith"
+  },
+  "MT-SEN": {
+    "D": "Alani Bankhead",
+    "R": "Kurt Alme",
+    "I": "Seth Bodnar"
+  },
+  "NC-SEN": {
+    "D": "Roy Cooper",
+    "R": "Michael Whatley"
+  },
+  "NE-SEN": {
+    "R": "Pete Ricketts",
+    "I": "Dan Osborn"
+  },
+  "NH-SEN": {
+    "D": "Chris Pappas",
+    "R": "John E. Sununu"
+  },
+  "NJ-SEN": {
+    "D": "Cory Booker",
+    "R": "Justin Murphy"
+  },
+  "NM-SEN": {
+    "D": "Ben Ray Luján",
+    "R": ""
+  },
+  "OH-SEN": {
+    "D": "Sherrod Brown",
+    "R": "Jon Husted"
+  },
+  "OK-SEN": {
+    "D": "",
+    "R": "Kevin Hern"
+  },
+  "OR-SEN": {
+    "D": "Jeff Merkley",
+    "R": "David Brock Smith"
+  },
+  "RI-SEN": {
+    "D": "Jack Reed",
+    "R": ""
+  },
+  "SC-SEN": {
+    "D": "Annie Andrews",
+    "R": "Darline Graham"
+  },
+  "SD-SEN": {
+    "R": "Mike Rounds",
+    "I": "Brian Bengs"
+  },
+  "TN-SEN": {
+    "D": "Marquita Bradshaw",
+    "R": "Bill Hagerty"
+  },
+  "TX-SEN": {
+    "D": "James Talarico",
+    "R": "Ken Paxton"
+  },
+  "VA-SEN": {
+    "D": "Mark Warner",
+    "R": "Bert Mizusawa"
+  },
+  "WV-SEN": {
+    "D": "Rachel Fetty Anderson",
+    "R": "Shelley Moore Capito"
+  },
+  "WY-SEN": {
+    "D": "James W. Byrd",
+    "R": "Harriet Hageman"
+  },
+  "AK-GOV": {
+    "D": "Jonathan Kreiss-Tomkins",
+    "R": ""
+  },
+  "AL-GOV": {
+    "D": "Doug Jones",
+    "R": "Tommy Tuberville"
+  },
+  "AR-GOV": {
+    "D": "Fredrick Love",
+    "R": "Sarah Huckabee Sanders"
+  },
+  "AZ-GOV": {
+    "D": "Katie Hobbs",
+    "R": "Andy Biggs"
+  },
+  "CA-GOV": {
+    "D": "Xavier Becerra",
+    "R": "Steve Hilton"
+  },
+  "CO-GOV": {
+    "D": "Phil Weiser",
+    "R": "Victor Marx"
+  },
+  "CT-GOV": {
+    "D": "Ned Lamont",
+    "R": "Ryan Fazio"
+  },
+  "FL-GOV": {
+    "D": "David Jolly",
+    "R": "Byron Donalds"
+  },
+  "GA-GOV": {
+    "D": "Keisha Lance Bottoms",
+    "R": "Rick Jackson"
+  },
+  "HI-GOV": {
+    "D": "Josh Green",
+    "R": "Gary Cordery"
+  },
+  "IA-GOV": {
+    "D": "Rob Sand",
+    "R": "Zach Lahn"
+  },
+  "ID-GOV": {
+    "D": "Terri Pickens Manweiler",
+    "R": "Brad Little"
+  },
+  "IL-GOV": {
+    "D": "JB Pritzker",
+    "R": "Darren Bailey"
+  },
+  "KS-GOV": {
+    "D": "Cindy Holscher",
+    "R": "Ty Masterson"
+  },
+  "MA-GOV": {
+    "D": "Maura Healey",
+    "R": "Mike Minogue"
+  },
+  "MD-GOV": {
+    "D": "Wes Moore",
+    "R": "Dan Cox"
+  },
+  "ME-GOV": {
+    "D": "Hannah Pingree",
+    "R": "Bobby Charles",
+    "I": "Rick Bennett"
+  },
+  "MI-GOV": {
+    "D": "Jocelyn Benson",
+    "R": "John James"
+  },
+  "MN-GOV": {
+    "D": "Amy Klobuchar",
+    "R": "Lisa Demuth"
+  },
+  "NE-GOV": {
+    "D": "Lynne Walz",
+    "R": "Jim Pillen"
+  },
+  "NH-GOV": {
+    "D": "Cinde Warmington",
+    "R": "Kelly Ayotte"
+  },
+  "NM-GOV": {
+    "D": "Deb Haaland",
+    "R": "Gregg Hull"
+  },
+  "NV-GOV": {
+    "D": "Aaron Ford",
+    "R": "Joe Lombardo"
+  },
+  "NY-GOV": {
+    "D": "Kathy Hochul",
+    "R": "Bruce Blakeman"
+  },
+  "OH-GOV": {
+    "D": "Amy Acton",
+    "R": "Vivek Ramaswamy"
+  },
+  "OK-GOV": {
+    "D": "Cyndi Munson",
+    "R": "Mike Mazzei"
+  },
+  "OR-GOV": {
+    "D": "Tina Kotek",
+    "R": "Christine Drazan"
+  },
+  "PA-GOV": {
+    "D": "Josh Shapiro",
+    "R": "Stacy Garrity"
+  },
+  "RI-GOV": {
+    "D": "Helena Foulkes",
+    "R": "Aaron Guckian",
+    "I": "Ken Block"
+  },
+  "SC-GOV": {
+    "D": "Jermaine Johnson",
+    "R": "Alan Wilson"
+  },
+  "SD-GOV": {
+    "D": "Dan Ahlers",
+    "R": "Larry Rhoden"
+  },
+  "TN-GOV": {
+    "D": "Jerri Green",
+    "R": "Marsha Blackburn"
+  },
+  "TX-GOV": {
+    "D": "Gina Hinojosa",
+    "R": "Greg Abbott"
+  },
+  "VT-GOV": {
+    "D": "Amanda Janoo",
+    "R": "Phil Scott"
+  },
+  "WI-GOV": {
+    "D": "David Crowley",
+    "R": "Tom Tiffany"
+  },
+  "WY-GOV": {
+    "D": "Ken Casner",
+    "R": "Eric Barlow"
+  },
+  "AZ-01": {
+    "D": "Amish Shah",
+    "R": "Jay Feely"
+  },
+  "AZ-06": {
+    "D": "JoAnna Mendoza",
+    "R": "Juan Ciscomani"
+  },
+  "CA-13": {
+    "D": "Adam Gray",
+    "R": "Kevin Lincoln"
+  },
+  "CA-22": {
+    "D": "Randy Villegas",
+    "R": "David Valadao"
+  },
+  "CA-48": {
+    "D": "Marni Von Wilpert",
+    "R": "Jim Desmond"
+  },
+  "CO-05": {
+    "D": "Jessica Killin",
+    "R": "Jeff Crank"
+  },
+  "CO-08": {
+    "D": "Manny Rutinel",
+    "R": "Gabe Evans"
+  },
+  "FL-13": {
+    "D": "Leela Gray",
+    "R": "Anna Paulina Luna"
+  },
+  "FL-14": {
+    "D": "Kathy Castor",
+    "R": "Mike Beltran"
+  },
+  "FL-22": {
+    "D": "Pia Dandiya",
+    "R": "Casey Askar"
+  },
+  "FL-25": {
+    "D": "Jared Moskowitz",
+    "R": "Scott Singer"
+  },
+  "FL-27": {
+    "D": "Eliott Rodriguez",
+    "R": "Maria Elvira Salazar"
+  },
+  "IA-01": {
+    "D": "Christina Bohannan",
+    "R": "Mariannette Miller-Meeks"
+  },
+  "IA-02": {
+    "D": "Lindsay James",
+    "R": "Joe Mitchell"
+  },
+  "IA-03": {
+    "D": "Sarah Trone Garriott",
+    "R": "Zach Nunn"
+  },
+  "KY-06": {
+    "D": "Zach Dembo",
+    "R": "Ralph Alvarado"
+  },
+  "ME-02": {
+    "D": "Matthew Dunlap",
+    "R": "Paul LePage"
+  },
+  "MI-04": {
+    "D": "Sean McCann",
+    "R": "Bill Huizenga"
+  },
+  "MI-07": {
+    "D": "William Lawrence",
+    "R": "Tom Barrett"
+  },
+  "MI-10": {
+    "D": "Christina Hines",
+    "R": "Michael Bouchard"
+  },
+  "MN-01": {
+    "D": "Jake Johnson",
+    "R": "Brad Finstad"
+  },
+  "MT-01": {
+    "D": "Sam Forstag",
+    "R": "Aaron Flint"
+  },
+  "NC-01": {
+    "D": "Don Davis",
+    "R": "Laurie Buckhout"
+  },
+  "NC-11": {
+    "D": "Jamie Ager",
+    "R": "Jennifer Balkcom"
+  },
+  "NJ-07": {
+    "D": "Rebecca Bennett",
+    "R": "Tom Kean Jr."
+  },
+  "NM-02": {
+    "D": "Gabe Vasquez",
+    "R": "Gregory Cunningham"
+  },
+  "NY-17": {
+    "D": "Cait Conley",
+    "R": "Mike Lawler"
+  },
+  "NY-21": {
+    "D": "Blake Gendebien",
+    "R": "Anthony Constantino"
+  },
+  "OH-07": {
+    "D": "Brian Poindexter",
+    "R": "Max Miller"
+  },
+  "OH-09": {
+    "D": "Marcy Kaptur",
+    "R": "Derek Merrin"
+  },
+  "OH-10": {
+    "D": "Kristina Knickerbocker",
+    "R": "Mike Turner"
+  },
+  "OH-15": {
+    "D": "Don Leonard",
+    "R": "Mike Carey"
+  },
+  "PA-01": {
+    "D": "Bob Harvie",
+    "R": "Brian Fitzpatrick"
+  },
+  "PA-07": {
+    "D": "Bob Brooks",
+    "R": "Ryan Mackenzie"
+  },
+  "PA-08": {
+    "D": "Paige Cognetti",
+    "R": "Rob Bresnahan"
+  },
+  "PA-10": {
+    "D": "Janelle Stelson",
+    "R": "Scott Perry"
+  },
+  "SC-01": {
+    "D": "Nancy Lacore",
+    "R": "Jenny Honeycutt"
+  },
+  "TX-15": {
+    "D": "Bobby Pulido",
+    "R": "Monica De La Cruz"
+  },
+  "TX-28": {
+    "D": "Henry Cuellar",
+    "R": "Tano Tijerina"
+  },
+  "TX-34": {
+    "D": "Vicente Gonzalez",
+    "R": "Eric Flores"
+  },
+  "TX-35": {
+    "D": "Johnny Garcia",
+    "R": "Carlos De La Cruz"
+  },
+  "VA-01": {
+    "D": "Shannon Taylor",
+    "R": "Rob Wittman"
+  },
+  "VA-02": {
+    "D": "Elaine Luria",
+    "R": "Jen Kiggans"
+  },
+  "WA-03": {
+    "D": "Marie Gluesenkamp Perez",
+    "R": "John Braun"
+  },
+  "WI-01": {
+    "D": "Mitchell Berman",
+    "R": "Bryan Steil"
+  },
+  "WI-03": {
+    "D": "Rebecca Cooke",
+    "R": "Derrick Van Orden"
+  },
+  "AL-02": {
+    "D": "Shomari Figures",
+    "R": "Rhett Marques"
+  },
+  "IN-01": {
+    "D": "Frank Mrvan",
+    "R": "Barb Regnitz"
+  },
+  "NY-03": {
+    "D": "Tom Suozzi",
+    "R": "Mike LiPetri"
+  },
+  "NY-04": {
+    "D": "Laura Gillen",
+    "R": "Jeanine Driscoll"
+  },
+  "VA-05": {
+    "D": "Tom Perriello",
+    "R": "John McGuire"
+  },
+  "VA-07": {
+    "D": "Eugene Vindman",
+    "R": "Doug Ollivant"
+  },
+  "OH-01": {
+    "D": "Greg Landsman",
+    "R": "Eric Conroy"
+  },
+  "OH-13": {
+    "D": "Emilia Sykes",
+    "R": "Carey Coleman"
+  },
+  "NV-01": {
+    "D": "Dina Titus",
+    "R": "Carrie Buck"
+  },
+  "NV-02": {
+    "D": "Teresa Benitez-Thompson",
+    "R": "David Flippo"
+  },
+  "NV-03": {
+    "D": "Susie Lee",
+    "R": "Martin O'Donnell"
+  },
+  "NV-04": {
+    "D": "Steven Horsford",
+    "R": "Cody Whipple"
+  },
+  "NH-01": {
+    "D": "Stefany Shaheen",
+    "R": "Anthony DiLorenzo"
+  },
+  "NH-02": {
+    "D": "Maggie Goodlander",
+    "R": "Lily Tang Williams"
+  },
+  "FL-09": {
+    "D": "Darren Soto",
+    "R": "Dan Green"
+  },
+  "CO-03": {
+    "D": "Dwayne Romero",
+    "R": "Jeff Hurd"
+  },
+  "CO-04": {
+    "D": "Eileen Laubacher",
+    "R": "Lauren Boebert"
+  },
+  "TX-09": {
+    "D": "Leticia Gutierrez",
+    "R": "Alex Mealer"
+  },
+  "TX-23": {
+    "D": "Katy Padilla Stout",
+    "R": "Brandon Herrera"
+  }
+}

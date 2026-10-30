@@ -1,0 +1,33 @@
+{
+  "_note": "Where /results gets live counts. 'url' is the 2026 election-night file; 'test_url' is the same file from Nov 2024, for /resultstest. If a state renames its file on the night, paste the new link here and the next /results picks it up (no restart). 'pages' are official results sites for states without a feed.",
+  "cache_seconds": 60,
+  "states": {
+    "FL": {
+      "format": "fl_txt",
+      "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20261103_ElecResultsFL.txt",
+      "test_url": "https://flelectionfiles.floridados.gov/enightfilespublic/20241105_ElecResultsFL.txt",
+      "page": "https://results.elections.myflorida.com/",
+      "source": "Florida Division of Elections"
+    },
+    "NC": {
+      "format": "nc_zip",
+      "url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip",
+      "test_url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2024_11_05/results_pct_20241105.zip",
+      "page": "https://er.ncsbe.gov/",
+      "source": "NC State Board of Elections"
+    },
+    "VA": {
+      "format": "ev_data",
+      "url": "https://enr.elections.virginia.gov/results/public/api/elections/Virginia/2026-November-General/data",
+      "test_url": "https://enr.elections.virginia.gov/results/public/api/elections/Virginia/2025-November-General/data",
+      "page": "https://enr.elections.virginia.gov/results/public/virginia/2026-November-General",
+      "source": "Virginia Department of Elections"
+    }
+  },
+  "pages": {
+    "AZ": "https://results.arizona.vote/",
+    "CA": "https://electionresults.sos.ca.gov/",
+    "NV": "https://silverstateelection.nv.gov/",
+    "PA": "https://www.electionreturns.pa.gov/"
+  }
+}
