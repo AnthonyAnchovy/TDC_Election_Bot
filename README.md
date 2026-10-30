@@ -1,4 +1,4 @@
-# Decision Desk bot
+# TDC Decision Desk bot
 
 **Before election night:** everyone runs `/predict`, clicks states blue or red, and saves. Once results come in, the bot scores the picks on a leaderboard.
 
