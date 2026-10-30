@@ -11,6 +11,7 @@ majority. /procall logs an outlet's call (AP, NYT, Wasserman...) for the scorebo
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -190,10 +191,43 @@ def channel_note(guild, key: str) -> str:
 
 
 # =========================================================================== official calls
-def map_file(kind: str, calls: dict | None = None) -> discord.File:
-    calls = store.all() if calls is None else calls
-    buf = G.house_chart(calls) if kind in ("house", "control") else G.tile_map(kind, calls)
+async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File:
+    """The chamber map. Senate and governor maps follow the card theme (classic keeps the original tile map) and
+    ring `highlight`, the race just called; the House chart is the same in every theme. Calls are read here, and
+    the drawing runs in a worker thread."""
+    calls = dict(store.all() if calls is None else calls)
+    theme = card_theme()
+    if kind in ("house", "control"):
+        render = functools.partial(G.house_chart, calls)
+    elif theme == "classic":
+        render = functools.partial(G.tile_map, kind, calls)
+    else:
+        render = functools.partial(G.chamber_map, theme, kind, calls, highlight=highlight, when=now())
+    buf = await asyncio.to_thread(render)
     return discord.File(buf, filename=f"{kind}_map.png")
+
+
+THEME_CHOICES = [app_commands.Choice(name="Wire (halftone poster)", value="wire"),
+                 app_commands.Choice(name="Editorial (results page)", value="editorial"),
+                 app_commands.Choice(name="Classic (glass card)", value="classic")]
+
+
+def card_theme() -> str:
+    """The call card look: what an admin picked with /cardtheme, else config.json's card_theme."""
+    theme = store.setting("card_theme") or CFG.get("card_theme", "wire")
+    return theme if theme in G.CARD_THEMES else "wire"
+
+
+async def card_file(rid: str, party: str | None, how: str, *, retracted: bool = False,
+                    theme: str | None = None) -> discord.File:
+    """The call card, with the chamber's seat counts as they stand right now. Counts are read here (SQLite stays
+    on this thread); the drawing runs in a worker thread so a slow render never stalls the bot."""
+    kind = R.RACES[rid]["type"]
+    counts = S.chamber_counts("house" if kind in ("house", "control") else kind, store.all())
+    buf = await asyncio.to_thread(
+        G.call_card, rid, party, candidate=load_candidates().get(rid, {}).get(party) if party else None, tally=how,
+        when=now(), retracted=retracted, counts=counts, theme=theme or card_theme())
+    return discord.File(buf, filename=f"{rid}_{'retracted' if retracted else party}.png")
 
 
 def house_line() -> str:
@@ -209,9 +243,15 @@ async def follow_up(guild, rid: str, fallback):
         extra = f"\n{S.house_tracker_text(results())}" if rid in CMP.RATING_OF else ""
         await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}{extra}")
     elif kind == "control":
-        await post(guild, "desk_channel", fallback, content=S.path_text("house", calls), file=map_file("house"))
+        # the wire and editorial cards already show the House (seat strip / hemicycle), so only classic gets the chart
+        if card_theme() == "classic":
+            await post(guild, "desk_channel", fallback, content=S.path_text("house", calls),
+                       file=await map_file("house", calls))
+        else:
+            await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}")
     elif CFG.get("post_map_after_call", True):
-        await post(guild, "desk_channel", fallback, content=S.path_text(kind, calls), file=map_file(kind))
+        await post(guild, "desk_channel", fallback, content=S.path_text(kind, calls),
+                   file=await map_file(kind, calls, highlight=rid))
 
 
 def prediction_check(guild, rid: str, winner: str) -> tuple[list[str], list[str]]:
@@ -246,8 +286,7 @@ def claim_official(rid: str, party: str, how: str) -> bool:
 async def make_official(guild, rid: str, party: str, how: str, fallback=None):
     """Post the card and map for a call already recorded with claim_official."""
     who = cand(rid, party)
-    card = G.call_card(rid, party, candidate=load_candidates().get(rid, {}).get(party), tally=how,
-                       when=datetime.now(TZ))
+    card = await card_file(rid, party, how)
     h = S.holder(rid)
     lines = ["🚨 **DECISION DESK PROJECTION**",
              f"**{who[0].upper() + who[1:]}** {S.EMOJI[party]} {'win' if rid == 'US-HOUSE' else 'wins'} "
@@ -268,8 +307,7 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None):
         check = prediction_check_text(guild, rid, party)
         if check:
             lines.append(f"\n**Prediction check**\n{check}")
-    await post(guild, "desk_channel", fallback, content="\n".join(x for x in lines if x),
-               file=discord.File(card, filename=f"{rid}_{party}.png"))
+    await post(guild, "desk_channel", fallback, content="\n".join(x for x in lines if x), file=card)
     await follow_up(guild, rid, fallback)
 
 
@@ -278,10 +316,9 @@ async def retract_official(guild, rid: str, how: str, fallback=None):
     if not prev:  # a simultaneous retraction already went through
         return
     store.uncall(rid, {"how": how})
-    card = G.call_card(rid, prev["party"] if prev else None, tally=how, when=datetime.now(TZ), retracted=True)
+    card = await card_file(rid, prev["party"], how, retracted=True)
     text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{flavor('retract') or ''}".strip()
-    await post(guild, "desk_channel", fallback, content=text,
-               file=discord.File(card, filename=f"{rid}_retracted.png"))
+    await post(guild, "desk_channel", fallback, content=text, file=card)
     await follow_up(guild, rid, fallback)
 
 
@@ -1129,8 +1166,8 @@ async def earlywarning_cmd(interaction: discord.Interaction):
                                app_commands.Choice(name="Governors", value="governor"),
                                app_commands.Choice(name="House", value="house")])
 async def map_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str]):
-    await interaction.response.send_message(content=S.path_text(chamber.value, store.all()),
-                                            file=map_file(chamber.value))
+    await interaction.response.defer()
+    await interaction.followup.send(content=S.path_text(chamber.value, store.all()), file=await map_file(chamber.value))
 
 
 @tree.command(name="race", description="Everything about one race: votes, official call, pro calls.")
@@ -1511,6 +1548,39 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
     await interaction.response.send_message(
         "Calls, votes, outlet calls and alerts cleared" + (" along with predictions." if include_predictions
                                                             else ". Predictions kept."))
+
+
+@tree.command(name="cardtheme", description="Admin: change the look of official call cards.")
+@app_commands.guild_only()
+@app_commands.describe(theme="Leave blank to go back to the config.json default")
+@app_commands.choices(theme=THEME_CHOICES)
+async def cardtheme_cmd(interaction: discord.Interaction, theme: app_commands.Choice[str] | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    store.set_setting("card_theme", theme.value if theme else None)
+    await interaction.response.defer(ephemeral=True)
+    sample = await card_file("OH-SEN", "D", "Sample card", theme=card_theme())
+    note = (f"Call cards now use **{card_theme()}**." if theme else
+            f"Back to the config.json default: **{card_theme()}**.")
+    await interaction.followup.send(f"{note} Here's a sample (OH-SEN, a flip):", file=sample, ephemeral=True)
+
+
+@tree.command(name="cardpreview", description="See the call card for any race and winner, in any theme. Only you see it.")
+@app_commands.guild_only()
+@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", winner="Who wins on the card",
+                       theme="Defaults to the current theme", retracted="Show the retraction card instead")
+@app_commands.autocomplete(race=race_autocomplete)
+@app_commands.choices(winner=PARTY_CHOICES, theme=THEME_CHOICES)
+async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str],
+                          theme: app_commands.Choice[str] | None = None, retracted: bool = False):
+    rid = resolve(race)
+    if not rid:
+        return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    how = "Retracted by the desk (preview)" if retracted else "Called by the desk (preview)"
+    card = await card_file(rid, winner.value, how, retracted=retracted, theme=theme.value if theme else None)
+    await interaction.followup.send(f"Preview: {label(rid)} · {theme.value if theme else card_theme()} theme. "
+                                    "Seat counts are the desk's current tally.", file=card, ephemeral=True)
 
 
 # =========================================================================== County Watch

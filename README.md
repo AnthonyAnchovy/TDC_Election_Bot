@@ -174,7 +174,15 @@ The Read Me sheet has the details and limits.
 - **`seat_info.json`**: incumbents, open-seat reasons and Cook PVI for `/seat`. Changes apply live.
 - **`results_sources.json`**: live results file links and official results pages. Changes apply live.
 - **`competitive.py`**: the bonus House seats, plus the `SAFE` list of pre-filled races. Edit them before people predict.
-- **`config.json`**: channel names, role name, deadline, points, and `hide_predictions_until_deadline`.
+- **`config.json`**: channel names, role name, deadline, points, `hide_predictions_until_deadline`, and `card_theme`.
+- **Call card themes** (`card_theme` in `config.json`, or `/cardtheme` to switch live):
+  - `wire` (default): party-color poster with the state in halftone, a yellow PICKUP tag on flips, and a seat strip showing where the chamber stands, with the race just called ringed in yellow.
+  - `editorial`: a results-page card with a serif name, a locator map and the state cut-out. Senate and governor cards end in a seat strip; House seats and House control get a taller card with a hemicycle.
+  - `classic`: the original glass card.
+  - The map posted after each Senate or governor call, and by `/map`, follows the theme. Wire draws a tile map on dark ink, and Editorial draws a geographic map with Alaska and Hawaii insets. Both highlight the race just called, mark flips, and show the seat strip. Classic keeps the original tile map, as do the `/predict` picker and prediction cards. The House chart looks the same in every theme. With wire or editorial, it isn't posted after the House control call, since that card already shows the chamber.
+  - `/cardtheme` (admin) sets the theme and shows a sample; leave it blank to go back to `config.json`. `/cardpreview race winner [theme]` shows any card privately, so you can check how a race will look before the night.
+  - The fonts are in `assets/fonts` (SIL Open Font License), so cards look the same on any PC.
+- **`district_shapes.json`**: the 2026 boundaries of all 435 House districts, used by the editorial card to highlight the district inside the state. 41 states come from Census 119th Congress files. The nine states with new 2026 lines (TX, CA, FL, NC, OH, UT, TN, LA, AL) come from each state's official plan file, or from Census's 120th Congress block file for OH and AL. A Census block-by-block comparison confirms those nine are the only states that changed. To rebuild it after a map change, see `tools/build_districts.py`.
 - **`assets/`**:
   - `calls/GA-SEN_D.png` replaces the generated card with your own graphic.
   - `candidates/GA-SEN_D.png` is a headshot placed on the card.
