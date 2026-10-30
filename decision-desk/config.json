@@ -5,6 +5,7 @@
   "board_channel": "decision-desk-board",
   "desk_channel": "decision-desk",
   "post_map_after_call": true,
+  "card_theme": "wire",
   "predictions_deadline": "2026-11-03T18:00:00-05:00",
   "hide_predictions_until_deadline": false,
   "points": {

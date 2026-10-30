@@ -187,15 +187,40 @@ GLASS = {"D": ((20, 64, 160), (46, 120, 232)), "R": ((128, 18, 30), (222, 58, 58
          "I": ((70, 30, 130), (150, 90, 220)), "X": ((44, 47, 56), (92, 98, 112))}
 
 
+CARD_THEMES = ("wire", "editorial", "classic")
+
+
 def call_card(race_id: str, party: str, *, candidate: str | None = None,
               tally: str | None = None, when: datetime | None = None,
-              retracted: bool = False) -> io.BytesIO:
-    """Transparent PNG: a floating glass card with knockout lettering and the state's silhouette."""
-    from PIL import ImageFilter
+              retracted: bool = False, counts: dict | None = None, theme: str = "wire") -> io.BytesIO:
+    """The official call card in the chosen theme (see cards.py). counts = the chamber's D/R/I seats after
+    this call, for the seat strip or hemicycle. A finished graphic in assets/calls/ always wins."""
     if not retracted:
         custom = _find_asset("calls", race_id, party)
         if custom:
             return io.BytesIO(custom.read_bytes())
+    if theme != "classic":
+        import cards
+        render = cards.THEMES.get(theme, cards.wire)
+        return to_png(render(cards.race_facts(race_id, party, candidate, tally, when, retracted, counts)))
+    return _classic_card(race_id, party, candidate=candidate, tally=tally, when=when, retracted=retracted)
+
+
+def chamber_map(theme: str, kind: str, calls: dict[str, str], *, highlight: str | None = None,
+                when: datetime | None = None) -> io.BytesIO:
+    """Senate or governor map in a card theme (see cards.py); "classic" is tile_map below."""
+    if theme == "classic":
+        return tile_map(kind, calls)
+    import cards
+    render = cards.MAPS.get(theme, cards.wire_map)
+    return to_png(render(cards.map_facts(kind, calls, highlight, when)))
+
+
+def _classic_card(race_id: str, party: str, *, candidate: str | None = None,
+                  tally: str | None = None, when: datetime | None = None,
+                  retracted: bool = False) -> io.BytesIO:
+    """Transparent PNG: a floating glass card with knockout lettering and the state's silhouette."""
+    from PIL import ImageFilter
 
     race = R.RACES[race_id]
     key = "X" if retracted else party
