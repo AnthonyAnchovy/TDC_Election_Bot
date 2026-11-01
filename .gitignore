@@ -17,8 +17,13 @@ decision-desk/countywatch/early.json
 decision-desk/countywatch/alerts.json
 decision-desk/countywatch/discord_entries.json
 decision-desk/countywatch/feed_overrides.json
+decision-desk/countywatch/cloud_state.json
+decision-desk/countywatch/field_history.json
 decision-desk/countywatch/inbox/
 decision-desk/County Watch live.csv
+
+# Microsoft sign-in for the shared workbook (a live credential)
+decision-desk/countywatch/ms_token.json
 
 # Excel lock files and editor clutter
 ~$*

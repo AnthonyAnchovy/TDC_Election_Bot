@@ -1,6 +1,7 @@
 """County Watch orchestration: pulls feeds and early vote, writes caches and the workbook.
 Used by the bot's background loop and its /counties, /earlyvote and /countytest commands.
 Can also run alone:  python countywatch_run.py early   |   python countywatch_run.py live   |   python countywatch_run.py build
+(build updates the shared workbook when it's set up; add --local to rebuild the file in this folder instead)
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from pathlib import Path
 
 import aiohttp
 
+import cw_cloud as CC
 import cw_early as E
 import cw_feeds as FD
 import cw_model as M
@@ -220,11 +222,15 @@ def blocked_notices(cache: dict) -> list[str]:
     return out
 
 
-_INPUTS = {"mtime": None, "keep": {}}
+_INPUTS = {"mtime": None, "keep": {}, "cloud": None}
 
 
 def _inputs() -> dict:
-    """The workbook's manual entries and turnout factors, re-read only when the file changes."""
+    """The workbook's manual entries and turnout factors. With the shared workbook on, they're what the last sync
+    read from it (no network here, so commands never wait on Microsoft); otherwise the local file, re-read only
+    when it changes."""
+    if _INPUTS["cloud"] is not None and CC.enabled():
+        return _INPUTS["cloud"]
     try:
         mt = WORKBOOK.stat().st_mtime
     except OSError:
@@ -462,14 +468,26 @@ def nc_summary(nc: dict) -> list[str]:
 
 
 # ------------------------------------------------------------------ workbook
-def write_workbook(cache=None) -> str:
+def write_workbook(cache=None, *, local: bool = False) -> str:
+    """Bring the workbook up to date: the shared copy when it's set up (cw_cloud), else the file in this folder.
+    local=True always rebuilds the file here."""
     cache = cache or live_cache()
     early = early_cache()
     nc = dict(early.get("nc") or {})
     nc["uf_fetched"] = early.get("uf_fetched")
     try:
         extra = {f: {k: m[k] for k in ("md", "mr", "mo", "mc")} for f, m in discord_entries().items()}
-        return W.update(WORKBOOK, live=feed_view(cache), uf=early.get("uf"), nc=nc, reads=reads(cache), extra_manual=extra)
+        live, rd = feed_view(cache), reads(cache)
+        if CC.enabled() and not local:
+            try:
+                _INPUTS["cloud"] = CC.sync(live=live, reads=rd, stamp=datetime.now().strftime("%b %d %I:%M %p"),
+                                           uf=early.get("uf"), nc=nc, entries=extra)
+                return "updated the shared workbook"
+            except Exception as exc:
+                log.exception("shared workbook update failed")
+                done = W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
+                return f"shared workbook update failed ({exc}), so {done} on this PC instead"
+        return W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
     except Exception as exc:
         log.exception("workbook update failed")
         return f"workbook update failed: {exc}"
@@ -484,7 +502,7 @@ async def main(argv):
     if what == "live":
         c = await refresh_live()
         print({st: len(v) for st, v in c["states"].items()}, c["errors"])
-    print(write_workbook())
+    print(write_workbook(local="--local" in argv))
 
 
 if __name__ == "__main__":

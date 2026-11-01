@@ -31,6 +31,7 @@ import countywatch_run as CWR
 import cw_early as CE
 import cw_feeds as CF
 import cw_model as CM
+import field as F
 import graphics as G
 import night as N
 import races as R
@@ -227,7 +228,7 @@ async def card_file(rid: str, party: str | None, how: str, *, retracted: bool = 
     buf = await asyncio.to_thread(
         G.call_card, rid, party, candidate=load_candidates().get(rid, {}).get(party) if party else None, tally=how,
         when=now(), retracted=retracted, counts=counts, theme=theme or card_theme())
-    return discord.File(buf, filename=f"{rid}_{'retracted' if retracted else party}.png")
+    return discord.File(buf, filename=f"{rid}_{'retracted' if retracted else party}.{G.image_ext(buf.getvalue())}")
 
 
 def house_line() -> str:
@@ -1545,9 +1546,10 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
     if not is_admin(interaction.user) or confirm != "RESET":
         return await interaction.response.send_message("Admins only, and type RESET to confirm.", ephemeral=True)
     store.reset(include_predictions=include_predictions)
+    reset_field()
     await interaction.response.send_message(
-        "Calls, votes, outlet calls and alerts cleared" + (" along with predictions." if include_predictions
-                                                            else ". Predictions kept."))
+        "Calls, votes, outlet calls, alerts and the field's snapshots cleared" + (
+            " along with predictions." if include_predictions else ". Predictions kept."))
 
 
 @tree.command(name="cardtheme", description="Admin: change the look of official call cards.")
@@ -1581,6 +1583,126 @@ async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: a
     card = await card_file(rid, winner.value, how, retracted=retracted, theme=theme.value if theme else None)
     await interaction.followup.send(f"Preview: {label(rid)} · {theme.value if theme else card_theme()} theme. "
                                     "Seat counts are the desk's current tally.", file=card, ephemeral=True)
+
+
+# =========================================================================== the field
+FIELD_CHOICES = [app_commands.Choice(name="Senate", value="senate"),
+                 app_commands.Choice(name="House battleground", value="house")]
+FIELD_TEST_CHOICES = [app_commands.Choice(name="Whole simulated night (timelapse)", value="night"),
+                      app_commands.Choice(name="One simulated update (30 minutes of movement)", value="update"),
+                      app_commands.Choice(name="Right now, real data", value="now")]
+
+
+async def field_snapshot(kind: str) -> dict:
+    """The field as it stands. House seats in FL, NC and VA use the state's live file once its polls close."""
+    live = {}
+    if kind == "house":
+        for st in LIVE.supported():
+            if now() >= N.first_close(st):
+                try:
+                    live.update((await LIVE.fetch_state(st))["races"])
+                except Exception as exc:
+                    log.info("field: no live file for %s yet (%s)", st, exc)
+    return await asyncio.to_thread(F.snapshot, kind, dict(store.all()), live=live, when=now())
+
+
+def field_file(buf, ext: str, kind: str) -> discord.File:
+    return discord.File(buf, filename=f"{kind}_field.{ext}")
+
+
+@tree.command(name="field", description="Every race as a circle from safe D to safe R: margin and votes counted.")
+@app_commands.describe(chamber="Senate (default) or the 82 rated House seats",
+                       timelapse="Play the whole night so far instead of the latest movement")
+@app_commands.choices(chamber=FIELD_CHOICES)
+async def field_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str] | None = None,
+                    timelapse: bool = False):
+    kind = chamber.value if chamber else "senate"
+    await interaction.response.defer(ephemeral=True)
+    snap = await field_snapshot(kind)
+    theme = F.palette(card_theme())
+    last = store.setting(f"field_last_{kind}")
+    if timelapse:
+        buf, ext = await asyncio.to_thread(F.timelapse, F.history(kind) + [snap], theme)
+        note = "The night so far."
+    else:
+        buf, ext = await asyncio.to_thread(F.render, snap, theme, last)
+        note = f"Moving since the last post at {last['clock']}." if ext == "gif" else ""
+    await interaction.followup.send(f"{F.TITLE[kind].title()} field · {snap['clock']}. {note}".strip(),
+                                    file=field_file(buf, ext, kind), ephemeral=True)
+
+
+@tree.command(name="fieldtest", description="Admin: try the field on a simulated night. Only you see it.")
+@app_commands.guild_only()
+@app_commands.describe(chamber="Senate (default) or the House battleground", view="What to show",
+                       seed="Same number = same simulated night")
+@app_commands.choices(chamber=FIELD_CHOICES, view=FIELD_TEST_CHOICES)
+async def fieldtest_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str] | None = None,
+                        view: app_commands.Choice[str] | None = None, seed: int | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    kind, what = chamber.value if chamber else "senate", view.value if view else "night"
+    await interaction.response.defer(ephemeral=True)
+    theme = F.palette(card_theme())
+    if what == "now":
+        buf, ext = await asyncio.to_thread(F.render, await field_snapshot(kind), theme)
+        note = "The real field right now (what `/field` shows)."
+    else:
+        seed = random.randint(1, 9999) if seed is None else seed
+        night = await asyncio.to_thread(F.demo_night, kind, seed)
+        if what == "night":
+            buf, ext = await asyncio.to_thread(F.timelapse, night, theme)
+            note = "A simulated night, 7 PM to 1 AM ET, as the end-of-night timelapse would play it."
+        else:
+            i = random.Random(seed).randint(2, len(night) - 2)
+            buf, ext = await asyncio.to_thread(F.render, night[i], theme, night[i - 1])
+            note = (f"One simulated update ({night[i - 1]['clock']} to {night[i]['clock']}), as the board gets it every "
+                    f"{CFG.get('field_minutes', 30)} minutes on the night.")
+        note += f" Real races and starting positions; counts, margins and calls are made up. Seed {seed}."
+    await interaction.followup.send(note, file=field_file(buf, ext, kind), ephemeral=True)
+
+
+@tasks.loop(seconds=60)
+async def field_loop():
+    """On the night: snapshot each field in config's field_auto every minute (kept when something moved, for the
+    timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 AM ET Nov 4, post
+    the night's timelapse once."""
+    try:
+        kinds = [k for k in CFG.get("field_auto", ["senate"]) if k in F.KINDS]
+        if cw_night():
+            for kind in kinds:
+                snap = await field_snapshot(kind)
+                await asyncio.to_thread(F.record, snap)
+                last = store.setting(f"field_last_{kind}")
+                since = time.time() - store.setting(f"field_at_{kind}", 0)
+                called = lambda s: {rid for rid, v in s["races"].items() if v[3]}
+                due = since >= 60 * CFG.get("field_minutes", 30) or (last and called(last) != called(snap) and since >= 300)
+                if not due or not F.changed(last, snap):
+                    continue
+                buf, ext = await asyncio.to_thread(F.render, snap, F.palette(card_theme()), last)
+                head = f"📊 **{F.TITLE[kind].title()} field** · {snap['clock']}"
+                await post(main_guild(), "board_channel", content=head + (f" · moving since {last['clock']}" if last else ""),
+                           file=field_file(buf, ext, kind))
+                store.set_setting(f"field_last_{kind}", snap)
+                store.set_setting(f"field_at_{kind}", time.time())
+        elif now() > N.ELECTION_DAY.replace(day=4, hour=8) and not store.setting("field_timelapse_posted"):
+            store.set_setting("field_timelapse_posted", True)
+            for kind in kinds:
+                snaps = F.history(kind)
+                if len(snaps) >= 2:
+                    buf, ext = await asyncio.to_thread(F.timelapse, snaps, F.palette(card_theme()))
+                    await post(main_guild(), "board_channel", content=f"🎞️ **The night on the {F.TITLE[kind].lower()} field**",
+                               file=field_file(buf, ext, kind))
+    except Exception:
+        log.exception("field loop failed")
+
+
+def reset_field():
+    """Forget the field's snapshots and posts (after a rehearsal)."""
+    F.clear_history()
+    for kind in F.KINDS:
+        store.set_setting(f"field_last_{kind}", None)
+        store.set_setting(f"field_at_{kind}", 0)
+    store.set_setting("field_timelapse_posted", False)
 
 
 # =========================================================================== County Watch
@@ -1622,7 +1744,9 @@ async def county_loop():
         for res in loaded:
             await _announce_file(main_guild(), res, "the grab button" if res.get("grab") else "the inbox folder")
         busy = _cw.get("wb_task") and not _cw["wb_task"].done()
-        if _cw.get("dirty") and not busy and time.time() - _cw.get("wb_at", 0) >= src.get("workbook_seconds", 120):
+        # the shared workbook syncs even when no feed moved, so what people type into it reaches the bot
+        if ((_cw.get("dirty") or CWR.CC.enabled()) and not busy
+                and time.time() - _cw.get("wb_at", 0) >= src.get("workbook_seconds", 120)):
             _cw["dirty"], _cw["wb_at"] = False, time.time()
 
             async def _write():
@@ -1928,6 +2052,8 @@ async def on_ready():
         alert_loop.start()
     if not county_loop.is_running():
         county_loop.start()
+    if not field_loop.is_running():
+        field_loop.start()
 
 
 def main():

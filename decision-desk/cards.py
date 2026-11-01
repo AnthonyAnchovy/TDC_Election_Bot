@@ -406,7 +406,7 @@ def editorial(c: dict) -> Image.Image:
 
     # masthead
     tracked(d, (x, 104), "DECISION DESK", font(FRANKLIN, 30, 800), INK, 0.16)
-    tracked(d, (W - 80, 104), c["when"].strftime("%I:%M PM ET").lstrip("0"), font(FRANKLIN, 30, 600), GREY, 0.1, anchor="rs")
+    tracked(d, (W - 80, 104), c["when"].strftime("%I:%M %p ET").lstrip("0"), font(FRANKLIN, 30, 600), GREY, 0.1, anchor="rs")
     d.line([(x, 132), (W - 80, 132)], fill=INK, width=3)
     d.line([(x, 140), (W - 80, 140)], fill=INK, width=1)
     tracked(d, (x, 222), kicker(c, " · ").upper(), font(FRANKLIN, 34, 700), GREY, 0.12)
@@ -677,7 +677,7 @@ def editorial_map(m: dict) -> Image.Image:
     x = 80
     title, need = _map_heading(m)
     tracked(d, (x, 104), "DECISION DESK", font(FRANKLIN, 30, 800), INK, 0.16)
-    tracked(d, (MW - 80, 104), m["when"].strftime("%I:%M PM ET").lstrip("0"), font(FRANKLIN, 30, 600), GREY, 0.1, anchor="rs")
+    tracked(d, (MW - 80, 104), m["when"].strftime("%I:%M %p ET").lstrip("0"), font(FRANKLIN, 30, 600), GREY, 0.1, anchor="rs")
     d.line([(x, 132), (MW - 80, 132)], fill=INK, width=3)
     d.line([(x, 140), (MW - 80, 140)], fill=INK, width=1)
     tracked(d, (x, 222), f"2026 {title} · RESULTS SO FAR", font(FRANKLIN, 34, 700), GREY, 0.12)

@@ -4,8 +4,10 @@ Every calculated cell is an Excel formula, so the workbook works on its own: typ
 yellow Manual columns and the projections update. The bot fills the grey Feed columns for states with a
 live feed, plus the early vote tables and the written read.
 
-Updating while the file is open in Excel needs the optional xlwings package (Windows). Without it, the bot
-updates the file only while it's closed and otherwise writes 'County Watch live.csv' next to it.
+With the shared workbook set up (cw_cloud.py), the bot keeps a copy on OneDrive or SharePoint current instead and
+this file is only the starting point and fallback. Otherwise: updating while the file is open in Excel needs the
+optional xlwings package (Windows). Without it, the bot updates the file only while it's closed and otherwise writes
+'County Watch live.csv' next to it.
 """
 from __future__ import annotations
 
@@ -102,6 +104,12 @@ def _names() -> dict:
 
 
 # ------------------------------------------------------------------ build
+def county_order(data: dict | None = None) -> list[dict]:
+    """Counties in the order the Counties sheet lists them (row 2 onward)."""
+    data = data or M.load()
+    return [c for st in M.STATES for c in sorted(data[st], key=lambda c: c["name"])]
+
+
 def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf: dict | None = None,
           nc: dict | None = None, reads: dict | None = None):
     """keep: manual inputs carried over {fips: {md, mr, mo, mc}} and {'factor': {st: x}}.
@@ -133,7 +141,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             ws.cell(row=1, column=i + 1).fill = PatternFill("solid", fgColor="595959")
     row = 2
     rowmap = {}
-    order = [c for st in M.STATES for c in sorted(data[st], key=lambda c: c["name"])]
+    order = county_order(data)
     n_last = len(order) + 1
     rng = lambda k: f"Counties!${CL[k]}$2:${CL[k]}${n_last}"
     for c in order:

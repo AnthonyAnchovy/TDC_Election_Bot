@@ -1,13 +1,17 @@
 """Image generation: call cards, state tile maps (Senate/Governor), House hemicycle.
 
 Everything is drawn with Pillow, so there are no map files or browsers to install.
-Custom art: drop a finished graphic at assets/calls/<RACE>_<PARTY>.png (e.g. TX-SEN_D.png)
-and it is posted as-is instead of the generated card. Candidate photos go in
+Custom art: assets/calls/ holds a projection graphic per race and winner, <RACE>_<PARTY>.png (e.g. TX-SEN_D.png),
+drawn by tools/make_call_pngs.py. Until you change one it's a stand-in and the bot draws the card fresh at call time
+with the seat counts as they stand. Replace or edit a file (.png, .jpg, .gif or .webp) and that file is posted as-is
+instead. Candidate photos go in
 assets/candidates/<RACE>_<PARTY>.png or .jpg and get placed on the generated card.
 """
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import math
 from datetime import datetime
 from pathlib import Path
@@ -83,6 +87,45 @@ def _find_asset(folder: str, race_id: str, party: str) -> Path | None:
         if p.exists():
             return p
     return None
+
+
+STAND_INS = ASSETS / "calls" / "_stand-ins.json"     # file name -> sha256 of the stand-in make_call_pngs.py drew
+
+
+def stand_ins() -> dict:
+    try:
+        return json.loads(STAND_INS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def is_stand_in(path: Path, data: bytes | None = None) -> bool:
+    data = path.read_bytes() if data is None else data
+    return stand_ins().get(path.name) == hashlib.sha256(data).hexdigest()
+
+
+def custom_call(race_id: str, party: str) -> bytes | None:
+    """Your graphic for this race and winner from assets/calls/, or None while there's only the stand-in."""
+    for ext in ("png", "jpg", "jpeg", "webp", "gif"):
+        p = ASSETS / "calls" / f"{race_id}_{party}.{ext}"
+        if p.exists():
+            data = p.read_bytes()
+            if not is_stand_in(p, data):
+                return data
+    return None
+
+
+def image_ext(data: bytes) -> str:
+    """File extension for image bytes, so Discord shows a custom JPEG or animated GIF properly."""
+    if data[1:4] == b"PNG":
+        return "png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if data[:4] == b"GIF8":
+        return "gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return "png"
 
 
 # ---------------------------------------------------------------------------------
@@ -192,13 +235,14 @@ CARD_THEMES = ("wire", "editorial", "classic")
 
 def call_card(race_id: str, party: str, *, candidate: str | None = None,
               tally: str | None = None, when: datetime | None = None,
-              retracted: bool = False, counts: dict | None = None, theme: str = "wire") -> io.BytesIO:
+              retracted: bool = False, counts: dict | None = None, theme: str = "wire",
+              use_custom: bool = True) -> io.BytesIO:
     """The official call card in the chosen theme (see cards.py). counts = the chamber's D/R/I seats after
-    this call, for the seat strip or hemicycle. A finished graphic in assets/calls/ always wins."""
-    if not retracted:
-        custom = _find_asset("calls", race_id, party)
+    this call, for the seat strip or hemicycle. Your graphic in assets/calls/ wins unless use_custom is False."""
+    if not retracted and use_custom:
+        custom = custom_call(race_id, party)
         if custom:
-            return io.BytesIO(custom.read_bytes())
+            return io.BytesIO(custom)
     if theme != "classic":
         import cards
         render = cards.THEMES.get(theme, cards.wire)

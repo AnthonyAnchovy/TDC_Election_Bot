@@ -86,7 +86,20 @@ Change the values under `points` in `config.json`. Picks are scored against outl
 | `/next` | Anyone | Races where polls have closed but the desk hasn't called, with vote counts and outlet calls. |
 | `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. |
 | `/closings` | Anyone | Poll-closing schedule. Alerts post to the board automatically as each wave closes. |
-| `/deskreset RESET` | Admin | Clears test calls and votes. Predictions are kept unless you tick `include_predictions`. |
+| `/field [chamber] [timelapse]` | Anyone | The field (below): every race as a circle between safe D and safe R. It animates what moved since the last board post, or plays the whole night with `timelapse`. |
+| `/fieldtest [chamber] [view] [seed]` | Admin | Tries the field on a simulated night, visible only to you: the whole night, one 30-minute update, or the real field right now. |
+| `/deskreset RESET` | Admin | Clears test calls and votes, and the field's snapshots. Predictions are kept unless you tick `include_predictions`. |
+
+### The field
+
+An animated GIF of every race on one line from safe Democratic to safe Republican, built from the desk's own numbers:
+- **Position** is the margin. In the Senate, that's County Watch's projection once counties finish counting; until then a race sits at its 2024 margin (at midterm turnout), and Cook Solid races sit in the Safe columns. House battleground seats start at their ratings average, and in FL, NC and VA the live count pulls them toward the counted margin as precincts report.
+- **Size** is the votes counted so far. A hollow ring means nothing has been counted, a light fill means counting has started, and a solid fill means projected.
+- **Called races** slide out of the field into their party's end zone. The top bar shows the seats each side has in hand (Senate seats not up this year included) and where it would land if every uncalled race went the way it leans now.
+
+On the night (6 PM ET Nov 3 to 8 AM ET Nov 4), the Senate field posts to #decision-desk-board every 30 minutes, or within 5 minutes of a new call. Each post animates the movement since the last one. At 8 AM ET Nov 4, the whole night posts as a timelapse. `field_auto` in `config.json` picks which fields post (`["senate"]`, or `["senate", "house"]`), and `field_minutes` sets how often. The field follows the card theme: dark for wire and classic, paper for editorial.
+
+Limits: Nebraska's left-hand side is Dan Osborn, but his starting spot uses Harris's 2024 margins, so he starts deep in R territory until counties report. Governors have no field, because the bot has no ratings or live counts for most governor races.
 
 ## Race info and live counts
 
@@ -110,7 +123,7 @@ Race IDs look like `GA-SEN`, `AZ-GOV`, `PA-07` and `AK-AL`, and `HOUSE` means co
 
 A county-by-county read of 15 Senate races: the 14 that Cook doesn't rate Solid (AK, GA, IA, KS, ME, MI, MN, MS, NC, NE, NH, OH, SC, TX) plus Florida, which the group is treating as competitive. It lives in two places:
 
-- **`County Watch 2026.xlsx`** (in this folder). This is the full workbook: dashboard, key counties with why they matter, every county with 2024/2020/2022 results and demographics, swing by county type, and early vote. Every number is a formula, so it works without the bot. Type county results into the yellow **Manual** columns on the Counties sheet from any source (NYT, AP, county sites), put `Y` in *Manual complete* when a county is done, and the projections update.
+- **`County Watch 2026.xlsx`** (in this folder). This is the full workbook: dashboard, key counties with why they matter, every county with 2024/2020/2022 results and demographics, swing by county type, and early vote. Every number is a formula, so it works without the bot. Type county results into the yellow **Manual** columns on the Counties sheet from any source (NYT, AP, county sites), put `Y` in *Manual complete* when a county is done, and the projections update. To have everyone work in one live copy instead of passing files around, set up the **shared live workbook** (below).
   - **Key Counties** sheet: 6 to 11 counties per state on both sides (Democratic vote banks and Republican bases such as Cherokee, Montgomery or Butler), plus an "All rural" row per state. Each county shows margin against break-even and, once it's fully counted, its turnout against what it needed.
   - **County Benchmarks** sheet: for each key county, the final margin and net votes that line up with each statewide result (R+5 through D+5), its par turnout, and a plain-English line, e.g. "Ossoff at D+51.5 or better = great night... At 95% of par the break-even moves to D+48.9".
   - **Types** sheet: each kind of county as a block, e.g. Georgia's metro cores are 33.5% of the expected vote and need D+37.5 for a tie (D+39.4 if they turn out at 95% of par). On the night it shows each type's swing, turnout index and whether it's on pace.
@@ -167,6 +180,40 @@ The Read Me sheet has the details and limits.
 
 **Excel open during updates:** with `xlwings` installed (`start_bot.bat` installs it on Windows), the bot writes into the open workbook. Without it, the bot writes `County Watch live.csv` until you close the file.
 
+### Shared live workbook (OneDrive or SharePoint)
+
+Put the workbook on OneDrive once and the bot keeps that copy current. Everyone opens the same link in Excel (browser or desktop) and watches the numbers arrive. There are no copies to send around after each update.
+
+- The bot writes only its own cells: the grey Feed columns, each state's read and the update stamp on the Dashboard, the Early Vote numbers, and `/countyset` entries in the Manual columns. It never overwrites what people type in yellow cells (Manual columns, turnout factors, the early-vote shares).
+- Whatever people type reaches the bot within 2 minutes, so `/counties`, `/environment` and the alerts use it too.
+- `/countyclear` blanks a county's Manual cells only while they still hold the bot's numbers. If someone has typed over them, their numbers stay.
+- Filter the Counties sheet, but don't sort it or delete rows. The other sheets point at fixed rows.
+- If Microsoft can't be reached, the bot updates the file in this folder instead and says so in its log and in `/countyrefresh`.
+
+**Setup (once, about 10 minutes):**
+1. Register an app for the bot to sign in with. With a work or school account, go to https://entra.microsoft.com → **App registrations** → **New registration**. With a personal Microsoft account, use https://portal.azure.com → **Microsoft Entra ID** → **App registrations**.
+   - Name it anything, e.g. `Decision Desk`. Under supported account types, pick **Accounts in any organizational directory and personal Microsoft accounts**. Leave the redirect URI blank and click Register.
+   - **Authentication** → *Allow public client flows* → **Yes** → Save.
+   - **API permissions** → Add a permission → Microsoft Graph → Delegated permissions → `Files.ReadWrite.All` → Add.
+   - Copy the **Application (client) ID** from the Overview page.
+2. In `.env`, set `MS_CLIENT_ID` to that ID. Set `CLOUD_WORKBOOK` to where the shared copy should live, as a path in your OneDrive, e.g. `County Watch/County Watch 2026.xlsx`. If the workbook is already on OneDrive or SharePoint, paste its share link instead.
+3. In this folder, with the venv active, run:
+   ```
+   python cw_cloud.py login
+   python cw_cloud.py upload
+   python cw_cloud.py share
+   python cw_cloud.py check
+   ```
+   - `login` shows a code to enter at microsoft.com/devicelogin. Sign in with the account that will own the file.
+   - `upload` copies the workbook in this folder, with anything you've typed into it, to OneDrive.
+   - `share` prints an edit link to post in Discord. Anyone with the link can edit; a work account that blocks that gets a link for people in your organization. You can also share the file from OneDrive yourself.
+   - `check` confirms the bot can read and write it.
+4. Restart the bot. `/countyrefresh` should say *Workbook: updated the shared workbook*.
+
+The sign-in is saved in `countywatch/ms_token.json` and renews itself while the bot runs. Keep that file private (it's in `.gitignore`). If it ever lapses (after about 90 days unused, or a password change), the bot falls back to the local file and its log says to run `python cw_cloud.py login` again.
+
+If a new version of the bot changes the workbook's layout, run `python countywatch_run.py build --local`, then `python cw_cloud.py upload --replace`. That replaces the shared copy, including anything people typed into it, so do it before the night.
+
 ## Making it yours
 
 - **`flavor.json`**: the lines posted with calls, flips and retractions. These reload instantly, so this is where the in-jokes go.
@@ -183,13 +230,16 @@ The Read Me sheet has the details and limits.
   - `/cardtheme` (admin) sets the theme and shows a sample; leave it blank to go back to `config.json`. `/cardpreview race winner [theme]` shows any card privately, so you can check how a race will look before the night.
   - The fonts are in `assets/fonts` (SIL Open Font License), so cards look the same on any PC.
 - **`district_shapes.json`**: the 2026 boundaries of all 435 House districts, used by the editorial card to highlight the district inside the state. 41 states come from Census 119th Congress files. The nine states with new 2026 lines (TX, CA, FL, NC, OH, UT, TN, LA, AL) come from each state's official plan file, or from Census's 120th Congress block file for OH and AL. A Census block-by-block comparison confirms those nine are the only states that changed. To rebuild it after a map change, see `tools/build_districts.py`.
-- **`assets/`**:
-  - `calls/GA-SEN_D.png` replaces the generated card with your own graphic.
+- **Projection graphics** (`assets/calls/`): one PNG per race and winner, posted with the 🚨 projection. They're named `<RACE>_<PARTY>.png` (`GA-SEN_D.png`, `NE-SEN_I.png`, `US-HOUSE_R.png`, `PA-07_D.png`) and cover every Senate and governor race, House control and the 82 rated House seats. To use your own graphic, save it over the file with the same name. A `.jpg`, `.gif` or `.webp` with that name works too, and GIFs stay animated. The bot posts your file exactly as it is.
+  - Files you haven't changed are stand-ins. When the race is called, the bot draws that card fresh in the current theme, with the seat counts and time as they stand. Only the races you've made art for look different.
+  - `python tools/make_call_pngs.py` redraws the stand-ins (after a theme or candidate name change, say) and never touches files you've changed. `--all-house` adds every other House seat. For a race that isn't in the folder, you can still drop in a file with the right name.
+  - Retraction cards are always drawn by the bot. `/cardpreview` shows your graphic when there is one.
+- **`assets/`** (other art):
   - `candidates/GA-SEN_D.png` is a headshot placed on the card.
   - `memes/GA-SEN_D.png` is a transparent cutout placed bottom-left.
 
 ## Rehearse
-Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. Then remove the line, restart, and run `/deskreset RESET`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
+Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
 
 ## Known limits
 - `/results` live counts cover FL, NC and VA only (County Watch adds county-level feeds for GA, NC, MN and NE). There's no tweet feed yet, so outlet calls are logged by hand with `/procall`.
