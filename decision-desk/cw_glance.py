@@ -15,7 +15,10 @@ from __future__ import annotations
 import json
 from zoneinfo import ZoneInfo
 
-from openpyxl.chart import BarChart, Reference
+from openpyxl.chart import BarChart, DoughnutChart, Reference
+from openpyxl.chart.layout import Layout, ManualLayout
+from openpyxl.chart.series import DataPoint
+from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, TwoCellAnchor
 from openpyxl.chart.label import DataLabelList
 from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.chart.text import RichText
@@ -219,7 +222,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
     # ---- helper block for tallies and charts (hidden columns O onward)
     H0, hr0 = 15, 41                       # column O, first data row
     hcols = ["State", "Poll", "Projection", "Lean now", "Lean if 2020 miss", "Lean if old weighting",
-             "Lean if tonight's miss holds", "Results minus poll"]
+             "Lean if other states' results hold", "Results minus poll"]
     HL = {h: get_column_letter(H0 + i) for i, h in enumerate(hcols)}
     ws.cell(row=hr0 - 1, column=H0, value="Chart data (formulas; hidden)")
     for i, h in enumerate(hcols):
@@ -235,7 +238,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
                 live_or(f'IF({poll}="","",{poll})'),
                 live_or(f'IF({poll}="","",{poll}-0.05)'),
                 live_or(f'IF({poll_ref(st, "oldm")}<>"",{poll_ref(st, "oldm")},IF({poll}="","",{poll}))'),
-                live_or(f'IF({poll_ref(st, "adj")}="","",{poll_ref(st, "adj")})'),
+                live_or(f'IF({dash_ref(st, "AH")}<>"",{dash_ref(st, "AH")},IF({poll}="","",{poll}))'),
                 f'=IF({poll_ref(st, "err")}="",NA(),{poll_ref(st, "err")}*100)']
         for i, v in enumerate(vals):
             ws.cell(row=r, column=H0 + i, value=v)
@@ -258,7 +261,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
     for i, h in enumerate(["Democrats", "Osborn (I)", "No poll or result", "Republicans"]):
         ws.cell(row=s0, column=H0 + 1 + i, value=h)
     scen = [("If every poll is right", "Lean now"), ("If polls miss like 2020", "Lean if 2020 miss"),
-            ("Old Times/Siena weighting", "Lean if old weighting"), ("If tonight's miss holds", "Lean if tonight's miss holds")]
+            ("Old Times/Siena weighting", "Lean if old weighting"), ("If other states' results hold", "Lean if other states' results hold")]
     for j, (lab, col) in enumerate(scen):
         r = s0 + 1 + j
         d, i, rr = tally(col)
@@ -313,10 +316,12 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ws.conditional_formatting.add("D5", FormulaRule(formula=['D5="Democrats"'], font=Font(name=W.FONT, bold=True, size=16, color=BLUE)))
     ws.conditional_formatting.add("D5", FormulaRule(formula=['D5="Republicans"'], font=Font(name=W.FONT, bold=True, size=16, color=RED)))
 
+    # ---- needles
+    b0 = _needles(ws, races, names, sc(0, 1), sc(0, 4), sc(0, 2)) + 1
+
     # ---- race board
-    b0 = 8
     hdr = ["Race", "Polls close", "Final poll", "◀ Republican", "Margin", "Democratic side ▶", "Call", "Vote counted",
-           "Confidence", "Results vs poll", "Poll + tonight's miss"]
+           "90% range", "Results vs poll", "Other states imply"]
     for i, h in enumerate(hdr):
         c = ws.cell(row=b0, column=2 + i, value=h)
         c.font = F(bold=True, color="FFFFFF", size=9)
@@ -344,9 +349,9 @@ def glance_sheet(ws, names: dict, national_swing: str):
             "G": bar("D"),
             "H": f'=IF({is_proj},Dashboard!$S${dr},IF({poll}="","no poll entered",IF({poll}=0,"poll: tied","poll: "&IF({poll}>0,"{W._surname(dn)}","{W._surname(rn)}")&" ahead")))',
             "I": f'=REPT("▰",ROUND(MIN(1,{counted})*10,0))&REPT("▱",10-ROUND(MIN(1,{counted})*10,0))&"  "&TEXT({counted},"0%")',
-            "J": f'=IF({conf}="none","—",{conf})',
+            "J": (f'=IF(Dashboard!$AF${dr}="","—",{_mtxt(f"Dashboard!$AF${dr}")}&" to "&{_mtxt(f"Dashboard!$AG${dr}")})'),
             "K": f'={poll_ref(st, "err")}',
-            "L": f'=IF({proj}<>"","",{poll_ref(st, "adj")})',
+            "L": f'={dash_ref(st, "AH")}',
         }
         for col, v in cells.items():
             c = ws[f"{col}{r}"]
@@ -361,6 +366,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
         ws[f"G{r}"].font = Font(name="Consolas", size=10, color=BLUE)
         ws[f"G{r}"].alignment = Alignment(horizontal="left", vertical="center")
         ws[f"I{r}"].font = Font(name="Consolas", size=9, color="595959")
+        ws[f"J{r}"].font = F(size=9, color="404040")
         ws[f"F{r}"].font = F(bold=True, size=11)
         for col in ("D", "K"):
             ws[f"{col}{r}"].number_format = MARGIN
@@ -503,13 +509,137 @@ def glance_sheet(ws, names: dict, national_swing: str):
     for i, line in enumerate([
         "How to read it",
         "• Before results, everything here comes from the polls (Polls sheet). Once a state's finished counties give a projection, its bar goes solid and the call is colored.",
-        "• 'Results vs poll' and 'Poll + tonight's miss' only use projections at medium or high confidence. A miss that shows up in Georgia and North Carolina at 8 PM is a hint about Iowa and Alaska later, not proof: misses also differ by region and electorate.",
-        "• The board's projection includes low-confidence ones (marked 'low'); treat those as a weather report. Details per state are on the Dashboard.",
+        "• Needles: the needle is the projection (or the final poll, before any county finishes); the grey arc is its 90% range (for a poll, ±8 pts, a typical final-poll miss). The scale stops at ±15.",
+        "• '90% range' widens with the vote still out and with how much finished counties disagree. Early on it's wide on purpose.",
+        "• 'Other states imply': this race's margin if its counties move the way the same kinds of counties have in other states tonight. Pooled only like with like (Florida's Hispanic counties stand alone; rural counties by region); Nebraska's Osborn baseline doesn't feed it. A hint, not a projection.",
+        "• 'Results vs poll' only uses medium- or high-confidence projections.",
     ]):
         c = ws.cell(row=foot + i, column=2, value=line)
         c.font = F(bold=(i == 0), size=9, color="404040")
     ws.freeze_panes = "A4"
     ws.sheet_properties.tabColor = NAVY
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.print_area = f"A1:M{foot + 6}"
+
+
+def _mtxt(ref: str) -> str:
+    return f'IF({ref}>=0,"D+","R+")&TEXT(ABS({ref})*100,"0.0")'
+
+
+NEEDLE_SCALE = 15          # points either side
+POLL_RANGE = 0.08          # 90% band around a final poll: typical Senate polling miss
+BAND_COLORS = ["B4231B", "F4B6B0", "E7E6E6", "9DC3E6", "1F4E9A"]
+
+
+def _ring(c, colours):
+    """DataPoints for a ring: None = invisible slice."""
+    out = []
+    for i, col in enumerate(colours):
+        sp = (GraphicalProperties(noFill=True, ln=LineProperties(noFill=True)) if col is None else
+              GraphicalProperties(solidFill=col, ln=LineProperties(solidFill="FFFFFF", w=9525) if c == "band" else
+                                  LineProperties(noFill=True)))
+        out.append(DataPoint(idx=i, spPr=sp))
+    return out
+
+
+def _gauge(ws, data_col: int, data_row: int, top: int, c0: int, c1: int, cols: list[int], rings: list[list]):
+    """A half-circle gauge from 6-row data columns (offsets `cols` from data_col, innermost ring first), each ring
+    colored by `rings` (None = invisible slice; the last ring is the colored band). The chart is transparent, so the
+    label cells under its empty lower half show through."""
+    d = DoughnutChart(holeSize=12, firstSliceAng=270)
+    d.visible_cells_only = False          # its data lives in hidden columns
+    for j in cols:
+        d.add_data(Reference(ws, min_col=data_col + j, min_row=data_row, max_row=data_row + 5))
+    for k, (ser, colours) in enumerate(zip(d.series, rings)):
+        ser.dPt = _ring("band" if k == len(rings) - 1 else "x", colours)
+    d.legend = None
+    d.plot_area.layout = Layout(manualLayout=ManualLayout(layoutTarget="inner", xMode="edge", yMode="edge",
+                                                          x=0.02, y=0.03, w=0.96, h=0.94))
+    d.plot_area.graphicalProperties = GraphicalProperties(noFill=True, ln=LineProperties(noFill=True))
+    d.graphical_properties = GraphicalProperties(noFill=True, ln=LineProperties(noFill=True))
+    d.anchor = TwoCellAnchor(_from=AnchorMarker(col=c0, row=top - 1), to=AnchorMarker(col=c1 + 1, row=top + 5))
+    ws.add_chart(d)
+
+
+def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
+    """The needle wall: one gauge per race in poll-closing order, six across, plus Senate control.
+    Returns the last row used."""
+    groups = [("B", "C"), ("D", "E"), ("F", "G"), ("H", "H"), ("I", "J"), ("K", "L")]
+    top0 = 8
+    ws.merge_cells(f"B{top0}:L{top0}")
+    ws[f"B{top0}"] = ("THE NEEDLES · needle = live projection (or the final poll until a county finishes) · grey arc = 90% range "
+                      "· bands: great R, R on track, toss-up, D on track, great D · scale ±15 pts")
+    ws[f"B{top0}"].font = F(bold=True, size=8, color=SOFT)
+    DC, DR = 32, 41                       # hidden data: column AF onward
+    for c in range(DC, DC + 10):
+        ws.column_dimensions[get_column_letter(c)].hidden = True
+    ws.cell(row=DR - 1, column=DC, value="Needle data (formulas; hidden)")
+    deg = lambda x: f"(MAX(-{NEEDLE_SCALE},MIN({NEEDLE_SCALE},{x}*100))+{NEEDLE_SCALE})*{180 / (2 * NEEDLE_SCALE)}"
+    band_deg = [round(v * 180 / (2 * NEEDLE_SCALE), 4) for v in (NEEDLE_SCALE - 5, 4, 2, 4, NEEDLE_SCALE - 5)] + [180]
+    slots = races + ["__senate__"]
+    for k, st in enumerate(slots):
+        row_band, col_band = divmod(k, len(groups))
+        top = top0 + 1 + row_band * 7
+        a, b = groups[col_band]
+        c0, c1 = ws[f"{a}1"].column - 1, ws[f"{b}1"].column - 1        # zero-based for anchors
+        for rr in range(top, top + 6):
+            ws.row_dimensions[rr].height = 17
+        ws.row_dimensions[top + 6].height = 8
+        dr = DR + k * 7
+        L = lambda col, i=0: f"{get_column_letter(DC + col)}{dr + i}"
+        if st == "__senate__":
+            # Senate control: needle at Democratic seats if every race goes the way it leans now, on a 40-60 scale
+            ws[L(4)] = f"={d_seats}"
+            sdeg = f"(MAX(40,MIN(60,{L(4)}))-40)*9"
+            needle = [f"={sdeg}-1.5", 3, f"=360-{L(0)}-{L(0, 1)}", 0, 0, 0]
+            bands = [54, 40.5, 40.5, 45, 180, 0]           # 40-46, 46-50.5, 50.5-55, 55-60 seats
+            for i in range(6):
+                ws[L(0, i)], ws[L(2, i)] = needle[i], bands[i]
+            _gauge(ws, DC, dr, top, c0, c1, [0, 2], [[None, NAVY, None, None, None, None],
+                                                     ["B4231B", "F4B6B0", "9DC3E6", "1F4E9A", None, None]])
+            name = "Senate control"
+            text = (f'="D "&{d_seats}&" · R "&{r_seats}&IF({i_seats}>0," · I "&{i_seats},"")')
+            colour = f"({L(4)}-50.5)"
+        else:
+            dn, rn = names[st]
+            poll = poll_ref(st, "pm")
+            conf = dash_ref(st, "T")
+            proj = f'IF(OR({conf}="low",{conf}="medium",{conf}="high"),{dash_ref(st, "Q")},"")'
+            # m, lo, hi in columns E-G of the block's first row
+            ws[L(4)] = f'=IF({proj}<>"",{proj},IF({poll}<>"",{poll},""))'
+            ws[L(5)] = f'=IF({proj}<>"",{dash_ref(st, "AF")},IF({poll}<>"",{poll}-{POLL_RANGE},""))'
+            ws[L(6)] = f'=IF({proj}<>"",{dash_ref(st, "AG")},IF({poll}<>"",{poll}+{POLL_RANGE},""))'
+            m, lo, hi = L(4), L(5), L(6)
+            Dg, Lg, Hg = deg(m), deg(lo), deg(hi)
+            blank = f'{m}=""'
+            needle = [f"=IF({blank},0,{Dg}-2)", f"=IF({blank},0,4)", f"=360-{L(0)}-{L(0, 1)}", 0, 0, 0]
+            rng_ = [f"=IF({blank},0,{Lg})", f"=IF({blank},0,MAX(0,{Dg}-2-{Lg}))", f"=IF({blank},0,4)",
+                    f"=IF({blank},0,MAX(0,{Hg}-{Dg}-2))", f"=360-SUM({L(1)}:{L(1, 3)})", 0]
+            for i in range(6):
+                ws[L(0, i)], ws[L(1, i)], ws[L(2, i)] = needle[i], rng_[i], band_deg[i]
+            _gauge(ws, DC, dr, top, c0, c1, [0, 1, 2], [[None, NAVY, None, None, None, None],
+                                                        [None, "CFCFCF", NAVY, "CFCFCF", None, None],
+                                                        BAND_COLORS + [None]])
+            name = M.STATES[st]
+            sd, sr = W._surname(dn), W._surname(rn)
+            text = (f'=IF({m}="","no poll or result",IF(ROUND({m}*100,1)=0,"even",IF({m}>0,"{sd}","{sr}")&" +"'
+                    f'&TEXT(ABS({m})*100,"0.0"))&IF({proj}<>""," · projected"," · final poll"))')
+            colour = m
+        nr, tr = top + 4, top + 5
+        ws.merge_cells(f"{a}{nr}:{b}{nr}")
+        ws.merge_cells(f"{a}{tr}:{b}{tr}")
+        ws[f"{a}{nr}"] = name
+        ws[f"{a}{nr}"].font = F(bold=True, size=10)
+        ws[f"{a}{nr}"].alignment = Alignment(horizontal="center", vertical="center")
+        ws[f"{a}{tr}"] = text
+        ws[f"{a}{tr}"].font = F(size=9, color="595959")
+        ws[f"{a}{tr}"].alignment = Alignment(horizontal="center", vertical="top", shrink_to_fit=True)
+        for cond, col in ((f">=0.005", BLUE), (f"<=-0.005", RED)):
+            ws.conditional_formatting.add(f"{a}{tr}", FormulaRule(
+                formula=[f'AND(ISNUMBER({colour}),{colour}{cond})'], font=Font(name=W.FONT, size=9, bold=True, color=col)))
+    return top0 + 1 + ((len(slots) - 1) // len(groups) + 1) * 7
 
 
 def W_SAFE() -> dict:

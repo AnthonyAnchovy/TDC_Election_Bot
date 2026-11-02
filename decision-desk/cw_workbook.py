@@ -69,6 +69,8 @@ CCOLS = [
     ("Black %", "black", 8, "data"), ("Hispanic %", "hisp", 8, "data"), ("College %", "ba", 8, "data"),
     ("Population 2023", "pop", 11, "data"),
     ("Sure complete (helper)", "sure", 8, "formula"),
+    ("Pool group (implied by other states)", "pool", 22, "data"),
+    ("Swing spread (helper)", "dev", 8, "formula"),
 ]
 CL = {k: get_column_letter(i + 1) for i, (_, k, _, _) in enumerate(CCOLS)}
 DASH_ROW0 = 6          # first state row on Dashboard
@@ -156,7 +158,8 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
         vals = {"state": c["state"], "fips": c["fips"], "name": c["name"], "type": c["type"], "key": "★" if c["key"] else "",
                 "d24": c["d24"], "r24": c["r24"], "t24": c["t24"], "d20": c["d20"] or None, "r20": c["r20"] or None,
                 "race22": c["race22"], "d22": c["d22"] or None, "r22": c["r22"] or None, "t22": c["t22"],
-                "black": c["black"] or None, "hisp": c["hisp"] or None, "ba": c["ba"] or None, "pop": c["pop"] or None}
+                "black": c["black"] or None, "hisp": c["hisp"] or None, "ba": c["ba"] or None, "pop": c["pop"] or None,
+                "pool": M.pool_group(c["state"], c["type"])}
         forms = {
             "m24": f"=IFERROR(({L['d24']}-{L['r24']})/({L['d24']}+{L['r24']}),\"\")",
             "m20": f"=IFERROR(({L['d20']}-{L['r20']})/({L['d20']}+{L['r20']}),\"\")",
@@ -196,6 +199,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             "nvt": f"=({L['pd']}-{L['pr']})-{L['be']}*{L['par']}",
             "mv": f"=IF({L['ti']}=\"\",0,({L['lm']}-{L['be']})*{L['tc']})",
             "tv": f"=IF({L['ti']}=\"\",0,{L['be']}*({L['tc']}-{L['par']}))",
+            "dev": f"=IF({L['done']}=1,{L['tc']}*({L['sw']}-{_dash('N', f'$A{r}')})^2,0)",
         }
         lv = (live.get(c["state"]) or {}).get(c["fips"]) or {}
         feed = {"fd": lv.get("D"), "fr": lv.get("R"), "fo": lv.get("O"), "fp": lv.get("pct_in")}
@@ -236,7 +240,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     dv = DataValidation(type="list", formula1='"Y"', allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"{CL['mc']}2:{CL['mc']}{n_last}")
-    for k in ("swv", "mw", "mv", "tv", "sure"):
+    for k in ("swv", "mw", "mv", "tv", "sure", "dev"):
         ws.column_dimensions[CL[k]].hidden = True
     ws.cell(row=1, column=CCOLS.index(next(x for x in CCOLS if x[1] == "be")) + 1).comment = Comment(
         "The D margin this county needs if every county swings by the same amount from 2024 and the state ends tied, "
@@ -276,11 +280,13 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
            "Early votes so far", "Early vote as % of 2022 turnout",
            "Turnout pace in complete counties (vs 2022)", "Turnout pace used for uncounted", "Projected turnout (vs 2022)",
            "Turnout index: D-leaning complete counties", "Turnout index: R-leaning complete counties", "Latest read (bot)",
-           "Turnout pace for expected vote (vs 2022)"]
+           "Turnout pace for expected vote (vs 2022)", "Share of projected vote still out", "Swing spread in complete counties",
+           "Projection, 90% range: low", "Projection, 90% range: high", "Implied by other states' results",
+           "Complete counties in other states behind it"]
     for i, h in enumerate(hdr):
         ws.cell(row=DASH_ROW0 - 1, column=i + 1, value=h)
     _style_header(ws, DASH_ROW0 - 1, len(hdr), 48)
-    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80, 11]
+    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80, 11, 10, 10, 11, 11, 12, 11]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
     factors = keep.get("factor", {})
@@ -316,7 +322,16 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
                   f"{S('par', ','+rng('done')+',1,'+rng('be')+',\"<=-0.1\"')},\"\")"),
                  (reads or {}).get(st, ""),
                  (f"=IF(COUNTIFS({rng('state')},$A{r},{rng('sure')},1)>={M.SURE_MIN},"
-                  f"{S('tc', ','+rng('sure')+',1')}/{S('w', ','+rng('sure')+',1')},G{r})")]
+                  f"{S('tc', ','+rng('sure')+',1')}/{S('w', ','+rng('sure')+',1')},G{r})"),
+                 f"=IF(K{r}>0,{S('pv', ','+rng('done')+',0')}/{S('pv')},\"\")",
+                 (f"=IF(K{r}=0,\"\",IF(K{r}>=5,MAX(SQRT({S('dev')}/{S('tc', ','+rng('done')+',1')}),{M.SPREAD_MIN}),"
+                  f"{M.SPREAD_DEFAULT}))"),
+                 (f"=IF(K{r}=0,\"\",MAX(-1,Q{r}-{M.RANGE_Z}*(AD{r}*SQRT({M.RANGE_TAU}^2+AE{r}^2/K{r})+{M.RANGE_FLOOR})))"),
+                 (f"=IF(K{r}=0,\"\",MIN(1,Q{r}+{M.RANGE_Z}*(AD{r}*SQRT({M.RANGE_TAU}^2+AE{r}^2/K{r})+{M.RANGE_FLOOR})))"),
+                 (f"=IF(SUMIFS(Types!${TL['Other states: votes in all-state fallback']}:${TL['Other states: votes in all-state fallback']},"
+                  f"Types!$B:$B,$A{r})=0,\"\",SUMIFS(Types!${TL['Share x implied margin (helper)']}:${TL['Share x implied margin (helper)']},"
+                  f"Types!$B:$B,$A{r}))"),
+                 (f"=COUNTIFS({rng('done')},1,{rng('state')},\"<>\"&$A{r},{rng('state')},\"<>NE\")")]
         for i, v in enumerate(cells):
             cell = ws.cell(row=r, column=i + 1, value=v)
             cell.font = F()
@@ -334,6 +349,10 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             ws.cell(row=r, column=col).number_format = PCT
         for col in (23, 24, 25, 29):
             ws.cell(row=r, column=col).number_format = "0.00"
+        ws.cell(row=r, column=30).number_format = PCT
+        ws.cell(row=r, column=31).number_format = "0.0%"
+        for col in (32, 33, 34):
+            ws.cell(row=r, column=col).number_format = MARGIN
         for col in (26, 27):
             ws.cell(row=r, column=col).number_format = "0"
         ws.cell(row=r, column=28).alignment = WRAP
@@ -363,7 +382,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
         "How to read it",
         "• Before anything is fully counted there's no projection. The raw margin will mislead early on because states count one vote method first (see each state's read).",
         "• Confidence: low under 10% of the expected vote in complete counties or fewer than 5 counties; medium under 40%; high above.",
-        "• Nebraska: the Democratic side is Dan Osborn (independent). His benchmarks use Harris's 2024 margins, which understate him in rural counties (he ran 14 points ahead of Harris statewide in 2024).",
+        "• Nebraska: the Democratic side is Dan Osborn (independent). Its '2024 margin' columns are his own 2024 Senate race against Deb Fischer (R+6.7 statewide), not the presidential race, so swings measure him against himself. 'Swing 20→24' is meaningless there.",
         "• Alaska reports by state House district, not county, and most results come in after 1 AM ET.",
         "• Mississippi's 2022 column is the US House races (no statewide race that year), so its 2022 margins are rough.",
     ]):
@@ -386,8 +405,36 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
 
     # ---------------- Read Me
     _readme(readme)
+    _protect(wb)
     wb.save(path)
     return path
+
+
+def _protect(wb):
+    """Guard against accidental edits in the shared copy. No password: Review > Unprotect Sheet lifts it on purpose.
+    Left editable: the Manual county columns (people and /countyset), and every cell the bot writes (Feed columns,
+    the Dashboard read and update stamp). Early Vote stays unprotected because the bot rewrites its formats.
+    Filtering the Counties sheet still works; sorting doesn't (other sheets point at fixed rows)."""
+    from openpyxl.styles import Protection
+    open_ = Protection(locked=False)
+    n = len(county_order()) + 1
+    cty = wb["Counties"]
+    for k in ("fd", "fr", "fo", "fp", "md", "mr", "mo", "mc"):
+        for r in range(2, n + 1):
+            cty[f"{CL[k]}{r}"].protection = open_
+    dash = wb["Dashboard"]
+    dash["A3"].protection = open_
+    for i in range(len(M.STATES)):
+        dash[f"{D_READ}{DASH_ROW0 + i}"].protection = open_
+    for ws in wb.worksheets:
+        if ws.title == "Early Vote":
+            continue
+        ws.protection.sheet = True
+        ws.protection.autoFilter = False        # filtering allowed
+        ws.protection.formatColumns = False     # widening columns allowed
+        ws.protection.formatRows = False
+        ws.protection.selectLockedCells = False
+        ws.protection.selectUnlockedCells = False
 
 
 KEY_COLS = [("State", 6), ("County", 14), ("Why it matters", 44), ("What to watch", 44), ("Type", 16),
@@ -605,7 +652,7 @@ def _bench_sheet(ws, data, names, rowmap):
         head = (f"{M.STATES[st]}: {names[st][0]} vs {names[st][1]} · 2024 statewide {M.fmt(sm)} "
                 f"({M.fmt(M.base(st))} with 2022's turnout pattern)")
         if st == "NE":
-            head += " · Osborn's columns use Harris's 2024 margins, which understate him in rural counties"
+            head += " · 2024 = Osborn's own Senate race vs Fischer, not the presidential race"
         ws.cell(row=r, column=1, value=head)
         for col in range(1, len(hdr) + 1):
             ws.cell(row=r, column=col).fill = BAND
@@ -672,7 +719,10 @@ TYPE_COLS = ["Key", "State", "Type", "Counties", "Complete", "Complete 2-party v
              "Share of state vote (2022 pattern)", "2024 margin (2022 pattern)"] + \
             [f"Type margin if state ends {lab}" for _, lab in [(-0.05, "R+5"), (-0.01, "R+1"), (0.0, "tie"), (0.01, "D+1"), (0.05, "D+5")]] + \
             ["Projected type margin", "Swing vs what D needs", "Reading", "Turnout index (complete counties)",
-             "Break-even at that turnout", "Margin + turnout vs tie pace (pts)", "Net votes vs tie pace", "What it needs to look like"]
+             "Break-even at that turnout", "Margin + turnout vs tie pace (pts)", "Net votes vs tie pace", "What it needs to look like",
+             "Pool group", "Other states: swing in this pool", "Other states: votes in this pool",
+             "Other states: swing, all counties", "Other states: votes in all-state fallback", "Implied swing",
+             "Share x implied margin (helper)"]
 TL = {h: get_column_letter(i + 1) for i, h in enumerate(TYPE_COLS)}
 
 
@@ -723,6 +773,7 @@ def _types_sheet(ws, data, names, rng):
                 "Break-even at that turnout": f"=IF({ti}=\"\",\"\",{tie}/({ti}/100))",
                 "Margin + turnout vs tie pace (pts)": f"=IF(F{r}>0,({S('mv', done)}+{S('tv', done)})/F{r},\"\")",
                 "Net votes vs tie pace": f"={S('nvt')}",
+                **_implied(T, r, st, t, rng),
                 "What it needs to look like": (
                     f'="{t}: "&TEXT({T["Share of state vote (2022 pattern)"]}{r},"0.0%")&" of the expected vote. Tie: "&{_mt(tie)}'
                     f'&". {dn} on track at "&{_mt(T["Type margin if state ends D+1"] + str(r))}&", great at "&{_mt(T["Type margin if state ends D+5"] + str(r))}'
@@ -734,6 +785,10 @@ def _types_sheet(ws, data, names, rng):
                 cell = ws.cell(row=r, column=i + 1, value=vals[h])
                 cell.font = F()
                 cell.border = THIN
+            for h in ("Other states: swing in this pool", "Other states: swing, all counties", "Implied swing"):
+                ws[f"{T[h]}{r}"].number_format = SWING
+            for h in ("Other states: votes in this pool", "Other states: votes in all-state fallback"):
+                ws[f"{T[h]}{r}"].number_format = NUM
             for h in ("Type swing", "Swing used", "Swing vs what D needs", "Margin + turnout vs tie pace (pts)"):
                 ws[f"{T[h]}{r}"].number_format = SWING
             for h in ("Complete 2-party votes", "Complete 2022-pattern votes"):
@@ -754,10 +809,10 @@ def _types_sheet(ws, data, names, rng):
     ov = f"${TL['Margin + turnout vs tie pace (pts)']}{TYPE_ROW0}"
     for col in ("Reading", "Projected type margin"):
         _tier_colors(ws, f"{TL[col]}{TYPE_ROW0}:{TL[col]}{last}", ov, TIER_CONDS(ov))
-    widths = {"Key": 26, "State": 6, "Type": 20, "Reading": 20, "What it needs to look like": 95}
+    widths = {"Key": 26, "State": 6, "Type": 20, "Reading": 20, "What it needs to look like": 95, "Pool group": 26}
     for h, col in TL.items():
         ws.column_dimensions[col].width = widths.get(h, 10)
-    for h in ("Key", "Complete 2022-pattern votes"):
+    for h in ("Key", "Complete 2022-pattern votes", "Share x implied margin (helper)"):
         ws.column_dimensions[TL[h]].hidden = True
 
     # National read: every fully counted county in every state, pooled
@@ -788,6 +843,26 @@ def _types_sheet(ws, data, names, rng):
     ws.freeze_panes = f"D{TYPE_ROW0}"
     return {(ws.cell(row=i, column=2).value, ws.cell(row=i, column=3).value): i for i in range(TYPE_ROW0, last + 1)}
 
+
+
+def _implied(T, r, st, t, rng) -> dict:
+    """Types sheet: this type's swing as other states' finished counties show it (same pool group), shrunk toward
+    every other state's swing by votes, then applied to this state's mix on the Dashboard."""
+    other = f',{rng("state")},"<>{st}",{rng("state")},"<>NE",{rng("done")},1'
+    pool = f',{rng("pool")},{T["Pool group"]}{r}'
+    pv, av = f'{T["Other states: votes in this pool"]}{r}', f'{T["Other states: votes in all-state fallback"]}{r}'
+    ps, as_ = f'{T["Other states: swing in this pool"]}{r}', f'{T["Other states: swing, all counties"]}{r}'
+    imp = f'{T["Implied swing"]}{r}'
+    return {
+        "Pool group": M.pool_group(st, t),
+        "Other states: votes in this pool": f'=SUMIFS({rng("tc")}{other}{pool})',
+        "Other states: swing in this pool": f'=IF({pv}>0,SUMIFS({rng("swv")}{other}{pool})/{pv},"")',
+        "Other states: votes in all-state fallback": f'=SUMIFS({rng("tc")}{other})',
+        "Other states: swing, all counties": f'=IF({av}>0,SUMIFS({rng("swv")}{other})/{av},"")',
+        "Implied swing": f'=IF({av}=0,"",IF({pv}>0,{as_}+({ps}-{as_})*{pv}/({pv}+{M.POOL_K}),{as_}))',
+        "Share x implied margin (helper)": (f'=IF({imp}="","",{T["Share of state vote (2022 pattern)"]}{r}*'
+                                            f'({T["2024 margin (2022 pattern)"]}{r}+{imp}))'),
+    }
 
 
 def _first_sheet(ws, data, names, rowmap):
@@ -1006,6 +1081,11 @@ def _readme(ws):
         ("Counties: every county. Grey Feed columns are filled by the bot for GA, NC, MN and NE. Yellow Manual columns are yours: type D and R votes from any source (NYT, AP, a county site) and put Y in 'Manual complete' when a county is fully counted. Manual numbers override the feed.", ""),
         ("Types: each kind of county (metro cores, college suburbs, Black Belt, Hispanic, rural...) as a block: its share of the vote, the margin it needs for each statewide outcome, what weaker or stronger turnout does to that, and live swing and turnout. Its swing and turnout pace fill in counties that haven't reported.", ""),
         ("Early Vote: statewide early vote for each state, plus North Carolina county by county compared with 2022 at the same point.", ""),
+        ("Locked cells", "h"),
+        ("Every sheet except Early Vote is protected against accidental edits, with no password. You can still type in the Counties sheet's yellow Manual columns, filter it, and widen columns. To change a turnout factor, a poll or anything else on purpose: Review > Unprotect Sheet, make the change, then Protect Sheet again. Don't sort the Counties sheet; other sheets point at fixed rows.", ""),
+        ("Projection range and other states", "h"),
+        ("90% range (Dashboard, At a Glance): the projection plus or minus 1.645 x an uncertainty that grows with the share of the vote still out and with how much finished counties' swings disagree, plus a fixed 3-point allowance for uncounted counties behaving differently. Judgment-based, not fitted to past elections.", ""),
+        ("Implied by other states (Dashboard, At a Glance): this state's margin if each of its county types moves the way the same kind of county has in other states tonight. Pools only like with like: metro cores and college suburbs nationally, rural and working metros by region, Black Belt across the South, Florida's Hispanic counties on their own. Nebraska doesn't feed it (its baseline is Osborn's own race). It never feeds the projection.", ""),
         ("Colors", "h"),
         ("Yellow fill, blue text: inputs you can change. Grey fill: written by the bot. Blue numbers lean D, red lean R.", ""),
         ("How the projection works", "h"),
@@ -1021,11 +1101,12 @@ def _readme(ws):
         ("Margin + turnout vs tie pace = live margin minus break-even at actual turnout, in margin points. Times the county's votes, it's net votes vs the tie pace; across every county those add up to the statewide net margin.", ""),
         ("Turnout differences between county types aren't visible to the projection until counties of that type finish, so a metro turnout shortfall shows up late. Watch the D-leaning and R-leaning turnout indexes on the Dashboard.", ""),
         ("Limits", "h"),
-        ("It assumes counties of the same type move together. A candidate with a home-region bounce (Jackson in northern Maine, Osborn in rural Nebraska) will break that.", ""),
+        ("It assumes counties of the same type move together. A candidate with a home-region bounce (Jackson in northern Maine) will break that. Nebraska's baseline is Osborn's own 2024 race, so his rural strength is already built in.", ""),
         ("Small, rural counties usually finish first, so early projections lean on a narrow, unrepresentative slice. Treat 'low' confidence as a weather report, not a call.", ""),
         ("Margins are two-party. Third-party votes are recorded but left out of margins.", ""),
         ("Sources", "h"),
         ("2024 and 2020 county results: Tony McGovern's county-level election results (GitHub, tonmcg/US_County_Level_Election_Results_08-24).", ""),
+        ("Nebraska 2024 baseline: Osborn v Fischer US Senate county results, MIT Election Data + Science Lab, 2024-elections-official.", ""),
         ("2022 results and vote methods: MIT Election Data + Science Lab, 2022-elections-official (precinct returns, summed to counties).", ""),
         ("Demographics: Census Bureau Vintage 2023 county population estimates (race/Hispanic origin) and ACS 2019-2023 5-year table B15003 (bachelor's degree or higher, age 25+).", ""),
         ("Live feeds: Georgia SOS and Virginia Department of Elections results APIs, NC State Board of Elections precinct file, Florida Division of Elections results file, Minnesota SOS media files, Nebraska SOS results service, Iowa and South Carolina Clarity results files, Alaska Division of Elections precinct file. Ohio, Texas and Kansas come from the County Watch grab button (the states' own results sites, read in your browser).", ""),

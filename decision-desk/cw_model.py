@@ -48,6 +48,26 @@ MODE_NAMES = {"VA": ("early/mail", "Election Day"), "GA": ("advance", "Election 
               "SC": ("early", "Election Day"), "AK": ("early", "Election Day")}
 
 
+# "Implied by other states": which counties' swings are pooled across states. Only like with like: Florida's
+# Hispanic counties (Cuban, Venezuelan) don't pool with Texas's; rural and working-metro counties pool by region;
+# metro cores and college suburbs nationally. Nebraska doesn't feed any pool, because its baseline is Osborn's own
+# 2024 race, so its swings aren't comparable with the presidential baseline everywhere else.
+REGION = {"GA": "South", "NC": "South", "SC": "South", "FL": "South", "MS": "South", "VA": "South", "KY": "South",
+          "TX": "South", "IA": "Midwest", "KS": "Midwest", "NE": "Midwest", "MN": "Midwest", "MI": "Midwest",
+          "OH": "Midwest", "ME": "Northeast", "NH": "Northeast", "AK": "Alaska"}
+POOL_K = 50_000   # votes: a pool's swing gets weight v/(v+50k) against the all-other-states swing
+
+
+def pool_group(st: str, t: str) -> str:
+    if st == "NE":
+        return "Nebraska (Osborn baseline)"
+    if t == "Hispanic":
+        return "Hispanic (Florida)" if st == "FL" else "Hispanic (Southwest)"
+    if t in ("Mid-size/working metro", "Small town & rural"):
+        return f"{t} ({REGION.get(st, 'Other')})"
+    return t
+
+
 def county_type(r: dict) -> str:
     if r["state"] == "AK":
         return "Alaska district"
@@ -88,6 +108,12 @@ def load() -> dict[str, list[dict]]:
         return _CACHE["rows"]
     keys = json.loads((CW_DIR / "key_counties.json").read_text(encoding="utf-8"))
     out: dict[str, list[dict]] = {}
+    ne24 = {}
+    try:      # MIT Election Data + Science Lab, 2024-elections-official, 2024-senate-county.csv (Osborn v Fischer)
+        with open(CW_DIR / "ne_senate24.csv", encoding="utf-8") as f:
+            ne24 = {r["fips"]: (int(r["osborn"]), int(r["fischer"]), int(r["total"])) for r in csv.DictReader(f)}
+    except OSError:
+        pass
     with open(CW_DIR / "baseline.csv", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             st = r["state"]
@@ -99,6 +125,10 @@ def load() -> dict[str, list[dict]]:
                  "hisp": float(r["hisp"] or 0), "ba": float(r["ba"] or 0),
                  "modes22": {k: (float(r[f"{k}22_D"]), float(r[f"{k}22_R"])) for k in ("early", "mail", "eday")
                              if r.get(f"{k}22_D")}}
+            if st == "NE" and r["fips"] in ne24:
+                # Nebraska's D side is Dan Osborn, so his own 2024 Senate race (vs Fischer) is the baseline, not
+                # Harris-Trump: he ran about 14 points ahead of Harris, most of it in rural counties.
+                c["d24"], c["r24"], c["t24"] = ne24[r["fips"]]
             c["m24"], c["m20"], c["m22"] = m2(c["d24"], c["r24"]), m2(c["d20"], c["r20"]), m2(c["d22"], c["r22"])
             out.setdefault(st, []).append(c)
     for st, rows in out.items():
@@ -176,6 +206,10 @@ def need_txt(needed: float, d_label: str = "D") -> str:
 PACE_K = 3     # shrink a type's turnout pace toward the state's: weight n/(n+3) for n complete counties
 SWING_K = 0.03  # shrink a type's swing toward the state's: weight v/(v + 3% of the state's expected vote)
 DONE_SHARE = 0.97   # without a precinct count, a county is complete once it has 97% of its expected vote
+# Projection range. Uncertainty comes from the vote still out: how much finished counties' swings disagree (spread,
+# shrinking with more counties) plus a fixed allowance for counties still out behaving differently from those in
+# (TAU). Judgment calls, not fitted: TAU 3 pts, spread 5 pts until 5 counties are in, 2 pts minimum after.
+RANGE_Z, RANGE_TAU, RANGE_FLOOR, SPREAD_DEFAULT, SPREAD_MIN = 1.645, 0.03, 0.005, 0.05, 0.02
 SURE_MIN = 3    # counties known to be complete (precincts all in, or marked Y) before their turnout sets expectations
 LEAN = 0.10    # counties whose break-even is beyond +/-10 pts count as D-leaning / R-leaning for the turnout read
 
@@ -251,6 +285,15 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
         PD, PR = PD + pd, PR + pr
     W = sum(r["w"] for r in out_rows)
     P = (PD + PR) / W if W else 1.0                    # projected statewide pace
+    out_share = (sum(r["proj_D"] + r["proj_R"] for r in out_rows if not r["complete"]) / (PD + PR)) if PD + PR else 1.0
+    rng90 = None
+    if done:
+        dv = sum(r["D"] + r["R"] for r in done)
+        spread = (sum((r["D"] + r["R"]) * (r["swing"] - state_swing) ** 2 for r in done) / dv) ** 0.5 if dv else 0
+        spread = max(spread, SPREAD_MIN) if len(done) >= 5 else SPREAD_DEFAULT
+        sd = out_share * (RANGE_TAU ** 2 + spread ** 2 / len(done)) ** 0.5 + RANGE_FLOOR
+        pm_ = m2(PD, PR)
+        rng90 = (max(-1.0, pm_ - RANGE_Z * sd), min(1.0, pm_ + RANGE_Z * sd))
     eff_m = eff_t = 0.0
     for r in out_rows:
         be, tie_v = r["breakeven"], r["w"] * P
@@ -285,7 +328,7 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
             "counted": counted, "counted_share": counted / exp_total if exp_total else 0,
             "done": len(done), "done_share": share_done, "confidence": confidence,
             "state_swing": state_swing, "type_swing": type_swing, "type_swing_used": type_used, "type_n": type_n,
-            "exp_pace": exp_pace,
+            "exp_pace": exp_pace, "out_share": out_share, "range90": rng90,
             "m24": state_m24(rows), "base_m": bm, "needed_swing": -bm,
             "pace": P, "pace_obs": pace_obs, "type_pace": type_pace,
             "d_index": lean_index(1), "r_index": lean_index(-1), "eff_margin": eff_m, "eff_turnout": eff_t,
@@ -371,7 +414,9 @@ def read_lines(st: str, p: dict, d_name: str = "D", r_name: str = "R", max_key: 
             lines.append(note)
         return lines
     if p["proj_m"] is not None:
-        lines.append(f"**Projection: {fmt(p['proj_m'], dl, rl)}** (confidence {p['confidence']}: {p['done']} complete "
+        rg = p.get("range90")
+        rtxt = f", 90% range {fmt(rg[0], dl, rl)} to {fmt(rg[1], dl, rl)}" if rg else ""
+        lines.append(f"**Projection: {fmt(p['proj_m'], dl, rl)}**{rtxt} (confidence {p['confidence']}: {p['done']} complete "
                      f"{'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote)")
     else:
         lines.append("No county is fully counted yet, so there's no projection. Partial counts are shown raw below.")
