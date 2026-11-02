@@ -168,12 +168,13 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             "share": f"={L['t24']}/SUMIFS({rng('t24')},{rng('state')},$A{r})",
             "be": f"={L['m24']}+{_dash(D_NEED, f'$A{r}')}",
             "exp": f"={L['w']}*{_dash(D_EXP_PACE, f'$A{r}')}",
-            "sure": (f"=IF({L['tc']}=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND({L['md']}=\"\",{L['fp']}<>\"\"),"
-                     f"IF(N({L['fp']})>=0.999,1,0),0)))"),
-            "dc": f"=IF({L['md']}<>\"\",{L['md']},N({L['fd']}))",
-            "rc": f"=IF({L['mr']}<>\"\",{L['mr']},N({L['fr']}))",
+            "sure": (f"=IF({L['tc']}<=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND(NOT(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']}))),"
+                     f"ISNUMBER({L['fp']})),IF({L['fp']}>=0.999,1,0),0)))"),
+            # Manual numbers count only once both D and R are typed in (a half-typed row falls back to the feed)
+            "dc": f"=IF(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']})),{L['md']},N({L['fd']}))",
+            "rc": f"=IF(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']})),{L['mr']},N({L['fr']}))",
             "tc": f"={L['dc']}+{L['rc']}",
-            "done": (f"=IF(UPPER({L['mc']})=\"Y\",1,IF({L['tc']}=0,0,IF(AND({L['md']}=\"\",{L['fp']}<>\"\"),"
+            "done": (f"=IF({L['tc']}<=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND(NOT(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']}))),ISNUMBER({L['fp']})),"
                      f"IF({L['fp']}>=0.999,1,0),IF({L['tc']}>={M.DONE_SHARE}*{L['exp']},1,0))))"),
             "lm": f"=IF({L['tc']}>0,({L['dc']}-{L['rc']})/{L['tc']},\"\")",
             "sw": f"=IF({L['done']}=1,{L['lm']}-{L['m24']},\"\")",
@@ -240,6 +241,11 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     dv = DataValidation(type="list", formula1='"Y"', allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"{CL['mc']}2:{CL['mc']}{n_last}")
+    nv = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True,
+                        showErrorMessage=True, errorTitle="Votes only",
+                        error="Type a vote count (a number, 0 or more). No text, commas are fine.")
+    ws.add_data_validation(nv)
+    nv.add(f"{CL['md']}2:{CL['mo']}{n_last}")
     for k in ("swv", "mw", "mv", "tv", "sure", "dev"):
         ws.column_dimensions[CL[k]].hidden = True
     ws.cell(row=1, column=CCOLS.index(next(x for x in CCOLS if x[1] == "be")) + 1).comment = Comment(

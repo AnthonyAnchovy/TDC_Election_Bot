@@ -273,7 +273,7 @@ def manual() -> dict:
     keep = _inputs()
     out = {}
     for fips, m in keep.items():
-        if fips in ("factor", "updated") or not isinstance(m, dict):
+        if fips in ("factor", "updated", "polls") or not isinstance(m, dict):
             continue
         out[fips] = m
     for fips, m in discord_entries().items():
@@ -356,19 +356,27 @@ def scan_inbox() -> list[dict]:
     return out
 
 
+def _vote(x):
+    """A typed vote count: a number 0 or more, else None (text, blanks and negatives are ignored, as in Excel)."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or x != x or x < 0:
+        return None
+    return int(x)
+
+
 def merged_live(st: str, cache: dict | None = None, man: dict | None = None) -> dict:
     cache = cache or live_cache()
     man = manual() if man is None else man
     live = feed_view(cache).get(st, {})
     for c in M.load()[st]:
         m = man.get(c["fips"])
-        if not m:
+        if not isinstance(m, dict) or not m:
             continue
         row = live.setdefault(c["fips"], {"D": 0, "R": 0, "O": 0, "pct_in": None})
-        if m.get("md") not in (None, ""):
-            row["D"], row["R"], row["O"] = m.get("md") or 0, m.get("mr") or 0, m.get("mo") or 0
+        d, r = _vote(m.get("md")), _vote(m.get("mr"))
+        if d is not None and r is not None:      # as the workbook: manual numbers count once both D and R are in
+            row["D"], row["R"], row["O"] = d, r, _vote(m.get("mo")) or 0
             row["pct_in"] = None
-        if str(m.get("mc", "")).upper() == "Y":
+        if str(m.get("mc") or "").strip().upper() == "Y":
             row["complete"] = True
     return live
 
