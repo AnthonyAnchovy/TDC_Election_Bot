@@ -243,6 +243,16 @@ If a new version of the bot changes the workbook's layout, run `python countywat
   - `candidates/GA-SEN_D.png` is a headshot placed on the card.
   - `memes/GA-SEN_D.png` is a transparent cutout placed bottom-left.
 
+## Night-before checklist
+
+Things the code can't check for you. Do them on the PC that will run the bot:
+
+1. **Feeds:** run `/countytest` for every automatic state (GA, NC, FL, MN, NE, VA, IA, SC, AK) and `/resultstest` for FL, NC and VA. Anything that fails tonight will fail tomorrow.
+2. **Grab button:** make the bookmark and try it once on the Ohio, Texas and Kansas sites (a grab before polls close is treated as a test).
+3. **Shared workbook:** `python cw_cloud.py check`, then `/countyrefresh`. It should say *updated the shared workbook*. Open the edit link and the `--view` link once each.
+4. **Clean slate:** after any rehearsal, `/deskreset RESET` (it now also clears County Watch's practice numbers, `/countyset` entries and alert memory), remove `DESK_FAKE_NOW` from `.env`, and restart. Clear any test numbers typed straight into the workbook's Manual columns by hand.
+5. **The PC:** plugged in, sleep and automatic updates off until Nov 4, and a second person who knows how to restart `python bot.py` if the window closes.
+
 ## Rehearse
 Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
 

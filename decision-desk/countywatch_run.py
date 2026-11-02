@@ -9,6 +9,9 @@ import asyncio
 import collections
 import csv
 import json
+import os
+import functools
+import threading
 import logging
 import shutil
 import sys
@@ -31,15 +34,44 @@ log = logging.getLogger("countywatch")
 UA = FD.UA
 
 
+# Feeds, alerts, the workbook writer and Discord commands run in different threads and share these JSON files.
+# Every read-change-write holds _LOCK, saves are atomic (write a temp file, then swap it in), and a read that
+# catches a file mid-swap on Windows retries instead of mistaking it for an empty cache.
+_LOCK = threading.RLock()
+
+
+def _locked(fn):
+    @functools.wraps(fn)
+    def wrapper(*a, **kw):
+        with _LOCK:
+            return fn(*a, **kw)
+    return wrapper
+
+
 def _load(name, default):
-    try:
-        return json.loads((CW / name).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
+    path = CW / name
+    for attempt in range(20):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return default
+        except (OSError, ValueError):
+            time.sleep(0.05)
+    log.warning("couldn't read %s; using an empty one this time", name)
+    return default
 
 
 def _save(name, data):
-    (CW / name).write_text(json.dumps(data, default=str), encoding="utf-8")
+    path = CW / name
+    tmp = path.with_name(f".{name}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(data, default=str), encoding="utf-8")
+    for attempt in range(40):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:          # Windows: someone is reading it right now
+            time.sleep(0.05)
+    log.error("couldn't save %s (file busy)", name)
 
 
 def live_cache() -> dict:
@@ -65,26 +97,54 @@ def now_et() -> datetime:
 BLOCK_RETRY = 15 * 60       # seconds before re-trying a site that answered with a bot check
 
 
+def _suspect_pull(new: dict, old: dict | None, minutes_since_close: float = 999) -> str | None:
+    """Why a freshly parsed file shouldn't replace the numbers we have, or None. Several parsers return nothing
+    (rather than failing) for an error page or an empty download, and a half-downloaded file loses counties."""
+    with_votes = lambda rows: sum(1 for r in (rows or {}).values() if (r.get("D") or 0) + (r.get("R") or 0) > 0)
+    n_new, n_old = with_votes(new), with_votes(old)
+    if not new and old:
+        return "the file came back empty (error page or cut-off download); kept the last numbers"
+    done = sum(1 for r in (new or {}).values() if (r.get("pct_in") or 0) >= 0.999 and (r.get("D") or 0) + (r.get("R") or 0) > 0)
+    if minutes_since_close < 10 and len(new or {}) >= 4 and done > 0.5 * len(new):
+        return (f"{done} of {len(new)} counties already show every precinct in, {minutes_since_close:.0f} minutes after "
+                "polls closed: looks like leftover test data, so it's being ignored for now")
+    if n_old >= 4 and n_new < 0.5 * n_old:
+        return (f"the file had votes in only {n_new} counties, down from {n_old} (probably cut off); "
+                "kept the last numbers")
+    return None
+
+
 async def refresh_live() -> dict:
     """Pull every feed state at once. A state's file is ignored until its first polls close, because several
     states load test numbers into the live file beforehand (Minnesota's did in late October).
     Sets cache['changed'] to the states whose numbers moved since the last pull."""
     import night as N
-    cache = live_cache()
-    cache["changed"] = []
-    todo = []
-    blocked = cache.setdefault("blocked", {})
+    blocked0 = live_cache().get("blocked", {})
+    todo, waiting = [], []
     for st in FD.feed_states():
         if now_et() < N.first_close(st):
-            cache["states"].pop(st, None)
-            cache["errors"][st] = f"waiting for polls to close ({N.fmt(N.first_close(st), N.ET)})"
-        elif time.time() - blocked.get(st, 0) < BLOCK_RETRY:
+            waiting.append(st)
+        elif time.time() - blocked0.get(st, 0) < BLOCK_RETRY:
             continue            # its site answered with a bot check; don't keep knocking
         else:
             todo.append(st)
     timeout = aiohttp.ClientTimeout(total=45)
     async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": UA}) as s:
         results = await asyncio.gather(*(FD.fetch_state(st, session=s) for st in todo), return_exceptions=True)
+    with _LOCK:                 # re-read under the lock: a loaded file may have landed while we were downloading
+        return _apply_pulls(todo, results, waiting)
+
+
+def _apply_pulls(todo, results, waiting) -> dict:
+    import night as N
+    cache = live_cache()
+    cache.setdefault("states", {})
+    cache.setdefault("errors", {})
+    cache["changed"] = []
+    blocked = cache.setdefault("blocked", {})
+    for st in waiting:
+        cache["states"].pop(st, None)
+        cache["errors"][st] = f"waiting for polls to close ({N.fmt(N.first_close(st), N.ET)})"
     for st, res in zip(todo, results):
         if isinstance(res, Exception):          # one state's outage shouldn't stop the others
             cache["errors"][st] = str(res)[:200] or type(res).__name__
@@ -92,8 +152,15 @@ async def refresh_live() -> dict:
                 blocked[st] = time.time()
             continue
         blocked.pop(st, None)
+        bad = _suspect_pull(res["counties"], cache["states"].get(st),
+                            (now_et() - N.first_close(st)).total_seconds() / 60)
+        if bad:                                  # an error page or a cut-off file: keep the last good numbers
+            cache["errors"][st] = bad
+            continue
         cache["errors"].pop(st, None)
-        if res["changed"] and res["counties"] != cache["states"].get(st):
+        # compare even when the site said "not modified": its numbers come from memory then, and they restore a
+        # state whose cache was lost or reset
+        if res["counties"] != cache["states"].get(st):
             cache["states"][st] = res["counties"]
             cache.get("files", {}).pop(st, None)       # a newer feed pull replaces a hand-loaded file
             cache["changed"].append(st)
@@ -122,12 +189,17 @@ def early_pace() -> list[tuple]:
 
 # ------------------------------------------------------------------ alerts for the board
 def alerts(cache: dict, states: list[str] | None = None) -> list[str]:
+    man, fac = manual(), factors()          # may read the workbook: do it before taking the lock
+    with _LOCK:
+        return _alerts(cache, states, man, fac)
+
+
+def _alerts(cache: dict, states, man, fac) -> list[str]:
     """Messages worth posting right away, one per state at most: projection milestones (first projection,
     confidence stepping up, the leader changing, or a move of a point or more) and key counties that just
     finished counting. Remembers what it already said in countywatch/alerts.json."""
     seen = _load("alerts.json", {})
     nm = names()
-    man, fac = manual(), factors()
     rank = {"none": 0, "low": 1, "medium": 2, "high": 3}
     out = []
     for st in states or list(M.STATES):
@@ -206,6 +278,7 @@ def _turnout_tag(p: dict, dl: str, rl: str) -> str:
     return " Turnout index: " + ", ".join(x for x in parts if x) + " (100 = state pace)."
 
 
+@_locked
 def blocked_notices(cache: dict) -> list[str]:
     """One message per state whose site answered the bot with a bot check (said once per night)."""
     seen = _load("alerts.json", {})
@@ -252,6 +325,7 @@ def discord_entries() -> dict:
     return _load("discord_entries.json", {})
 
 
+@_locked
 def set_entry(fips: str, d: int, r: int, other: int, done: bool, who: str):
     """A county result typed into Discord with /countyset. Overrides the feed and the workbook."""
     e = discord_entries()
@@ -259,6 +333,7 @@ def set_entry(fips: str, d: int, r: int, other: int, done: bool, who: str):
     _save("discord_entries.json", e)
 
 
+@_locked
 def clear_entry(fips: str) -> bool:
     e = discord_entries()
     if e.pop(fips, None) is None:
@@ -308,14 +383,30 @@ def load_file(raw: bytes, name: str, state: str | None = None) -> dict:
         # A grab before polls close is a test (states load practice numbers beforehand): report, don't use.
         return {"state": st, "kind": kind, "counties": len(counties), "of": len(M.load()[st]), "votes": votes,
                 "complete": done, "changed": False, "test_only": True}
-    cache = live_cache()
-    old = (cache.get("files", {}) or {}).get(st)
-    cache.setdefault("files", {})[st] = counties
-    cache.setdefault("file_meta", {})[st] = {"name": name, "kind": kind, "at": time.time()}
-    cache["changed"] = [st]
-    _save("live.json", cache)
+    with _LOCK:
+        cache = live_cache()
+        old = (cache.get("files", {}) or {}).get(st)
+        cache.setdefault("files", {})[st] = counties
+        cache.setdefault("file_meta", {})[st] = {"name": name, "kind": kind, "at": time.time()}
+        cache["changed"] = [st]
+        _save("live.json", cache)
     return {"state": st, "kind": kind, "counties": len(counties), "of": len(M.load()[st]), "votes": votes,
             "complete": done, "changed": counties != old}
+
+
+def reset_night() -> str:
+    """After a rehearsal: forget pulled and loaded results, /countyset entries and what alerts already said, so none
+    of the practice numbers reach the real night. The shared workbook's Manual cells the bot filled get blanked on
+    the next sync (cells people typed over are left alone)."""
+    gone = []
+    with _LOCK:
+        for name in ("live.json", "discord_entries.json", "alerts.json"):
+            try:
+                (CW / name).unlink()
+                gone.append(name)
+            except FileNotFoundError:
+                pass
+    return ("cleared " + ", ".join(gone)) if gone else "nothing to clear"
 
 
 def _download_dirs() -> list[Path]:

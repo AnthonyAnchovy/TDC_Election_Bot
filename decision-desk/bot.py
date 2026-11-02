@@ -1547,9 +1547,12 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
         return await interaction.response.send_message("Admins only, and type RESET to confirm.", ephemeral=True)
     store.reset(include_predictions=include_predictions)
     reset_field()
+    cw = await asyncio.to_thread(CWR.reset_night)
+    _cw["dirty"] = True
     await interaction.response.send_message(
         "Calls, votes, outlet calls, alerts and the field's snapshots cleared" + (
-            " along with predictions." if include_predictions else ". Predictions kept."))
+            " along with predictions." if include_predictions else ". Predictions kept.")
+        + f" County Watch: {cw}. Numbers typed straight into the workbook's Manual columns stay; clear those by hand.")
 
 
 @tree.command(name="cardtheme", description="Admin: change the look of official call cards.")
@@ -2045,6 +2048,14 @@ async def setup_hook():
 async def on_ready():
     log.info("Logged in as %s", client.user)
     g = main_guild()
+    if os.getenv("DESK_FAKE_NOW"):
+        # A rehearsal clock left in .env freezes the bot at that moment for the whole real night.
+        msg = (f"⚠️ **The bot is running on a fake clock** (DESK_FAKE_NOW={os.getenv('DESK_FAKE_NOW')} in .env). "
+               "Remove that line and restart before election night, or nothing will run on time.")
+        log.warning(msg)
+        real = datetime.now(N.ET)
+        if N.ELECTION_DAY.replace(hour=0) <= real <= N.ELECTION_DAY.replace(day=4, hour=12) and g:
+            await post(g, "board_channel", content=msg)
     for key in ("board_channel", "desk_channel"):
         if g and not find_channel(g, key):
             log.warning("Channel #%s not found: create it or fix config.json", CFG.get(key))
