@@ -10,6 +10,7 @@ One-time setup (README, "Shared live workbook"): register an app, put MS_CLIENT_
     python cw_cloud.py login      sign in once; the bot refreshes the sign-in by itself after that
     python cw_cloud.py upload     put the current workbook on OneDrive at CLOUD_WORKBOOK
     python cw_cloud.py share      print an edit link to hand out (or share it from OneDrive yourself)
+    python cw_cloud.py share --view   print a read-only link for people who should watch, not type
     python cw_cloud.py check      confirm the bot can read and write the shared copy
 """
 from __future__ import annotations
@@ -274,17 +275,20 @@ def upload(path: Path, replace: bool = False):
     print(f"Uploaded to {it.get('webUrl')}")
 
 
-def share():
-    """An edit link: anyone with it, falling back to people in your organization where the tenant blocks that."""
+def share(view: bool = False):
+    """A link to the workbook: anyone with it, falling back to people in your organization where the tenant blocks
+    that. view=True makes a read-only link (Microsoft's 'view' link), for people who should watch but not type."""
     base = item()["base"]
+    kind = "view" if view else "edit"
     for scope in ("anonymous", "organization"):
         try:
-            link = _call("POST", f"{base}/createLink", json={"type": "edit", "scope": scope}).json()["link"]["webUrl"]
+            link = _call("POST", f"{base}/createLink", json={"type": kind, "scope": scope}).json()["link"]["webUrl"]
         except CloudError as exc:
             last = exc
             continue
         who = "Anyone with this link" if scope == "anonymous" else "Anyone in your organization with this link"
-        print(f"{who} can open and edit the workbook:\n{link}")
+        what = "open and watch the workbook (read-only: they can't change anything)" if view else "open and edit the workbook"
+        print(f"{who} can {what}:\n{link}")
         return
     raise last
 
@@ -311,7 +315,7 @@ def main(argv):
         elif what == "upload":
             upload(HERE / "County Watch 2026.xlsx", replace="--replace" in argv)
         elif what == "share":
-            share()
+            share(view="--view" in argv)
         elif what == "check":
             check()
         else:

@@ -119,7 +119,7 @@ def polls_sheet(ws, names: dict, kept: dict | None):
     for si, st in enumerate(M.STATES):
         r = POLL_ROW0 + si
         P = {k: f"{PL[k]}{r}" for k in PL}
-        s = {**(seed.get("states", {}).get(st) or {}), **(kept.get(st) or {})}
+        s = {**(seed.get("states", {}).get(st) or {}), **{k: v for k, v in (kept.get(st) or {}).items() if v not in (None, "")}}
         dn, rn = names[st]
         race = f"{M.STATES[st]}: {W._surname(dn)} v {W._surname(rn)}" + (" (bellwether)" if st in M.BELLWETHER else "")
         conf = dash_ref(st, "T")
@@ -342,7 +342,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
             "E": bar("R"),
             "F": f'={show}',
             "G": bar("D"),
-            "H": f'=IF({is_proj},Dashboard!$S${dr},IF({poll}="","no poll entered","poll: "&IF({poll}>=0,"{W._surname(dn)}","{W._surname(rn)}")&" ahead"))',
+            "H": f'=IF({is_proj},Dashboard!$S${dr},IF({poll}="","no poll entered",IF({poll}=0,"poll: tied","poll: "&IF({poll}>0,"{W._surname(dn)}","{W._surname(rn)}")&" ahead")))',
             "I": f'=REPT("▰",ROUND(MIN(1,{counted})*10,0))&REPT("▱",10-ROUND(MIN(1,{counted})*10,0))&"  "&TEXT({counted},"0%")',
             "J": f'=IF({conf}="none","—",{conf})',
             "K": f'={poll_ref(st, "err")}',
