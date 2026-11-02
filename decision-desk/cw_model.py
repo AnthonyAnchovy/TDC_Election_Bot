@@ -328,11 +328,31 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
             "counted": counted, "counted_share": counted / exp_total if exp_total else 0,
             "done": len(done), "done_share": share_done, "confidence": confidence,
             "state_swing": state_swing, "type_swing": type_swing, "type_swing_used": type_used, "type_n": type_n,
-            "exp_pace": exp_pace, "out_share": out_share, "range90": rng90,
+            "exp_pace": exp_pace, "out_share": out_share, "range90": rng90, **_catch_up(out_rows, PD, PR, bool(done)),
             "m24": state_m24(rows), "base_m": bm, "needed_swing": -bm,
             "pace": P, "pace_obs": pace_obs, "type_pace": type_pace,
             "d_index": lean_index(1), "r_index": lean_index(-1), "eff_margin": eff_m, "eff_turnout": eff_t,
             "turnout_vs_22": (sum(r["D"] + r["R"] + r["O"] for r in done) / sum(r["t22"] for r in done)) if done else None}
+
+
+def _catch_up(rows, PD: float, PR: float, projected: bool) -> dict:
+    """Votes the projection still expects (two-party), what the projected loser needs of them to tie, and what
+    they're on pace for. Shares are of the remaining two-party vote, from the trailer's side."""
+    cd, cr = sum(r["D"] for r in rows), sum(r["R"] for r in rows)
+    remaining = max(0.0, PD + PR - cd - cr)
+    out = {"remaining": remaining, "trailer": None, "need_share": None, "pace_share": None}
+    if not projected or remaining <= 0:
+        return out
+    sign = -1 if PD >= PR else 1                      # trailer: +1 = D side, -1 = R
+    out["trailer"] = "D" if sign == 1 else "R"
+    need_m = -sign * (cd - cr) / remaining           # trailer's margin needed in the remaining vote to tie
+    pace_m = sign * ((PD - PR) - (cd - cr)) / remaining
+    out["need_share"], out["pace_share"] = (1 + need_m) / 2, (1 + pace_m) / 2
+    return out
+
+
+def votes_txt(v: float) -> str:
+    return f"{v / 1e6:.2f}M" if v >= 1e6 else f"{v / 1e3:.0f}K" if v >= 1e3 else f"{v:.0f}"
 
 
 def type_bench(st: str, p: dict | None = None) -> list[dict]:
@@ -418,6 +438,12 @@ def read_lines(st: str, p: dict, d_name: str = "D", r_name: str = "R", max_key: 
         rtxt = f", 90% range {fmt(rg[0], dl, rl)} to {fmt(rg[1], dl, rl)}" if rg else ""
         lines.append(f"**Projection: {fmt(p['proj_m'], dl, rl)}**{rtxt} (confidence {p['confidence']}: {p['done']} complete "
                      f"{'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote)")
+        if p.get("trailer"):
+            who = dl if p["trailer"] == "D" else rl
+            need = p["need_share"]
+            lines.append(f"About {votes_txt(p['remaining'])} two-party votes left. " + (
+                f"{who} can't catch up: would need more than all of them." if need > 1 else
+                f"{who} needs {need:.1%} of them to tie and is on pace for {p['pace_share']:.1%}."))
     else:
         lines.append("No county is fully counted yet, so there's no projection. Partial counts are shown raw below.")
     lines.append(f"Raw count: {fmt(p['raw_m'], dl, rl)} with {p['counted']:,} two-party votes "

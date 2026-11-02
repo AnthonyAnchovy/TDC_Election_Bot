@@ -282,11 +282,12 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
            "Turnout index: D-leaning complete counties", "Turnout index: R-leaning complete counties", "Latest read (bot)",
            "Turnout pace for expected vote (vs 2022)", "Share of projected vote still out", "Swing spread in complete counties",
            "Projection, 90% range: low", "Projection, 90% range: high", "Implied by other states' results",
-           "Complete counties in other states behind it"]
+           "Complete counties in other states behind it", "Two-party votes still expected", "Counted net (D side)",
+           "Projected net (D side)", "Projected loser", "Loser needs of the rest (to tie)", "Loser on pace for"]
     for i, h in enumerate(hdr):
         ws.cell(row=DASH_ROW0 - 1, column=i + 1, value=h)
     _style_header(ws, DASH_ROW0 - 1, len(hdr), 48)
-    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80, 11, 10, 10, 11, 11, 12, 11]
+    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80, 11, 10, 10, 11, 11, 12, 11, 12, 11, 11, 10, 11, 10]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
     factors = keep.get("factor", {})
@@ -331,7 +332,13 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
                  (f"=IF(SUMIFS(Types!${TL['Other states: votes in all-state fallback']}:${TL['Other states: votes in all-state fallback']},"
                   f"Types!$B:$B,$A{r})=0,\"\",SUMIFS(Types!${TL['Share x implied margin (helper)']}:${TL['Share x implied margin (helper)']},"
                   f"Types!$B:$B,$A{r}))"),
-                 (f"=COUNTIFS({rng('done')},1,{rng('state')},\"<>\"&$A{r},{rng('state')},\"<>NE\")")]
+                 (f"=COUNTIFS({rng('done')},1,{rng('state')},\"<>\"&$A{r},{rng('state')},\"<>NE\")"),
+                 f"=MAX(0,{S('pd')}+{S('pr')}-I{r})",
+                 f"={S('dc')}-{S('rc')}",
+                 f"={S('pd')}-{S('pr')}",
+                 f'=IF(OR(K{r}=0,AJ{r}<=0),"",IF(AL{r}>=0,"R","D"))',
+                 f'=IF(AM{r}="","",(1+IF(AM{r}="D",1,-1)*(-AK{r})/AJ{r})/2)',
+                 f'=IF(AM{r}="","",(1+IF(AM{r}="D",1,-1)*(AL{r}-AK{r})/AJ{r})/2)']
         for i, v in enumerate(cells):
             cell = ws.cell(row=r, column=i + 1, value=v)
             cell.font = F()
@@ -353,6 +360,10 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
         ws.cell(row=r, column=31).number_format = "0.0%"
         for col in (32, 33, 34):
             ws.cell(row=r, column=col).number_format = MARGIN
+        for col in (36, 37, 38):
+            ws.cell(row=r, column=col).number_format = NUM if col == 36 else NET
+        for col in (40, 41):
+            ws.cell(row=r, column=col).number_format = "0.0%"
         for col in (26, 27):
             ws.cell(row=r, column=col).number_format = "0"
         ws.cell(row=r, column=28).alignment = WRAP

@@ -510,6 +510,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
         "How to read it",
         "• Before results, everything here comes from the polls (Polls sheet). Once a state's finished counties give a projection, its bar goes solid and the call is colored.",
         "• Needles: the needle is the projection (or the final poll, before any county finishes); the grey arc is its 90% range (for a poll, ±8 pts, a typical final-poll miss). The scale stops at ±15.",
+        "• Under each needle: two-party votes the projection still expects, what the projected loser needs of them to tie, and what they're on pace for if the rest votes like the projection says.",
         "• '90% range' widens with the vote still out and with how much finished counties disagree. Early on it's wide on purpose.",
         "• 'Other states imply': this race's margin if its counties move the way the same kinds of counties have in other states tonight. Pooled only like with like (Florida's Hispanic counties stand alone; rural counties by region); Nebraska's Osborn baseline doesn't feed it. A hint, not a projection.",
         "• 'Results vs poll' only uses medium- or high-confidence projections.",
@@ -581,12 +582,13 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
     slots = races + ["__senate__"]
     for k, st in enumerate(slots):
         row_band, col_band = divmod(k, len(groups))
-        top = top0 + 1 + row_band * 7
+        top = top0 + 1 + row_band * 8
         a, b = groups[col_band]
         c0, c1 = ws[f"{a}1"].column - 1, ws[f"{b}1"].column - 1        # zero-based for anchors
         for rr in range(top, top + 6):
             ws.row_dimensions[rr].height = 17
-        ws.row_dimensions[top + 6].height = 8
+        ws.row_dimensions[top + 6].height = 26
+        ws.row_dimensions[top + 7].height = 6
         dr = DR + k * 7
         L = lambda col, i=0: f"{get_column_letter(DC + col)}{dr + i}"
         if st == "__senate__":
@@ -602,6 +604,7 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
             name = "Senate control"
             text = (f'="D "&{d_seats}&" · R "&{r_seats}&IF({i_seats}>0," · I "&{i_seats},"")')
             colour = f"({L(4)}-50.5)"
+            line3 = '="51 for a majority · the vice president breaks a 50-50 tie for R"'
         else:
             dn, rn = names[st]
             poll = poll_ref(st, "pm")
@@ -627,6 +630,14 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
             text = (f'=IF({m}="","no poll or result",IF(ROUND({m}*100,1)=0,"even",IF({m}>0,"{sd}","{sr}")&" +"'
                     f'&TEXT(ABS({m})*100,"0.0"))&IF({proj}<>""," · projected"," · final poll"))')
             colour = m
+            dr_ = W.DASH_ROW0 + list(M.STATES).index(st)
+            rem, lose, need, pace = (f"Dashboard!$AJ${dr_}", f"Dashboard!$AM${dr_}", f"Dashboard!$AN${dr_}",
+                                     f"Dashboard!$AO${dr_}")
+            vt = lambda x: f'IF({x}>=1000000,TEXT({x}/1000000,"0.00")&"M",TEXT({x}/1000,"0")&"K")'
+            who = f'IF({lose}="D","{sd}","{sr}")'
+            line3 = (f'=IF({lose}="",IF(Dashboard!$I${dr_}>0,{vt(rem)}&" votes left · no projection yet",'
+                     f'"≈"&{vt(rem)}&" votes expected"),{vt(rem)}&" left · "&{who}&IF({need}>1," can\'t catch up",'
+                     f'" needs "&TEXT({need},"0.0%")&", on pace for "&TEXT({pace},"0.0%")))')
         nr, tr = top + 4, top + 5
         ws.merge_cells(f"{a}{nr}:{b}{nr}")
         ws.merge_cells(f"{a}{tr}:{b}{tr}")
@@ -636,10 +647,14 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
         ws[f"{a}{tr}"] = text
         ws[f"{a}{tr}"].font = F(size=9, color="595959")
         ws[f"{a}{tr}"].alignment = Alignment(horizontal="center", vertical="top", shrink_to_fit=True)
+        ws.merge_cells(f"{a}{top + 6}:{b}{top + 6}")
+        ws[f"{a}{top + 6}"] = line3
+        ws[f"{a}{top + 6}"].font = F(size=8, color="404040")
+        ws[f"{a}{top + 6}"].alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
         for cond, col in ((f">=0.005", BLUE), (f"<=-0.005", RED)):
             ws.conditional_formatting.add(f"{a}{tr}", FormulaRule(
                 formula=[f'AND(ISNUMBER({colour}),{colour}{cond})'], font=Font(name=W.FONT, size=9, bold=True, color=col)))
-    return top0 + 1 + ((len(slots) - 1) // len(groups) + 1) * 7
+    return top0 + 1 + ((len(slots) - 1) // len(groups) + 1) * 8
 
 
 def W_SAFE() -> dict:
