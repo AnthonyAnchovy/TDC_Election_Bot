@@ -118,10 +118,13 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     live = live or {}
     data = M.load()
     names = _names()
+    import cw_glance as G
     wb = Workbook()
-    readme = wb.active
-    readme.title = "Read Me"
+    glance = wb.active
+    glance.title = "At a Glance"
+    readme = wb.create_sheet("Read Me")
     dash = wb.create_sheet("Dashboard")
+    polls = wb.create_sheet("Polls")
     keys = wb.create_sheet("Key Counties")
     bench = wb.create_sheet("County Benchmarks")
     first = wb.create_sheet("First Counties")
@@ -369,6 +372,10 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     # ---------------- Early Vote
     _early_sheet(ev, uf, nc)
 
+    # ---------------- Polls and At a Glance
+    G.polls_sheet(polls, names, keep.get("polls"))
+    G.glance_sheet(glance, names, f"Types!${get_column_letter(len(TYPE_COLS) + 5)}${TYPE_ROW0}")
+
     # ---------------- Read Me
     _readme(readme)
     wb.save(path)
@@ -380,7 +387,8 @@ KEY_COLS = [("State", 6), ("County", 14), ("Why it matters", 44), ("What to watc
             ("Expected share (2022 turnout)", 9), ("D break-even", 9), ("Live margin", 9), ("Est. % in", 7),
             ("Live vs break-even", 9), ("Margin status", 18), ("Turnout index (100 = state pace)", 9),
             ("Break-even at actual turnout", 10), ("Turnout index needed at live margin", 10), ("Turnout effect (pts)", 9),
-            ("Margin + turnout vs tie pace (pts)", 10), ("Net votes vs tie pace", 11), ("Overall read", 20), ("FIPS", 7)]
+            ("Margin + turnout vs tie pace (pts)", 10), ("Net votes vs tie pace", 11), ("Overall read", 20),
+            ("Poll pace (final margin if the final poll is right)", 10), ("Live vs poll pace", 9), ("FIPS", 7)]
 KL = {h: get_column_letter(i + 1) for i, (h, _) in enumerate(KEY_COLS)}
 
 
@@ -432,6 +440,7 @@ def _keys_sheet(ws, data, names, rowmap, trow):
                     "Net votes vs tie pace": f'=IF({ov}="","",{ov}*Counties!{CL["tc"]}{cr})',
                     "Overall read": (f'=IF({ov}="",IF({K["Live margin"]}{r}="","not in yet","waiting for the full count"),'
                                      + _tier_text(ov, dn, rn) + ")"),
+                    **_poll_pace(K, r, f"Counties!{CL['be']}{cr}", st),
                     "FIPS": c["fips"]}
             _key_row(ws, r, vals)
             r += 1
@@ -456,7 +465,8 @@ def _keys_sheet(ws, data, names, rowmap, trow):
                     "Turnout effect (pts)": f'=IF({K["Break-even at actual turnout"]}{r}="","",{K["D break-even"]}{r}-{K["Break-even at actual turnout"]}{r})',
                     "Margin + turnout vs tie pace (pts)": T("Margin + turnout vs tie pace (pts)"),
                     "Net votes vs tie pace": T("Net votes vs tie pace"),
-                    "Overall read": f'=IF({ov}="","not in yet",' + _tier_text(ov, dn, rn) + '&" (finished counties)")'}
+                    "Overall read": f'=IF({ov}="","not in yet",' + _tier_text(ov, dn, rn) + '&" (finished counties)")',
+                    **_poll_pace(K, r, f"Types!{TL['Type margin if state ends tie']}{tr}", st)}
             _key_row(ws, r, vals, italic=True)
             ws.cell(row=r, column=7).value = None
             r += 1
@@ -471,15 +481,27 @@ def _keys_sheet(ws, data, names, rowmap, trow):
     ws.column_dimensions[KL["FIPS"]].hidden = True
 
 
+def _poll_pace(K, r, breakeven: str, st: str) -> dict:
+    """Key Counties: the county's final margin if the state lands on its final poll (uniform swing), and the live
+    margin against that pace."""
+    import cw_glance as G
+    poll = G.poll_ref(st, "pm")
+    pace = f"{K['Poll pace (final margin if the final poll is right)']}{r}"
+    return {"Poll pace (final margin if the final poll is right)": f'=IF({poll}="","",MAX(-1,MIN(1,{breakeven}+{poll})))',
+            "Live vs poll pace": f'=IF(OR({pace}="",{K["Live margin"]}{r}=""),"",{K["Live margin"]}{r}-{pace})'}
+
+
 def _key_row(ws, r, vals, italic=False):
     for i, (h, _) in enumerate(KEY_COLS):
         cell = ws.cell(row=r, column=i + 1, value=vals.get(h))
         cell.font = F(italic=italic)
         cell.alignment = WRAP
         cell.border = THIN
-    for h in ("Margin 2024", "Margin 2022", "D break-even", "Live margin", "Break-even at actual turnout"):
+    for h in ("Margin 2024", "Margin 2022", "D break-even", "Live margin", "Break-even at actual turnout",
+              "Poll pace (final margin if the final poll is right)"):
         ws[f"{KL[h]}{r}"].number_format = MARGIN
-    for h in ("Swing 20→24", "Live vs break-even", "Turnout effect (pts)", "Margin + turnout vs tie pace (pts)"):
+    for h in ("Swing 20→24", "Live vs break-even", "Turnout effect (pts)", "Margin + turnout vs tie pace (pts)",
+              "Live vs poll pace"):
         ws[f"{KL[h]}{r}"].number_format = SWING
     for h in ("Share of state vote 2024", "Expected share (2022 turnout)"):
         ws[f"{KL[h]}{r}"].number_format = "0.0%"
@@ -557,11 +579,12 @@ def _bench_sheet(ws, data, names, rowmap):
     hdr = ["State", "County", "Type", "Par 2-party votes (tie pace)", "Margin 2024", "Margin 2022"] + \
           [f"Margin if state ends {lab}" for _, lab in SCEN] + [f"Net votes if state ends {lab}" for _, lab in SCEN] + \
           ["D votes needed for a tie", "Live margin", "Live net votes", "Est. % in", "Turnout index (100 = state pace)",
-           "Break-even at actual turnout", "Margin + turnout vs tie pace (pts)", "Reading", "What to look for"]
+           "Break-even at actual turnout", "Margin + turnout vs tie pace (pts)", "Reading", "What to look for",
+           "Margin if the final poll is right", "Live vs poll pace"]
     for i, h in enumerate(hdr):
         ws.cell(row=4, column=i + 1, value=h)
     _style_header(ws, 4, len(hdr), 54)
-    widths = [6, 13, 16, 11, 9, 9] + [9] * 5 + [11] * 5 + [11, 9, 11, 8, 9, 10, 10, 26, 100]
+    widths = [6, 13, 16, 11, 9, 9] + [9] * 5 + [11] * 5 + [11, 9, 11, 8, 9, 10, 10, 26, 100, 10, 9]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
     r = 5
@@ -603,10 +626,16 @@ def _bench_sheet(ws, data, names, rowmap):
                 f'{rn} holding it to "&{_mt(f"H{r}")}&" = {rn} on track; "&{_mt(f"G{r}")}&" or worse for {dn} = great for {rn}. '
                 f'Turnout: par is about "&TEXT(D{r},"#,##0")&" two-party votes ("&TEXT(Counties!{CL["w"]}{cr}/SUMIFS(Counties!${CL["w"]}:${CL["w"]},Counties!$A:$A,"{st}"),"0.0%")'
                 f'&" of the state). At 95% of par the break-even moves to "&{_mt(f"(I{r}/0.95)")}&"; at 105%, to "&{_mt(f"(I{r}/1.05)")}&"."')
+            import cw_glance as G
+            poll = G.poll_ref(st, "pm")
+            vals.append(f'=IF({poll}="","",MAX(-1,MIN(1,{C_("m24")}+{poll}+Dashboard!${D_NEED}${drow})))')
+            vals.append(f'=IF(OR(Z{r}="",R{r}=""),"",R{r}-Z{r})')
             for j, v in enumerate(vals):
                 cell = ws.cell(row=r, column=j + 1, value=v)
                 cell.font = F()
                 cell.border = THIN
+            ws.cell(row=r, column=26).number_format = MARGIN
+            ws.cell(row=r, column=27).number_format = SWING
             for col in [5, 6, 7, 8, 9, 10, 11, 17]:
                 ws.cell(row=r, column=col).number_format = MARGIN
             for col in [12, 13, 14, 15, 16, 18]:
@@ -959,6 +988,8 @@ def _readme(ws):
         ("A county-by-county read of the competitive Senate races (AK, GA, IA, KS, ME, MI, MN, MS, NC, NE, NH, OH, SC, TX, FL), plus Virginia and Kentucky as early-closing bellwethers for the national swing.", ""),
         ("Before election night it holds the benchmarks (2024 and 2022 results by county, demographics, break-even margins) and the early vote. On the night it projects each race from the counties that have finished counting.", ""),
         ("Sheets", "h"),
+        ("At a Glance: the one-screen view for the night. Seat tally, results vs polls, a bar per race in poll-closing order (light bars = final poll, solid = live projection), what the Senate looks like if the polls miss in different ways, and two charts. Nothing to type here.", ""),
+        ("Polls: the final poll in each race (yellow cells, seeded with the Nov 1 NYT/Siena polls; replace with averages if you have them), its sampling error, how much Times/Siena's new weighting moved it, and on the night, how far the projection is running from it. Polls never feed the projection.", ""),
         ("Dashboard: one row per state with the projection, swing, confidence and the bot's written read.", ""),
         ("Key Counties: 6 to 11 counties per state, on both sides (Democratic vote banks and Republican bases), with why they matter, what to watch, and live status on margin and on turnout. Each state ends with an 'All rural' row: every small-town and rural county together.", ""),
         ("County Benchmarks: for each key county, the final margin and net votes that match each statewide outcome (R+5, R+1, tie, D+1, D+5), plus a plain-English line on what to look for. Read final county numbers against these.", ""),
@@ -1018,6 +1049,8 @@ def read_inputs(path: Path) -> dict:
     for row in ws.iter_rows(min_row=DASH_ROW0, max_row=DASH_ROW0 + len(M.STATES) - 1, values_only=True):
         if row[0] in M.STATES and isinstance(row[6], (int, float)):
             keep["factor"][row[0]] = row[6]
+    import cw_glance as G
+    keep["polls"] = G.read_poll_inputs(wb)
     wb.close()
     return keep
 

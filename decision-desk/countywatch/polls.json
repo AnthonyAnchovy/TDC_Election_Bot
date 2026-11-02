@@ -1,0 +1,28 @@
+{
+  "_note": "Final pre-election polls for the Polls sheet in County Watch. d/r = candidate shares (%), n = sample size. pub = the published D-minus-R margin from unrounded shares and old = the same poll on Times/Siena's pre-2026 weighting (raw points). Both are as reported in Nate Cohn, 'The Final Polls Show a Blue Surge. Can We Trust Them?', NYT, Nov 1 2026. States left out have no poll yet: type one (ideally an average) into the yellow cells on the Polls sheet.",
+  "article": {
+    "title": "The Final Polls Show a Blue Surge. Can We Trust Them? (Nate Cohn, NYT, Nov 1 2026)",
+    "takeaways": [
+      "Polls in the Trump era have missed toward Democrats in presidential years (Times/Siena's final 2020 polls were off by about 5 points) but were accurate in the 2018 and 2022 midterms.",
+      "Nonresponse is as bad as in 2020: registered white Democrats were about 30% likelier than white Republicans to take these polls (28% in 2022, when the polls were right anyway).",
+      "On Times/Siena's old weighting the same polls are more than 3 points bluer on average. Weighting is doing more work than ever, which cuts both ways.",
+      "Democrats lead by enough to win the Senate even with a 2016- or 2020-size miss. The direction of this year's error can't be known in advance."
+    ]
+  },
+  "states": {
+    "MI": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 53, "r": 42, "n": 1011, "pub": 11, "old": 16,
+           "check": "Fielded almost entirely before Haley Stevens endorsed Rogers. El-Sayed led Black voters 93-4, and Rogers had no supporters among 43 Detroit respondents: Wayne County's margin and turnout are the test. He still trails Benson, the Democrat for governor, among voters 65+."},
+    "TX": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 50, "r": 43, "n": 1215, "pub": 7, "old": 9,
+           "check": "Talarico led Hispanic voters 65-27, against an even split in 2024. If that's real, the Hispanic county type (Types sheet) should swing far more than the state's other types. The same poll had the House vote about even and Hinojosa up about 1 for governor, so Talarico is running well ahead of his ticket."},
+    "ME": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 51, "r": 45, "n": 714, "pub": 6, "old": 5,
+           "check": "Jackson came from 3 down in September. He's still less popular than Collins (48% favorable, down from 51%). The only state where the old weighting is less Democratic than the published poll. Watch northern Maine for his home-region vote."},
+    "OH": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 49, "r": 44, "n": 717, "pub": 6, "old": 11,
+           "check": "Brown leads a conventional Republican. A 5-point weighting effect, one of the largest of the seven: a classic white working-class state where polls have missed toward Democrats before."},
+    "KS": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 49, "r": 44, "n": 736, "pub": 5, "old": 10,
+           "check": "The only red state that moved toward Democrats over the last month (Hamilton's no-opinion share fell from 36% to 6%). Marshall is 39 favorable / 50 unfavorable. Warning: the Washington Post's Kansas poll had Hamilton up about 10, but its own pollsters didn't trust it because registered Democrats were 3x likelier to respond."},
+    "AK": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1 (started earlier)", "d": 48, "r": 46, "n": 610, "pub": 1, "old": 6,
+           "check": "Peltola is the only Democrat who lost ground since September, and the poll finished before the report that Peltola-aligned operatives tried to get a second 'Dan Sullivan' on the ballot, so it may overstate her. Check the ballot: the Alaska feed sorts candidates by party code. Most results arrive after 1 AM ET."},
+    "IA": {"source": "NYT/Siena", "dates": "Oct 23-Nov 1", "d": 48, "r": 47, "n": 705, "pub": 1, "old": 4,
+           "check": "The closest of the seven. Turek is the best-liked candidate in all seven polls; Hinson is the best-liked Republican but split 43-43. A conventional Republican, so a normal-size miss toward the GOP flips it."}
+  }
+}
