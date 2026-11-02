@@ -68,12 +68,14 @@ CCOLS = [
     ("Margin net votes (helper)", "mv", 10, "formula"), ("Turnout net votes (helper)", "tv", 10, "formula"),
     ("Black %", "black", 8, "data"), ("Hispanic %", "hisp", 8, "data"), ("College %", "ba", 8, "data"),
     ("Population 2023", "pop", 11, "data"),
+    ("Sure complete (helper)", "sure", 8, "formula"),
 ]
 CL = {k: get_column_letter(i + 1) for i, (_, k, _, _) in enumerate(CCOLS)}
 DASH_ROW0 = 6          # first state row on Dashboard
 TYPE_ROW0 = 4
 # Dashboard columns that other sheets read
 D_NEED, D_FACTOR, D_DONE, D_PACE_USED, D_PACE, D_READ = "F", "G", "K", "X", "Y", "AB"
+D_EXP_PACE = "AC"      # turnout pace for expected votes (from counties known to be complete)
 
 
 def _dash(col: str, state_ref: str) -> str:
@@ -162,12 +164,14 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             "m22": f"=IFERROR(({L['d22']}-{L['r22']})/({L['d22']}+{L['r22']}),\"\")",
             "share": f"={L['t24']}/SUMIFS({rng('t24')},{rng('state')},$A{r})",
             "be": f"={L['m24']}+{_dash(D_NEED, f'$A{r}')}",
-            "exp": f"={L['w']}*{_dash(D_FACTOR, f'$A{r}')}",
+            "exp": f"={L['w']}*{_dash(D_EXP_PACE, f'$A{r}')}",
+            "sure": (f"=IF({L['tc']}=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND({L['md']}=\"\",{L['fp']}<>\"\"),"
+                     f"IF(N({L['fp']})>=0.999,1,0),0)))"),
             "dc": f"=IF({L['md']}<>\"\",{L['md']},N({L['fd']}))",
             "rc": f"=IF({L['mr']}<>\"\",{L['mr']},N({L['fr']}))",
             "tc": f"={L['dc']}+{L['rc']}",
             "done": (f"=IF(UPPER({L['mc']})=\"Y\",1,IF({L['tc']}=0,0,IF(AND({L['md']}=\"\",{L['fp']}<>\"\"),"
-                     f"IF({L['fp']}>=0.999,1,0),IF({L['tc']}>={L['exp']},1,0))))"),
+                     f"IF({L['fp']}>=0.999,1,0),IF({L['tc']}>={M.DONE_SHARE}*{L['exp']},1,0))))"),
             "lm": f"=IF({L['tc']}>0,({L['dc']}-{L['rc']})/{L['tc']},\"\")",
             "sw": f"=IF({L['done']}=1,{L['lm']}-{L['m24']},\"\")",
             "pm": (f"=IF({L['done']}=1,{L['lm']},MAX(-1,MIN(1,{L['m24']}+INDEX(Types!$H:$H,"
@@ -232,14 +236,15 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     dv = DataValidation(type="list", formula1='"Y"', allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"{CL['mc']}2:{CL['mc']}{n_last}")
-    for k in ("swv", "mw", "mv", "tv"):
+    for k in ("swv", "mw", "mv", "tv", "sure"):
         ws.column_dimensions[CL[k]].hidden = True
     ws.cell(row=1, column=CCOLS.index(next(x for x in CCOLS if x[1] == "be")) + 1).comment = Comment(
         "The D margin this county needs if every county swings by the same amount from 2024 and the state ends tied, "
         "with 2022's turnout pattern.", "County Watch")
     ws.cell(row=1, column=CCOLS.index(next(x for x in CCOLS if x[1] == "exp")) + 1).comment = Comment(
-        "2022 midterm turnout x the state's turnout factor on the Dashboard x the 2024 two-party share. Used to judge "
-        "when a county without a precinct count is finished.", "County Watch")
+        "2022-pattern two-party votes x the night's turnout pace (Dashboard column AC): the turnout factor until 3 "
+        "counties are known to be complete (every precinct in, or marked Y), then their actual pace. A county without a "
+        "precinct count is finished once it has 97% of this.", "County Watch")
     for k, note in (("ti", "This county's two-party votes / its par votes. Par = its 2022-pattern votes x the state's projected "
                            "turnout pace. 100 = in line with the state; 110 = 10% bigger share of the state vote than in 2022."),
                     ("tbe", "Break-even / (turnout index / 100). A Democratic county with weak turnout needs a bigger margin; "
@@ -270,11 +275,12 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
            "Ahead / behind needed swing", "Raw margin", "Projected margin", "Leader (projected)", "Call", "Confidence",
            "Early votes so far", "Early vote as % of 2022 turnout",
            "Turnout pace in complete counties (vs 2022)", "Turnout pace used for uncounted", "Projected turnout (vs 2022)",
-           "Turnout index: D-leaning complete counties", "Turnout index: R-leaning complete counties", "Latest read (bot)"]
+           "Turnout index: D-leaning complete counties", "Turnout index: R-leaning complete counties", "Latest read (bot)",
+           "Turnout pace for expected vote (vs 2022)"]
     for i, h in enumerate(hdr):
         ws.cell(row=DASH_ROW0 - 1, column=i + 1, value=h)
     _style_header(ws, DASH_ROW0 - 1, len(hdr), 48)
-    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80]
+    widths = [6, 21, 18, 16, 10, 10, 10, 13, 13, 9, 9, 6, 11, 11, 11, 10, 11, 18, 24, 11, 12, 11, 10, 10, 10, 11, 11, 80, 11]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
     factors = keep.get("factor", {})
@@ -308,7 +314,9 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
                   f"{S('par', ','+rng('done')+',1,'+rng('be')+',\">=0.1\"')},\"\")"),
                  (f"=IFERROR(100*{S('tc', ','+rng('done')+',1,'+rng('be')+',\"<=-0.1\"')}/"
                   f"{S('par', ','+rng('done')+',1,'+rng('be')+',\"<=-0.1\"')},\"\")"),
-                 (reads or {}).get(st, "")]
+                 (reads or {}).get(st, ""),
+                 (f"=IF(COUNTIFS({rng('state')},$A{r},{rng('sure')},1)>={M.SURE_MIN},"
+                  f"{S('tc', ','+rng('sure')+',1')}/{S('w', ','+rng('sure')+',1')},G{r})")]
         for i, v in enumerate(cells):
             cell = ws.cell(row=r, column=i + 1, value=v)
             cell.font = F()
@@ -324,7 +332,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             ws.cell(row=r, column=col).number_format = NUM
         for col in (10, 13, 22):
             ws.cell(row=r, column=col).number_format = PCT
-        for col in (23, 24, 25):
+        for col in (23, 24, 25, 29):
             ws.cell(row=r, column=col).number_format = "0.00"
         for col in (26, 27):
             ws.cell(row=r, column=col).number_format = "0"
@@ -699,7 +707,8 @@ def _types_sheet(ws, data, names, rng):
                 "Complete": f"=COUNTIFS({rng('state')},B{r},{rng('type')},C{r},{rng('done')},1)",
                 "Complete 2-party votes": f"={S('tc', done)}",
                 "Type swing": f"=IF(F{r}>0,{S('swv')}/F{r},\"\")",
-                "Swing used": f"=IF(G{r}<>\"\",G{r},IF(Dashboard!$N${drow}<>\"\",Dashboard!$N${drow},0))",
+                "Swing used": (f"=IF(G{r}<>\"\",Dashboard!$N${drow}+(G{r}-Dashboard!$N${drow})*F{r}/(F{r}+{M.SWING_K}*Dashboard!$H${drow}),"
+                               f"IF(Dashboard!$N${drow}<>\"\",Dashboard!$N${drow},0))"),
                 "Complete 2022-pattern votes": f"={S('w', done)}",
                 "Turnout pace observed (vs 2022)": f"=IF(I{r}>0,F{r}/I{r},\"\")",
                 "Turnout pace used": f"=IF(J{r}=\"\",{pace_st},{pace_st}+(J{r}-{pace_st})*E{r}/(E{r}+{M.PACE_K}))",
@@ -1000,9 +1009,9 @@ def _readme(ws):
         ("Colors", "h"),
         ("Yellow fill, blue text: inputs you can change. Grey fill: written by the bot. Blue numbers lean D, red lean R.", ""),
         ("How the projection works", "h"),
-        ("1. A county is complete when all precincts report (feed), when you mark it Y, or when its count reaches the expected vote.", ""),
+        ("1. A county is complete when all precincts report (feed), when you mark it Y, or when its count reaches 97% of the expected vote. Expected votes follow the night's turnout: the Dashboard turnout factor until 3 counties are known to be complete, then those counties' actual pace.", ""),
         ("2. Swing = its 2026 margin minus its 2024 presidential margin.", ""),
-        ("3. Each county type's swing is the vote-weighted average over its complete counties in that state.", ""),
+        ("3. Each county type's swing is the vote-weighted average over its complete counties in that state, pulled toward the state's overall swing until the type has a real share of the vote counted (weight = its counted votes / (those votes + 3% of the state's expected vote)). One small finished county can't set the swing for its whole type.", ""),
         ("4. Unfinished counties are projected at 2024 margin + their type's swing, across their whole expected vote. Partial counts are ignored for the margin, because they're usually one vote method.", ""),
         ("5. Votes for unfinished counties = 2022 turnout x a turnout pace: the Dashboard turnout factor before results, then each type's pace from its finished counties (shrunk toward the state's pace when only a few are in).", ""),
         ("Turnout", "h"),

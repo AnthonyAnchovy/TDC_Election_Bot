@@ -171,8 +171,8 @@ Kentucky is manual until tonight's check. Once 20 or more counties are fully cou
 For the manual states, enter key counties with `/countyset` (fastest, and anyone can help) or in the workbook. Split the states among the group. `countywatch/feeds.json` holds the feed settings.
 
 **How the projection works:**
-1. Fully counted counties give a swing from 2024.
-2. Each county type (metro cores, college suburbs, Black Belt, Hispanic, rural and so on) gets its own average swing.
+1. Fully counted counties give a swing from 2024. A county is fully counted when every precinct is in, when someone marks it `Y`, or (with no precinct count) when it has 97% of its expected vote. Expected votes follow the night's real turnout: the Dashboard turnout factor until 3 counties are known to be complete, then their actual pace. In North Carolina a precinct counts as in only once it has Election Day votes, because early votes are filed under every precinct.
+2. Each county type (metro cores, college suburbs, Black Belt, Hispanic, rural and so on) gets its own average swing, pulled toward the state's overall swing until that type has a real share of the vote counted. One small county finishing first can't set the swing for its whole type.
 3. Each county still counting is projected from its 2024 margin plus its type's swing. Its partial count is ignored, because early returns are usually one vote method and lean one way.
 4. Its vote total is its 2022 turnout times its type's turnout pace from finished counties (or the state's).
 

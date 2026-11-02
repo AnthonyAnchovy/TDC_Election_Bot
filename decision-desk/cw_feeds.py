@@ -153,10 +153,12 @@ def parse_nc(raw: bytes, cfg: dict) -> dict:
         if r.get("real precinct", "Y").upper().startswith("Y"):
             key = r.get("precinct", "")
             p = pcts.setdefault(fips, {})
-            p[key] = p.get(key, False) or votes > 0
+            # A precinct is in once it has Election Day votes. Early and mail votes are filed under each precinct too,
+            # so "any votes" would read 100% in as soon as the early vote posts.
+            p[key] = p.get(key, False) or int(r.get("election day") or 0) > 0
     for fips, p in pcts.items():
         if p:
-            out[fips]["pct_in"] = sum(p.values()) / len(p)   # precincts with any votes (NC has no status column)
+            out[fips]["pct_in"] = sum(p.values()) / len(p)   # precincts with Election Day votes (no status column)
     return out
 
 
