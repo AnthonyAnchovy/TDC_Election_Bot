@@ -2,7 +2,7 @@
 
 Every race and winner has a finished picture in `decision-desk/assets/calls/`, named `<RACE>_<PARTY>.png` (`GA-SEN_D.png`, `NE-SEN_I.png`). When that race is called, the bot posts the file exactly as it is. A retraction always gets a freshly drawn card instead.
 
-Every card is the same design: the winner and the state on the party-colored glass, and the loser standing in the fog under THE FOG CLAIMETH.
+Every card is the same design: the winner and the state on the party-colored glass. When a Democrat or independent wins, the Republican loser stands in the fog under THE FOG CLAIMETH. Republican wins have no fog, and the name is bigger instead.
 
 | You want to | Do this |
 |---|---|
@@ -31,8 +31,8 @@ The first redraws one race. Name a race without the party (`GA-SEN`) to redraw a
 | The winner is | The loser shown is |
 |---|---|
 | D or I | The R, or the other listed name if no R is listed |
-| R | The D, or the independent if no D is listed |
-| US-HOUSE majority | Nobody. There's no single loser |
+| R | Nobody. Republican wins have no fog |
+| US-HOUSE majority, D | Nobody. There's no single loser |
 
 The name comes from `candidates.json` and the photo from `assets/candidates/cutouts/<RACE>_<PARTY>.png`. If the loser has no listed name or no cutout, the fog stays empty, but the caption still shows. Add the photo (see Photos and cutouts) and redraw to fill it.
 
@@ -46,7 +46,11 @@ To change the look of every card, edit the one master file, `decision-desk/asset
 .venv/Scripts/python tools/make_projection_art.py --template
 ```
 
-To change just one card, make a PSD of it in `assets/kit/psd/`:
+To change just one card, open its PSD in `assets/kit/psd/`. There's one for every card. That folder isn't in git, so make them again on another computer, or make just one by naming it:
+
+```bash
+.venv/Scripts/python tools/make_projection_art.py --psd
+```
 
 ```bash
 .venv/Scripts/python tools/make_projection_art.py --psd GA-SEN_D

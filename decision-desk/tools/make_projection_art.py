@@ -1,5 +1,5 @@
-"""Draw the finished projection art into assets/calls/: a glass card with the state and the winner's photo, and the
-loser standing in the fog under THE FOG CLAIMETH.
+"""Draw the finished projection art into assets/calls/: a glass card with the state and the winner's photo, and, unless
+a Republican won, the loser standing in the fog under THE FOG CLAIMETH.
 
     python tools/make_projection_art.py                   every race and winner
     python tools/make_projection_art.py GA-SEN_D TX-SEN   just these (a race id means all its winners)
@@ -467,15 +467,18 @@ def race_title(st: Stack, f: dict, x: int, y: int, max_w: int, size: int = 58) -
 
 
 def plain_card(st: Stack, f: dict, party: str, name: str | None, names: dict) -> None:
-    """The one card: state and winner on the glass, the loser in the fog below the name."""
+    """The one card: state and winner on the glass, and the loser in the fog below the name.
+    The fog is for Republicans losing, so a Republican win has no fog and the name takes the room instead."""
     panel = glass(st, party, PANEL)
     ghost(st, f, party, panel, PANEL)
     px0, py0, px1, py1 = PANEL
     has = has_portrait(f["rid"], party)
-    forest, shape = fog_back(st, (60, 620, 850, py1 - FOOT), panel, party)
-    fog_slot(st, f["rid"], party, names)
-    fog_trees(st, forest, shape)
-    fog_front(st, (90, 760, 800, py1 - FOOT), panel, strength=0.62, top=170, left=170, right=170)
+    fog = party != "R"
+    if fog:
+        forest, shape = fog_back(st, (60, 620, 850, py1 - FOOT), panel, party)
+        fog_slot(st, f["rid"], party, names)
+        fog_trees(st, forest, shape)
+        fog_front(st, (90, 760, 800, py1 - FOOT), panel, strength=0.62, top=170, left=170, right=170)
     if has:
         above = Image.new("L", SIZE, 0)
         ImageDraw.Draw(above).rectangle([px0, 0, px1, py0 + RADIUS], fill=255)
@@ -486,8 +489,13 @@ def plain_card(st: Stack, f: dict, party: str, name: str | None, names: dict) ->
     tx = px0 + 60
     text_w = 800 if has else 1030
     race_title(st, f, tx, py0 + 112, text_w, 54)
-    size = 128 if has or len(winner_lines(f, party, name)) > 1 else 150      # two big lines would run into the caption
-    name_block(st, f, party, name, tx, py0 + 210, text_w, size)
+    if fog:
+        size = 128 if has or len(winner_lines(f, party, name)) > 1 else 150  # two big lines would run into the caption
+        name_block(st, f, party, name, tx, py0 + 210, text_w, size)
+    else:
+        tall = name_block(Stack(), f, party, name, 0, 0, text_w, 170)        # measured, to sit in the middle of the room left
+        top, bottom = py0 + 180, py1 - FOOT
+        name_block(st, f, party, name, tx, top + (bottom - top - tall) // 2, text_w, 170)
 
 
 def render(rid: str, party: str, names: dict) -> Stack:
