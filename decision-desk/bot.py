@@ -2087,33 +2087,66 @@ async def countyclear_cmd(interaction: discord.Interaction, state: app_commands.
     await interaction.response.send_message("Removed." if ok else "Nothing entered for that county.", ephemeral=True)
 
 
-@tree.command(name="countytest", description="Admin: check a state's live county feed against its Nov 2024 file.")
+async def county_test(st: str) -> str:
+    """One state's feed read from its test file, as a line that starts with ✅, ⚠️ or ❌."""
+    try:
+        res = await CF.fetch_state(st, test=True)
+        base = {c["fips"]: c for c in CM.load()[st]}
+        got = res["counties"]
+        tcfg = (CF.load_sources().get("states", {}).get(st) or {}).get("test", {})
+        # e.g. Virginia's 2025 governor race; Nebraska has no old file and its D side is Osborn, not Harris
+        if not tcfg or tcfg.get("count_only") or "pres" not in tcfg.get("contest", "pres").lower():
+            tot = sum(r["D"] + r["R"] + r["O"] for r in got.values())
+            what = f"its {tcfg.get('election_id', 'test')} {tcfg.get('contest')} results" if tcfg.get("contest") else "the site"
+            return (f"{'✅' if len(got) >= 0.95 * len(base) else '⚠️'} **{st}**: read {len(got)} of {len(base)} counties "
+                    f"({tot:,} votes) from {what}.")
+        off = [base[f]["name"] for f, r in got.items()
+               if abs(r["D"] - base[f]["d24"]) > max(50, 0.01 * base[f]["d24"]) or abs(r["R"] - base[f]["r24"]) > max(50, 0.01 * base[f]["r24"])]
+        return (f"{'✅' if got and not off else '⚠️'} **{st}**: read {len(got)} of {len(base)} counties from the 2024 file; "
+                f"{len(off)} differ from the published 2024 results" + (f" ({', '.join(off[:5])})" if off else "") + ".")
+    except Exception as exc:
+        return f"❌ **{st}**: {str(exc)[:150] or type(exc).__name__}"
+
+
+async def county_nov3(st: str) -> str:
+    """Whether this state's Nov 3 source answers yet. Before polls close, most won't, and that's fine."""
+    try:
+        res = await CF.fetch_state(st)
+        return f"Nov 3 source answers ({len(res['counties'])} counties)"
+    except Exception as exc:
+        return f"Nov 3 source: {str(exc)[:90] or type(exc).__name__}"
+
+
+async def county_test_all() -> list[str]:
+    """Every feed at once, as messages short enough to send."""
+    states = CF.feed_states()
+    tests, nov3 = await asyncio.gather(asyncio.gather(*map(county_test, states)), asyncio.gather(*map(county_nov3, states)))
+    marks = [t.split(" ", 1)[0] for t in tests]
+    lines = [f"**All {len(states)} feeds:** ✅ {marks.count('✅')} · ⚠️ {marks.count('⚠️')} · ❌ {marks.count('❌')}\n"
+             "-# The first part reads old results, to prove the bot can read each format. The Nov 3 part shows what's "
+             "up now; before polls close, a 404 or \"hasn't posted\" is normal."]
+    lines += [f"{t}\n-# {n}" for t, n in zip(tests, nov3)]
+    msgs = [""]
+    for line in lines:
+        if len(msgs[-1]) + len(line) > 1900:
+            msgs.append("")
+        msgs[-1] += line + "\n"
+    return msgs
+
+
+@tree.command(name="countytest", description="Admin: check a county feed against an old results file, or all of them at once.")
 @app_commands.guild_only()
-@app_commands.choices(state=[app_commands.Choice(name=CM.STATES[s], value=s)
-                             for s in ("GA", "NC", "MN", "FL", "VA", "IA", "OH", "TX", "SC", "AK", "MI", "ME", "MS", "NH", "KY", "KS")])
+@app_commands.choices(state=[app_commands.Choice(name="All states", value="ALL")] +
+                      [app_commands.Choice(name=CM.STATES[s], value=s)
+                       for s in ("GA", "NC", "MN", "NE", "FL", "VA", "IA", "OH", "TX", "SC", "AK", "MI", "ME", "MS", "NH", "KY", "KS")])
 async def countytest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     await interaction.response.defer(ephemeral=True)
-    st = state.value
-    try:
-        res = await CF.fetch_state(st, test=True)
-    except Exception as exc:
-        return await interaction.followup.send(f"❌ {st}: {exc}", ephemeral=True)
-    base = {c["fips"]: c for c in CM.load()[st]}
-    got = res["counties"]
-    tcfg = (CF.load_sources().get("states", {}).get(st) or {}).get("test", {})
-    if tcfg.get("count_only") or "pres" not in tcfg.get("contest", "pres").lower():   # e.g. Virginia's 2025 governor race
-        tot = sum(r["D"] + r["R"] + r["O"] for r in got.values())
-        return await interaction.followup.send(
-            f"{'✅' if len(got) >= 0.95 * len(base) else '⚠️'} **{st}**: read {len(got)} of {len(base)} counties "
-            f"({tot:,} votes) from its {tcfg.get('election_id', 'test')} {tcfg.get('contest')} results.", ephemeral=True)
-    off = [base[f]["name"] for f, r in got.items()
-           if abs(r["D"] - base[f]["d24"]) > max(50, 0.01 * base[f]["d24"]) or abs(r["R"] - base[f]["r24"]) > max(50, 0.01 * base[f]["r24"])]
-    await interaction.followup.send(
-        f"{'✅' if got and not off else '⚠️'} **{st}**: read {len(got)} of {len(base)} counties from the 2024 file; "
-        f"{len(off)} differ from the published 2024 results" + (f" ({', '.join(off[:5])})" if off else "") + ".",
-        ephemeral=True)
+    if state.value != "ALL":
+        return await interaction.followup.send(await county_test(state.value), ephemeral=True)
+    for msg in await county_test_all():
+        await interaction.followup.send(msg, ephemeral=True)
 
 
 @tree.command(name="countyfeed", description="Admin: point a state's county feed at its results link (Clarity sites), or clear it.")

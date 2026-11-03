@@ -146,7 +146,7 @@ A county-by-county read of 15 Senate races: the 14 that Cook doesn't rate Solid 
 | `/countyclear state county` | Election Junkie | Removes a hand-entered count. |
 | `/countyfile file [state]` | Election Junkie | Upload a results file: a state's download (CSV, Excel, Clarity XML, or the GA/NC/MN/NE formats) or your own county table. The bot loads it, posts what it found and any alerts, and updates the workbook. |
 | `/environment` | Anyone | The national read. It pools every fully counted county in every state to show the swing from 2024 by county type, by state, and turnout against 2022, and lists which races that swing would flip. Before results, it shows early vote pace in every state. |
-| `/countytest state` | Admin | Checks a live county feed against its Nov 2024 file (or, for Ohio, South Carolina and Alaska, that the site answers). **Run it once for each state before the night.** |
+| `/countytest state` | Admin | Checks a county feed against an old results file (or, for some states, that the site answers). **All states** tests every feed at once and shows whether each Nov 3 source is up yet. **Run it before the night.** |
 | `/countyfeed state link` | Admin | Points a Clarity state (South Carolina, Iowa) at its election link, e.g. `https://www.enr-scvotes.org/SC/127500/`, if the site doesn't list Nov 3 by date. `clear` undoes it. |
 | `/countyrefresh` | Admin | Pulls everything now and rebuilds the workbook. |
 | `/excellink` | Admin | Posts a card in the current channel with the read-only workbook link (`CLOUD_VIEW_LINK` in `.env`) and a preview picture from before results. |
