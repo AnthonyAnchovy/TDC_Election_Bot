@@ -852,6 +852,15 @@ def predictions_open() -> bool:
     return now() < deadline()
 
 
+def unlocked_until(user_id: int) -> float:
+    """When /unlockpicks stops letting this person change their picks (0 if it never did)."""
+    return store.setting("picks_unlocked", {}).get(str(user_id), 0)
+
+
+def can_pick(user_id: int) -> bool:
+    return predictions_open() or now().timestamp() < unlocked_until(user_id)
+
+
 def predictions_hidden() -> bool:
     return CFG.get("hide_predictions_until_deadline", True) and predictions_open()
 
@@ -1049,9 +1058,10 @@ class PredictView(discord.ui.View):
             f"**Governors (bonus):** {gov_n}/{len(R.races_of('governor'))}",
             f"**House battlegrounds (bonus):** {bg_n}/{len(CMP.BATTLEGROUND)}",
         ]))
+        closes = deadline() if predictions_open() else datetime.fromtimestamp(unlocked_until(self.user.id), TZ)
         e.set_footer(text="Nothing is saved until you press Save all · "
-                          f"Picks close {deadline().astimezone(TZ).strftime('%b %d, %I:%M %p').replace(' 0', ' ')} "
-                          f"{deadline().astimezone(TZ).tzname()}")
+                          f"Picks close {closes.astimezone(TZ).strftime('%b %d, %I:%M %p').replace(' 0', ' ')} "
+                          f"{closes.astimezone(TZ).tzname()}")
         if page["map"]:
             e.set_image(url="attachment://picks.png")
         return e
@@ -1072,7 +1082,7 @@ class PredictView(discord.ui.View):
                                                 attachments=[f] if f else [])
 
     async def save(self, interaction: discord.Interaction):
-        if not predictions_open():
+        if not can_pick(self.user.id):
             return await interaction.response.send_message("Predictions are closed.", ephemeral=True)
         store.save_predictions(self.user.id, self.picks, self.house_seats)
         missing = []
@@ -1112,7 +1122,7 @@ def prediction_card_file(name: str, picks: dict, house_seats, marks=None) -> dis
 @tree.command(name="predict", description="Make your 2026 predictions: click states blue or red, then Save.")
 @app_commands.guild_only()
 async def predict_cmd(interaction: discord.Interaction):
-    if not predictions_open():
+    if not can_pick(interaction.user.id):
         return await interaction.response.send_message(
             "Predictions are closed. Use `/predictions` to see everyone's picks and `/leaderboard` for standings.",
             ephemeral=True)
@@ -1244,6 +1254,25 @@ async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_comman
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     store.set_setting("final_house_dem", dem_seats)
     await interaction.response.send_message(f"Final Democratic House seats set to {dem_seats}.")
+
+
+@tree.command(name="unlockpicks", description="Admin: let one person use /predict after the deadline, for a set time.")
+@app_commands.guild_only()
+@app_commands.describe(member="Who can change their picks", minutes="How long they have (0 locks them again)")
+async def unlockpicks_cmd(interaction: discord.Interaction, member: discord.Member,
+                          minutes: app_commands.Range[int, 0, 180] = 15):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    unlocked = store.setting("picks_unlocked", {})
+    if minutes:
+        unlocked[str(member.id)] = until = now().timestamp() + minutes * 60
+        text = f"🔓 **{member.display_name}** can change their predictions until {clock(until)}."
+    else:
+        unlocked.pop(str(member.id), None)
+        text = f"🔒 **{member.display_name}**'s predictions are locked again."
+    store.set_setting("picks_unlocked", unlocked)
+    await interaction.response.send_message(f"{text} This was posted on the board.", ephemeral=True)
+    await post(interaction.guild, "board_channel", None, content=text, allowed_mentions=NO_PINGS)
 
 
 # =========================================================================== /scoreboard (calling)

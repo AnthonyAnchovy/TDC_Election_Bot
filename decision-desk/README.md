@@ -62,6 +62,7 @@ Everyone's picks are visible as soon as they save, so you can compare maps befor
 | `/compare member [other]` | Every race where two people picked differently. |
 | `/leaderboard` | Standings. Points start counting as races are called. |
 | `/finalhouse seats` | Admin. Enter the final Democratic House seat count to settle tiebreakers. |
+| `/unlockpicks member [minutes]` | Admin. Lets one person use `/predict` after the deadline, for 15 minutes unless you say otherwise. Posted on the board. `0` locks them again. They can change any pick, including races already called. |
 
 **Who got it right:** every official call in #decision-desk ends with a prediction check listing who called it and who missed. `/race` shows the same for called races, and who picked what for uncalled ones. Turn it off with `"post_prediction_check": false` in `config.json`.
 

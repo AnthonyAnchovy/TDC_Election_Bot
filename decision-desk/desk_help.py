@@ -139,6 +139,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "it is.\n"
             "**`/fieldtest`** 🔧 Tries the field on a simulated night. Only you see it.\n"
             "**`/finalhouse seats`** 🔧 Enter the final Democratic House seat count. It settles leaderboard ties.\n"
+            "**`/unlockpicks member [minutes]`** 🔧 Lets one person use `/predict` after the deadline (15 minutes unless "
+            "you say). `0` locks them again.\n"
             "**`/deskreset RESET`** 🔧 Wipes **all** calls, votes and outlet calls, and the points they gave. **Not during "
             "the night.**"),
     }[key]
