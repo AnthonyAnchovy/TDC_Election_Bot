@@ -94,7 +94,7 @@ DCOLS = [("st", "State", 7), ("race", "Race", 31),
         [("paceproj", "Projected turnout (vs 2022)", 11), ("paceobs", "Turnout in finished counties (vs 2022)", 12),
          ("idxd", "Turnout index: D-leaning finished counties", 12), ("idxr", "Turnout index: R-leaning finished counties", 12), ("idxgap", "D index minus R index", 10)] + \
         [(f"to{i}", f"{lab} turnout", 11) for i, (_, lab) in enumerate(TYPE_SLOTS)] + \
-        [("pollm", "Final poll", 10), ("polladj", "Final poll moved by tonight's average miss", 13), ("pollerr", "Results minus poll", 10),
+        [("polladj", "Final poll moved by tonight's average miss", 13), ("pollerr", "Results minus poll", 10),
          ("implied", "Other states imply: this state's margin if its counties swing like similar counties elsewhere", 24),
          ("impliedn", "Finished counties in other states behind that number", 13),
          ("dem", "Democratic side", 18), ("rep", "Republican", 18), ("leader", "Leader (projected)", 22), ("m24", "2024 margin", 10),
@@ -103,7 +103,7 @@ DCOLS = [("st", "State", 7), ("race", "Race", 31),
          ("out", "Share of projected vote still out", 11), ("spread", "Swing spread in finished counties", 11),
          ("lo", "Projection, 90% range: low", 11), ("hi", "Projection, 90% range: high", 11),
          ("early", "Early votes so far", 11), ("earlypct", "Early vote as % of 2022 turnout", 11)] + \
-        [("h_m", "helper", 6), ("h_lo", "helper", 6), ("h_hi", "helper", 6), ("h_poll", "helper", 6)] + \
+        [("h_m", "helper", 6), ("h_lo", "helper", 6), ("h_hi", "helper", 6)] + \
         [(f"h_sw{i}", "helper", 6) for i in range(len(TYPE_SLOTS))] + [(f"h_to{i}", "helper", 6) for i in range(len(TYPE_SLOTS))]
 # Wide enough that no header word breaks in the middle (bold Arial runs about 1.15 column units a letter)
 DCOLS = [(k, h, max(w, max(len(x) for x in h.split()) * 1.15 + 2) if h else w) for k, h, w in DCOLS]
@@ -112,7 +112,7 @@ DZONES = [("RACE", "1F2A44", "st", "race"), ("WHO'S AHEAD", "1F4E9A", "call", "r
           ("CAN THE TRAILER CATCH UP?", "B7791F", "left", "gap"),
           ("SWING SINCE 2024, BY COUNTY TYPE · color = against the swing the D side needs", "A23B3B", "need", f"sw{len(TYPE_SLOTS) - 1}"),
           ("TURNOUT, BY COUNTY TYPE · percent = vs 2022, index = vs the state's pace", "2F5D50", "paceproj", f"to{len(TYPE_SLOTS) - 1}"),
-          ("SECOND OPINIONS", "595959", "pollm", "impliedn"), ("THE RAW NUMBERS", "404040", "dem", "earlypct")]
+          ("SECOND OPINIONS", "595959", "polladj", "impliedn"), ("THE RAW NUMBERS", "404040", "dem", "earlypct")]
 D_NEED, D_FACTOR, D_DONE, D_PACE_USED, D_PACE = DC["need"], DC["factor"], DC["done"], DC["paceused"], DC["paceproj"]
 D_EXP_PACE, D_SWING, D_EXP = DC["exppace"], DC["swing"], DC["exp"]   # D_EXP_PACE: turnout pace for expected votes (from counties known to be complete)
 LEGEND_ROW0 = 24

@@ -21,6 +21,7 @@ import cw_workbook as W
 F, DC, TL = W.F, W.DC, W.TL
 NAVY = "1F2A44"
 HAIR = Side(style="thin", color="D9D9D9")
+GAP = Side(style="thick", color="FFFFFF")        # keeps the strip and bar of one row from running into the next
 fill = lambda c: PatternFill("solid", fgColor=c, bgColor=c)
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 TURN_FILLS = ["7A4FA3", "CBB6E0", "EDEDED", "F9D9A8", "D98A1F"]    # turnout: not partisan, so not blue and red
@@ -82,9 +83,12 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     ws["C2"] = ("One row per race, in poll-closing order. Read left to right: who's ahead, how sure we can be, whether the trailer can catch up, "
                 "then swing and turnout by county type. The raw numbers are at the far right. The bot's written take on each race is under the table.")
     ws["C2"].font = F(italic=True, color="595959")
+    ws["C2"].alignment = Alignment(wrap_text=True, vertical="center")
+    ws.merge_cells(f"C2:{DC['rangetxt']}2")       # Excel Online cuts off long text that only overflows, so these lines are merged
     ws["A3"] = f"Last bot update: {keep.get('updated') or 'not yet'}"
     ws["A3"].font = F(color="595959")
-    ws.row_dimensions[2].height = ws.row_dimensions[3].height = 16
+    ws.row_dimensions[2].height = 30
+    ws.row_dimensions[3].height = 16
     hr = W.DASH_ROW0 - 1
     rows = W.dash_order()
     r0, rN = W.DASH_ROW0, W.DASH_ROW0 + len(rows) - 1
@@ -117,9 +121,9 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     strip0, stripN = idx(DC["s0"]), idx(DC[f"s{W.STRIP_N - 1}"])
     conf0, confN = idx(DC["c0"]), idx(DC[f"c{W.CONF_N - 1}"])
     ws.merge_cells(start_row=hr, start_column=strip0, end_row=hr, end_column=stripN)
-    ws.cell(row=hr, column=strip0, value="◀ R+15      even      D+15 ▶\nBlack = projection, gold = final poll, grey = 90% range. One block = 1 point.")
+    ws.cell(row=hr, column=strip0, value="◀ R+15      even      D+15 ▶\nBlack = projection, grey = 90% range. One block = 1 point. Empty until a county finishes.")
     ws.merge_cells(start_row=hr, start_column=conf0, end_row=hr, end_column=confN)
-    ws.cell(row=hr, column=conf0, value="Vote counted. Dark = finished counties, mid = half-counted. Red zone = low confidence, amber = medium, green = high.")
+    ws.cell(row=hr, column=conf0, value="Vote counted. Dark = finished counties, mid = half-counted. Red zone = low confidence, amber = medium, green = high. Empty until votes are counted.")
     need = 3
     for key, head, width in W.DCOLS:
         if head and not key.startswith("h_"):
@@ -134,7 +138,6 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
         done1 = "," + rng("done") + ",1"
         dn, rn = names[st]
         sd, sr = W._surname(dn), W._surname(rn)
-        poll = G.poll_ref(st, "pm")
         none = f"{c('done')}=0"
         ty = lambda h, tr: f"Types!${TL[h]}${tr}"
         forms = {
@@ -179,7 +182,7 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
             "spread": (f"=IF({none},\"\",IF({c('done')}>=5,MAX(SQRT({S('dev')}/{S('tc', done1)}),{M.SPREAD_MIN}),{M.SPREAD_DEFAULT}))"),
             "lo": (f"=IF({none},\"\",MAX(-1,{c('proj')}-{M.RANGE_Z}*({c('out')}*SQRT({M.RANGE_TAU}^2+{c('spread')}^2/{c('done')})+{M.RANGE_FLOOR})))"),
             "hi": (f"=IF({none},\"\",MIN(1,{c('proj')}+{M.RANGE_Z}*({c('out')}*SQRT({M.RANGE_TAU}^2+{c('spread')}^2/{c('done')})+{M.RANGE_FLOOR})))"),
-            "rangetxt": f'=IF({none},"final poll ±8",{W._mt(c("lo"))}&" to "&{W._mt(c("hi"))})',
+            "rangetxt": f'=IF({none},"–",{W._mt(c("lo"))}&" to "&{W._mt(c("hi"))})',
             "implied": (f"=IF(SUMIFS(Types!${TL['Other states: votes in all-state fallback']}:${TL['Other states: votes in all-state fallback']},"
                         f"Types!$B:$B,$A{r})=0,\"\",SUMIFS(Types!${TL['Share x implied margin (helper)']}:${TL['Share x implied margin (helper)']},"
                         f"Types!$B:$B,$A{r}))"),
@@ -192,14 +195,12 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
             "pace": f'=IF({c("loser")}="","",(1+IF({c("loser")}="D",1,-1)*({c("pnet")}-{c("cnet")})/{c("left")})/2)',
             "trailer": f'=IF({c("loser")}="","–",IF({c("loser")}="D","{sd}","{sr}"))',
             "gap": f'=IF({c("loser")}="","",({c("needs")}-{c("pace")})*100)',
-            "pollm": f"={poll}",
             "polladj": f'={G.poll_ref(st, "adj")}',
             "pollerr": f'={G.poll_ref(st, "err")}',
             # helpers for the graphics
-            "h_m": f'=IF({none},IF({poll}="","",MAX(-15,MIN(15,{poll}*100))),MAX(-15,MIN(15,{c("proj")}*100)))',
+            "h_m": f'=IF({none},"",MAX(-15,MIN(15,{c("proj")}*100)))',
             "h_lo": f'=IF({none},"",MAX(-15,MIN(15,{c("lo")}*100)))',
             "h_hi": f'=IF({none},"",MAX(-15,MIN(15,{c("hi")}*100)))',
-            "h_poll": f'=IF({poll}="","",MAX(-15,MIN(15,{poll}*100)))',
         }
         tslots = W.TYPE_SLOTS if st != "AK" else [("Alaska district", W.TYPE_SLOTS[0][1])]
         for i, (tname, _) in enumerate(tslots):
@@ -243,13 +244,16 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
             cell = ws[f"{DC[f's{i}']}{r}"]
             cell.fill = fill(col)
             if v == 0:
-                cell.border = Border(left=Side(style="thin", color="404040"), right=Side(style="thin", color="404040"))
+                cell.border = Border(left=Side(style="thin", color="404040"), right=Side(style="thin", color="404040"), top=GAP, bottom=GAP)
+            else:
+                cell.border = Border(top=GAP, bottom=GAP)
         for i in range(W.CONF_N):
             ws[f"{DC[f'c{i}']}{r}"].fill = fill("F8CFCA" if i < 2 else "FBEBC8" if i < 8 else "DFF0E3")
+            ws[f"{DC[f'c{i}']}{r}"].border = Border(top=GAP, bottom=GAP)
         ws.row_dimensions[r].height = 50
 
     # number formats
-    fmts = {W.MARGIN: ("raw", "m24", "lo", "hi", "pollm", "polladj"), W.SWING: ("need", "swing", "ahead", "pollerr"),
+    fmts = {W.MARGIN: ("raw", "m24", "lo", "hi", "polladj"), W.SWING: ("need", "swing", "ahead", "pollerr"),
             W.NUM: ("exp", "counted", "early", "left"), "0.0%": ("spread", "needs", "pace"),
             "0.00": ("factor", "paceused", "exppace"), W.PCT: ("pct", "doneshare", "earlypct", "out", "paceobs", "paceproj"), "0": ("idxd", "idxr"), '+0;-0;0': ("idxgap",),
             W.NET: ("cnet", "pnet"), G.PLAIN: ("proj", "implied"), '0.0" pts"': ("gap",)}
@@ -263,9 +267,8 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     s0L, sNL = DC["s0"], DC[f"s{W.STRIP_N - 1}"]
     strip = f"{s0L}{r0}:{sNL}{rN}"
     tick = f"(COLUMN()-COLUMN(${s0L}$1)-15)"
-    hm, hlo, hhi, hp, dn_ = (f"${DC['h_m']}{r0}", f"${DC['h_lo']}{r0}", f"${DC['h_hi']}{r0}", f"${DC['h_poll']}{r0}", f"${DC['done']}{r0}")
+    hm, hlo, hhi, dn_ = (f"${DC['h_m']}{r0}", f"${DC['h_lo']}{r0}", f"${DC['h_hi']}{r0}", f"${DC['done']}{r0}")
     cf(strip, FormulaRule(formula=[f'AND({dn_}>0,ISNUMBER({hm}),ABS({tick}-{hm})<0.5)'], stopIfTrue=True, fill=fill("1A1A1A")))
-    cf(strip, FormulaRule(formula=[f'AND(ISNUMBER({hp}),ABS({tick}-{hp})<0.5)'], stopIfTrue=True, fill=fill("D9A400")))
     cf(strip, FormulaRule(formula=[f'AND(ISNUMBER({hlo}),{tick}>={hlo},{tick}<={hhi})'], stopIfTrue=True, fill=fill("9A9A9A")))
     c0L, cNL = DC["c0"], DC[f"c{W.CONF_N - 1}"]
     bar = f"{c0L}{r0}:{cNL}{rN}"
@@ -278,7 +281,7 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     q = f"${DC['proj']}{r0}"
     for k in ("call", "proj"):
         W._tier_colors(ws, f"{DC[k]}{r0}:{DC[k]}{rN}", q, W.TIER_CONDS(q))
-    for k in ("pollm", "polladj", "implied"):
+    for k in ("polladj", "implied"):
         ref = f"${DC[k]}{r0}"
         W._tier_colors(ws, f"{DC[k]}{r0}:{DC[k]}{rN}", ref, W.TIER_CONDS(ref))
     cf(f"{DC['gap']}{r0}:{DC['gap']}{rN}", DataBarRule(start_type="num", start_value=0, end_type="num", end_value=40, color="B7791F", showValue=True))
@@ -312,20 +315,22 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
         "• Other states imply: apply the swings that similar kinds of counties are showing in other states tonight to this state. It's a second opinion from outside the state and never feeds the projection.",
         "• Nebraska's D side is Dan Osborn, and its 2024 columns are Osborn's 2024 Senate race, not the presidential race. Alaska reports by state House district. Mississippi's 2022 column is US House races, so its 2022 margins are rough.",
     ]):
-        cell = ws.cell(row=y + i, column=1, value=line)
+        cell = ws.cell(row=y + i, column=3, value=line)
         cell.font = F(bold=(i == 0), color="404040")
-        ws.row_dimensions[y + i].height = 16
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+        ws.merge_cells(f"C{y + i}:{DC[f'c{W.CONF_N - 1}']}{y + i}")
+        ws.row_dimensions[y + i].height = 30 if len(line) > 170 else 16
 
     # ---- the bot's takes
     b = W.TAKE_ROW0 - 2
     end = idx(W.take_span(3)[1])
-    ws.merge_cells(start_row=b, start_column=1, end_row=b, end_column=end)
-    ws.cell(row=b, column=1, value="THE BOT'S TAKE · click a state's name in the table to jump to it")
+    ws.merge_cells(start_row=b, start_column=3, end_row=b, end_column=end)
+    ws.cell(row=b, column=3, value="THE BOT'S TAKE · click a state's name in the table to jump to it")
     for x in range(1, end + 1):
         ws.cell(row=b, column=x).fill = fill("2F5D50")
         ws.cell(row=b + 1, column=x).fill = fill(NAVY)
-    ws.cell(row=b, column=1).font = F(bold=True, size=11, color="FFFFFF")
-    ws.cell(row=b, column=1).alignment = Alignment(vertical="center", indent=1)
+    ws.cell(row=b, column=3).font = F(bold=True, size=11, color="FFFFFF")
+    ws.cell(row=b, column=3).alignment = Alignment(vertical="center", indent=1)
     ws.row_dimensions[b].height = 24
     for j, t in enumerate(("Where it stands", "Swing and turnout", "Key counties ahead of the D side's pace", "Key counties behind the D side's pace")):
         a_, z_ = W.take_span(j)
