@@ -1,22 +1,27 @@
-"""Draw the finished projection art into assets/calls/: a glass card with the state and the winner's photo, and for
-the races listed in projection_memes.json, the meme worked in.
+"""Draw the finished projection art into assets/calls/: a glass card with the state and the winner's photo, and the
+loser standing in the fog under THE FOG CLAIMETH.
 
     python tools/make_projection_art.py                   every race and winner
     python tools/make_projection_art.py GA-SEN_D TX-SEN   just these (a race id means all its winners)
-    python tools/make_projection_art.py --memes           only the races with a meme
-    python tools/make_projection_art.py --sheet           also write assets/kit/_sheet_memes.jpg, a contact sheet
+    python tools/make_projection_art.py --sheet           also write assets/kit/_sheet_all.jpg, a contact sheet of the cards drawn
+    python tools/make_projection_art.py --template        write the one master file to edit, assets/kit/projection-template-fog.psd
+    python tools/make_projection_art.py --psd GA-SEN_D    write a layered Photoshop file to assets/kit/psd/GA-SEN_D.psd
+                                                          (leaves an existing one alone unless you add --replace)
     python tools/make_projection_art.py --kit GA-SEN_D    write each layer as its own PNG to assets/kit/GA-SEN_D/ for editing
 
 These files count as yours, so the bot posts them exactly as they are. Running this again only redraws files it drew
 itself and you haven't changed (assets/calls/_art.json keeps track). Edit one by hand and it's safe from then on.
-docs/projection-art.md explains the layouts and how to fit a new meme.
+docs/projection-art.md explains the card and how to edit it.
 """
 from __future__ import annotations
 
 import hashlib
 import io
 import json
+import random
+import shutil
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
@@ -29,18 +34,28 @@ import graphics as G       # noqa: E402
 import races as R          # noqa: E402
 sys.path.insert(0, str(HERE / "tools"))
 import make_call_pngs as P # noqa: E402
+import psd_writer as PSD   # noqa: E402
 
 CALLS = G.ASSETS / "calls"
 MANIFEST = CALLS / "_art.json"
 PHOTOS = G.ASSETS / "candidates"
 CUTOUTS = PHOTOS / "cutouts"
-TEMPLATES = G.ASSETS / "memes" / "templates"
 KIT = G.ASSETS / "kit"
-PLAN = HERE / "projection_memes.json"
+PSD_DIR = KIT / "psd"
+TEMPLATE = KIT / "projection-template-fog.psd"
+TEMPLATE_ORIGINAL = KIT / "_projection-template-fog-original.psd"
+FOG = G.ASSETS / "memes" / "fog.webp"
+FOG_SLOT = "PUT YOUR IMAGES IN THIS GROUP (between the fog)"
+FOG_CAPTION = G.ASSETS / "memes" / "fog-claimeth.png"       # his THE FOG COMETH bar, reworded from its own letters
+FOG_CAPTION_POS = (446, 676)                                # the middle of its top edge, where he put it
+# Pictures made by hand to stand in the fog instead of the loser's photo, with where they go
+FOG_ART = {"OH-SEN_D": (G.ASSETS / "memes" / "fog-husted.png", (394, 725))}
+FOG_FIGURE = {"cx": 446, "top": 725, "floor": 974, "face": 62, "max_face": 96}    # sized from his cartoon, which fills this box
 
-W, H = 1600, 900
+W, H = 1680, 1120
 SIZE = (W, H)
-PANEL = (50, 70, 1500, 840)
+PANEL = (50, 70, 1500, 1060)
+BRAND = "TDC DECISION DESK"
 RADIUS = 46
 FOOT = 86
 TILT = {"D": (120, 180, 255), "R": (255, 150, 140), "I": (205, 170, 255)}     # rim light on the portrait
@@ -57,14 +72,19 @@ class Stack:
         if img.size != SIZE or xy != (0, 0):
             full = Image.new("RGBA", SIZE, (0, 0, 0, 0))
             full.alpha_composite(img.convert("RGBA"), (max(0, xy[0]), max(0, xy[1])),
-                                 (max(0, -xy[0]), max(0, -xy[1])))
+                                 (max(0, -xy[0]), max(0, -xy[1])))      # the source box handles anything off the left or top
             img = full
         self.layers.append((name, img))
 
+    def slot(self, name: str) -> None:
+        """An empty group in the Photoshop file. It draws nothing on the card."""
+        self.layers.append((name, None))
+
     def flat(self) -> Image.Image:
         out = Image.new("RGBA", SIZE, (0, 0, 0, 0))
-        for _, layer in self.layers:
-            out.alpha_composite(layer)
+        for name, layer in self.layers:
+            if layer is not None:
+                out.alpha_composite(layer)
         return out
 
 
@@ -96,8 +116,8 @@ def glass(st: Stack, party: str, box: tuple[int, int, int, int], name: str = "gl
         sd.line([(x, H), (x + H, 0)], fill=16, width=14)
     light = blank()
     light.putalpha(ImageChops.multiply(streak, panel))
-    grad.alpha_composite(light)
     st.add(name, grad)
+    st.add(f"{name}-streaks", light)
     return panel
 
 
@@ -112,7 +132,7 @@ def state_masks(f: dict, box_w: int, box_h: int) -> tuple[Image.Image | None, Im
     return alpha, ImageChops.multiply(cut.convert("L").point(lambda v: 255 if v > 190 else 0), alpha)
 
 
-def ghost(st: Stack, f: dict, party: str, panel: Image.Image, box: tuple[int, int, int, int], *, bw=820, bh=880,
+def ghost(st: Stack, f: dict, party: str, panel: Image.Image, box: tuple[int, int, int, int], *, bw=840, bh=1020,
           strength: float = 0.16) -> None:
     """The giant state, bleeding off the panel's right side: a ghost inside the glass, a party-color outline past it."""
     mask, district = state_masks(f, bw, bh)
@@ -187,33 +207,156 @@ def portrait(st: Stack, rid: str, party: str, cx: int, floor: int, face_h: int, 
     rgb = ImageEnhance.Color(rgb).enhance(1.05)
     # pull the shadows toward the panel color, so the photo looks lit by the same scene
     grey = rgb.convert("L")
-    shade = Image.new("RGB", new, NAVY[party])
-    rgb = Image.composite(rgb, shade, grey.point(lambda v: min(255, 190 + v)))
+    shade_mask = grey.point(lambda v: 255 - min(255, 190 + v))
     # eat a pixel of the matte so there's no halo from the photo's old background
     alpha = alpha.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
     alpha = soften_cropped_sides(alpha)
     # rim light from the panel
     inner = ImageChops.subtract(alpha, alpha.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(4)))
-    rim = Image.new("RGB", new, TILT[party])
-    rgb = Image.composite(rim, rgb, inner.point(lambda v: int(v * 0.42)))
+    rim_mask = inner.point(lambda v: int(v * 0.42))
     ramp = Image.linear_gradient("L").rotate(180).resize((new[0], fade))
     fader = Image.new("L", new, 255)
     fader.paste(ramp, (0, max(0, floor - y - fade)))
     if floor - y < new[1]:
         ImageDraw.Draw(fader).rectangle([0, floor - y, new[0], new[1]], fill=0)
     alpha = ImageChops.multiply(alpha, fader)
-    out = rgb.convert("RGBA")
-    out.putalpha(alpha)
 
-    canvas = blank()
-    canvas.alpha_composite(out, (max(0, x), y), (max(0, -x), 0))
-    if clip is not None:
-        canvas.putalpha(ImageChops.multiply(canvas.split()[-1], clip))
-    sil = canvas.split()[-1]
+    def placed(color: Image.Image, mask: Image.Image) -> Image.Image:
+        out = color.convert("RGBA")
+        out.putalpha(mask)
+        canvas = blank()
+        canvas.alpha_composite(out, (max(0, x), y), (max(0, -x), 0))
+        if clip is not None:
+            canvas.putalpha(ImageChops.multiply(canvas.split()[-1], clip))
+        return canvas
+
+    photo = placed(rgb, alpha)
+    sil = photo.split()[-1]
     shadow = tinted(ImageChops.offset(sil, -14, 12).filter(ImageFilter.GaussianBlur(18)), (0, 0, 0), 0.5)
     st.add("portrait-shadow", shadow)
-    st.add("portrait", canvas)
+    st.add("portrait-photo", photo)
+    st.add("portrait-shadow-tint", placed(Image.new("RGB", new, NAVY[party]), ImageChops.multiply(shade_mask, alpha)))
+    st.add("portrait-rim-light", placed(Image.new("RGB", new, TILT[party]), ImageChops.multiply(rim_mask, alpha)))
     return sil.getbbox()
+
+
+# ------------------------------------------------------------------------------------------------ the fog
+def _soft(v: int) -> int:
+    t = v / 255
+    return int(255 * t * t * (3 - 2 * t))
+
+
+def fog_mask(zone: tuple[int, int, int, int], clip: Image.Image | None, top: int, left: int, right: int = 0) -> Image.Image:
+    """Solid in the zone, fading out toward its top and left (and right, when it isn't clipped by the card)."""
+    x0, y0, x1, y1 = zone
+    w, h = x1 - x0, y1 - y0
+    ramp_down = Image.linear_gradient("L").resize((w, top)).point(_soft)
+    ramp_across = Image.linear_gradient("L").rotate(90, expand=True).resize((left, h)).point(_soft)
+    m = Image.new("L", (w, h), 255)
+    m.paste(ramp_down, (0, 0))
+    across = Image.new("L", (w, h), 255)
+    across.paste(ramp_across, (0, 0))
+    m = ImageChops.multiply(m, across)
+    if right:
+        far = Image.new("L", (w, h), 255)
+        far.paste(ImageOps.mirror(Image.linear_gradient("L").rotate(90, expand=True).resize((right, h)).point(_soft)), (w - right, 0))
+        m = ImageChops.multiply(m, far)
+    full = Image.new("L", SIZE, 0)
+    full.paste(m, (x0, y0))
+    return ImageChops.multiply(full, clip) if clip is not None else full
+
+
+def fog_back(st: Stack, zone: tuple[int, int, int, int], clip: Image.Image | None, party: str, *, feather: int = 24) -> tuple[Image.Image, Image.Image]:
+    """The forest in the fog, melted into the card: soft on three sides, and standing on the footer strip below.
+    Returns the forest and its shape, for the faint copy that goes in front of the slot."""
+    x0, y0, x1, y1 = zone
+    pic = ImageOps.fit(Image.open(FOG).convert("RGB"), (x1 - x0, y1 - y0), Image.LANCZOS)
+    pic = ImageEnhance.Contrast(pic).enhance(1.14)
+    pic = ImageEnhance.Brightness(pic).enhance(1.06)
+    pic = Image.blend(pic, Image.new("RGB", pic.size, G.GLASS[party][0]), 0.14).convert("RGBA")
+    inset = feather * 2
+    soft = Image.new("L", SIZE, 0)
+    ImageDraw.Draw(soft).rounded_rectangle([x0 + inset, y0 + inset, x1 - inset, y1 + feather * 4], radius=feather * 2, fill=255)
+    soft = soft.filter(ImageFilter.GaussianBlur(feather))
+    floor = Image.new("L", SIZE, 0)                # nothing past the bottom of the picture
+    ImageDraw.Draw(floor).rectangle([0, 0, W, y1 - 1], fill=255)
+    soft = ImageChops.multiply(soft, floor)
+    if clip is not None:
+        soft = ImageChops.multiply(soft, clip)
+    haze = ImageChops.multiply(soft.filter(ImageFilter.GaussianBlur(feather * 2.4)), clip if clip is not None else floor)
+    st.add("fog-haze", tinted(ImageChops.multiply(haze, floor), (196, 205, 222), 0.3))
+    layer = blank()
+    layer.paste(pic, zone[:2])
+    layer.putalpha(soft)
+    st.add("fog-back", layer)
+    return layer, soft
+
+
+def fog_trees(st: Stack, forest: Image.Image, shape: Image.Image) -> None:
+    """The forest showing faintly in front of whatever is in the slot."""
+    trees = forest.copy()
+    trees.putalpha(ImageChops.multiply(shape, Image.new("L", SIZE, 118)))
+    st.add("fog-trees", trees)
+
+
+def loser_party(rid: str, party: str, names: dict) -> str | None:
+    """Who stands in the fog when this party wins: the R when D or I wins, the D when R wins, and failing those the
+    other name on the ballot. The House majority has no single loser."""
+    if R.RACES[rid]["type"] == "control":
+        return None
+    order = {"D": "RI", "I": "RD", "R": "DI"}[party]
+    return next((p for p in order if names.get(p) and names[p] != names.get(party)), None)
+
+
+def fog_figure(st: Stack, rid: str, party: str) -> None:
+    """The loser's cutout, about the size of the cartoon on OH-SEN_D. It has to run down to the fog's floor, so a photo
+    that stops early gets bigger, and past a point it sinks lower instead."""
+    cut = Image.open(CUTOUTS / f"{rid}_{party}.png").convert("RGBA")
+    fx, fy, fw, fh = FACES[f"{rid}_{party}"]["face"]
+    head = cut.split()[-1].getbbox()[1]
+    want = FOG_FIGURE
+    reach = (want["floor"] - want["top"]) / (cut.height - head)
+    scale = max(want["face"] / fh, min(reach, want["max_face"] / fh))
+    y = max(int(want["top"] - head * scale), int(want["floor"] - cut.height * scale))
+    new = (max(1, int(cut.width * scale)), max(1, int(cut.height * scale)))
+    cut = cut.resize(new, Image.LANCZOS)
+    alpha = soften_cropped_sides(cut.split()[-1].filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.6)), width=max(12, new[0] // 12))
+    cut.putalpha(alpha)
+    layer = blank()
+    x = int(want["cx"] - (fx + fw / 2) * scale)
+    layer.alpha_composite(cut, (max(0, x), max(0, y)), (max(0, -x), max(0, -y)))
+    ImageDraw.Draw(layer).rectangle([0, want["floor"], W, H], fill=(0, 0, 0, 0))
+    st.add("fog-loser", layer)
+
+
+def fog_slot(st: Stack, rid: str, party: str, names: dict) -> None:
+    """What stands in the fog: the hand-made picture if this card has one, or the loser's photo, and always the caption."""
+    st.slot(FOG_SLOT)
+    other = loser_party(rid, party, names)
+    art = FOG_ART.get(f"{rid}_{party}")
+    if art:
+        st.add("fog-loser", Image.open(art[0]).convert("RGBA"), art[1])
+    elif other and has_portrait(rid, other):
+        fog_figure(st, rid, other)
+    bar = Image.open(FOG_CAPTION).convert("RGBA")
+    st.add("fog-caption", bar, (FOG_CAPTION_POS[0] - bar.width // 2, FOG_CAPTION_POS[1]))
+
+
+def fog_front(st: Stack, zone: tuple[int, int, int, int], clip: Image.Image | None, *, strength: float = 0.72, top: int = 340,
+              left: int = 460, right: int = 0) -> None:
+    """Drifting mist over whatever is in the slot: thicker low down, so things seem to sink into it."""
+    w, h = zone[2] - zone[0], zone[3] - zone[1]
+    rng = random.Random(2026)                    # the same mist on every card
+    cloud = Image.new("L", (w, h), 128)
+    for gw, gh, weight in ((9, 5, 0.6), (18, 10, 0.35), (40, 22, 0.25), (90, 50, 0.12)):
+        grid = Image.frombytes("L", (gw, gh), rng.randbytes(gw * gh)).resize((w, h), Image.BICUBIC)
+        cloud = Image.blend(cloud, grid, weight)
+    cloud = ImageOps.autocontrast(cloud).filter(ImageFilter.GaussianBlur(10))
+    thick = cloud.point(lambda v: int(255 * (0.12 + 0.88 * v / 255) * strength))
+    mask = Image.new("L", SIZE, 0)
+    mask.paste(thick, zone[:2])
+    layer = tinted(ImageChops.multiply(mask, fog_mask(zone, clip, top, left, right)), (198, 206, 220))
+    st.add("fog-front", layer)
 
 
 # ------------------------------------------------------------------------------------------------ type
@@ -223,33 +366,39 @@ def result_label(f: dict, party: str) -> str:
     return f"FLIP {f['holder']} \u2192 {party}" if f["flip"] else f"{party} HOLD"
 
 
-def footer(st: Stack, f: dict, party: str, panel: Image.Image, box: tuple[int, int, int, int], badge_right: int | None = None,
-           text: str = "DECISION DESK  ·  PROJECTED WINNER") -> None:
+def footer(st: Stack, f: dict, party: str, panel: Image.Image, box: tuple[int, int, int, int]) -> None:
     px0, _, px1, py1 = box
     cover = Image.new("L", SIZE, 0)
     ImageDraw.Draw(cover).rectangle([px0, py1 - FOOT, px1, py1], fill=255)
     layer = blank()
     layer.putalpha(ImageChops.multiply(cover, panel).point(lambda v: int(v * 0.42)))
+    st.add("footer-strip", layer)
     d = ImageDraw.Draw(layer)
-    d.text((px0 + 60, py1 - 43), text, font=G.font(28, False), fill=(255, 255, 255, 215), anchor="lm")
-    st.add("footer", layer)
     if not f["holder"]:
         return
     label = result_label(f, party)
     bf = G.font(34)
     bw = int(d.textlength(label, font=bf)) + 56
-    bx1 = badge_right or px1 - 50
+    bx1 = px1 - 50
     pm = G._rounded_mask(SIZE, [bx1 - bw, py1 - 70, bx1, py1 - 16], 27)
     tm = G._text_mask(SIZE, (bx1 - bw / 2, py1 - 43), label, bf)
     st.add("flip-badge", G._knockout(SIZE, pm, tm, G.YELLOW if f["flip"] else (255, 255, 255)))
 
 
 def pill(st: Stack, x: int, y: int, text: str = "KEY RACE ALERT") -> None:
+    """The alert pill, with the desk's name beside it."""
     d = ImageDraw.Draw(blank())
     tf = G.font(34)
     tw = int(d.textlength(text, font=tf)) + 64
     pm = G._rounded_mask(SIZE, [x, y, x + tw, y + 58], 29)
     st.add("pill", G._knockout(SIZE, pm, G._text_mask(SIZE, (x + tw / 2, y + 29), text, tf), (255, 255, 255)))
+    brand(st, x + tw + 24, y + 29, "lm")
+
+
+def brand(st: Stack, x: int, y: int, anchor: str) -> None:
+    layer = blank()
+    ImageDraw.Draw(layer).text((x, y), BRAND, font=G.font(32), fill=(255, 255, 255, 245), anchor=anchor)
+    st.add("brand", layer)
 
 
 def badge(st: Stack, f: dict, right: int, top: int, bw=190, bh=150) -> None:
@@ -281,25 +430,31 @@ def winner_lines(f: dict, party: str, name: str | None) -> list[str]:
     return G._split_name(name) if name else [C.PARTY_NOUN[party].upper()]
 
 
-def name_block(st: Stack, f: dict, party: str, name: str | None, x: int, y: int, max_w: int, size: int, *,
-               one_line: bool = False) -> int:
-    """WINNER with the check, then the name in one or two lines. Returns the y below it."""
+def check_mark(x: int, y: int, size: int) -> Image.Image:
     layer = blank()
-    d = ImageDraw.Draw(layer)
+    G._check(ImageDraw.Draw(layer), x, y, size)
+    return layer
+
+
+def name_block(st: Stack, f: dict, party: str, name: str | None, x: int, y: int, max_w: int, size: int) -> int:
+    """WINNER with the check, then the name in one or two lines. Returns the y below it."""
+    d = ImageDraw.Draw(blank())
     check = int(size * 0.56)
-    G._check(d, x, y, check)
-    d.text((x + check + 20, y + check // 2 + 2), "WINNER", font=C.fit(d, "WINNER", max_w, "Anton-Regular.ttf", int(size * 0.5)),
-           fill=G.YELLOW + (255,), anchor="lm")
+    st.add("check", check_mark(x, y, check))
+    word = blank()
+    ImageDraw.Draw(word).text((x + check + 20, y + check // 2 + 2), "WINNER", fill=G.YELLOW + (255,), anchor="lm",
+                              font=C.fit(d, "WINNER", max_w, "Anton-Regular.ttf", int(size * 0.5)))
+    st.add("winner-label", word)
     yy = y + check + 12
     lines = winner_lines(f, party, name)
-    for line in [" ".join(lines)] if one_line else lines:
+    for i, line in enumerate(lines, 1):
         fnt = G.fit(d, line, max_w, size, min_size=38)
         sm = G._text_mask(SIZE, (x + 4, yy + 6), line, fnt, anchor="lt")
-        layer.alpha_composite(G._glow(sm, (0, 0, 0), 8, 0.6))
-        d = ImageDraw.Draw(layer)
-        d.text((x, yy), line, font=fnt, fill=(255, 255, 255, 255), anchor="lt")
+        st.add(f"name-line-{i}-shadow", G._glow(sm, (0, 0, 0), 8, 0.6))
+        text = blank()
+        ImageDraw.Draw(text).text((x, yy), line, font=fnt, fill=(255, 255, 255, 255), anchor="lt")
+        st.add(f"name-line-{i}", text)
         yy += fnt.size + 12
-    st.add("name", layer)
     return yy
 
 
@@ -311,204 +466,92 @@ def race_title(st: Stack, f: dict, x: int, y: int, max_w: int, size: int = 58) -
     st.add("title", layer)
 
 
-def meme_caption(st: Stack, text: str, x: int, y: int, max_w: int, *, start: int = 150, anchor: str = "lt", angle: float = -2.0,
-                 color=(255, 255, 255)) -> int:
-    """Poster type with a heavy black edge, a bit crooked. A | in the text starts a new line. Returns the y below it."""
-    layer = blank()
-    d = ImageDraw.Draw(layer)
-    lines = text.split("|")
-    fnt = C.fit(d, max(lines, key=lambda s: d.textlength(s, font=C.font(C.ANTON, start))), max_w, C.ANTON, start, 40)
-    yy = y
-    for line in lines:
-        d.text((x, yy), line, font=fnt, fill=color + (255,), stroke_width=max(4, fnt.size // 16), stroke_fill=(0, 0, 0, 255), anchor=anchor)
-        yy += int(fnt.size * 1.16)
-    if angle:
-        layer = layer.rotate(angle, resample=Image.BICUBIC, center=(x, y))
-    shadow = tinted(layer.split()[-1].filter(ImageFilter.GaussianBlur(10)), (0, 0, 0), 0.45)
-    st.add("caption-shadow", ImageChops.offset(shadow, 4, 8))
-    st.add("caption", layer)
-    return yy
-
-
-# ------------------------------------------------------------------------------------------------ memes
-def load_meme(item: dict, rid: str, party: str) -> Image.Image:
-    img = ImageOps.exif_transpose(Image.open(TEMPLATES / item["meme"])).convert("RGB")
-    if item.get("crop"):
-        l, t, r, b = item["crop"]        # fractions of the picture
-        img = img.crop((int(l * img.width), int(t * img.height), int(r * img.width), int(b * img.height)))
-    if item.get("photo_slot"):           # the winner's photo goes into the meme itself
-        photo = G._find_asset("candidates", rid, party)
-        if photo:
-            l, t, r, b = item["photo_slot"]
-            box = (int(l * img.width), int(t * img.height), int(r * img.width), int(b * img.height))
-            face = FACES.get(f"{rid}_{party}", {})
-            pic = ImageOps.exif_transpose(Image.open(photo)).convert("RGB")
-            img.paste(ImageOps.fit(pic, (box[2] - box[0], box[3] - box[1]), Image.LANCZOS,
-                                   centering=(0.5, 0.2 if face else 0.3)), box[:2])
-    return img
-
-
-def upscale(img: Image.Image, w: int, h: int) -> Image.Image:
-    """Fit inside w x h. Small memes get a little sharpening after enlarging. Crunchy is fine, mushy isn't."""
-    scale = min(w / img.width, h / img.height)
-    out = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.LANCZOS)
-    if scale > 1.4:
-        out = out.filter(ImageFilter.UnsharpMask(radius=2.2, percent=70, threshold=2))
-    return out
-
-
-def layout_stage(st: Stack, f: dict, party: str, name: str | None, item: dict, meme: Image.Image) -> None:
-    """The meme fills the stage, its own blurred copy behind it, with a glass lower third carrying the state and name."""
-    box = (40, 30, 1560, 870)
-    third_top = 640
-    stage = G._rounded_mask(SIZE, box, RADIUS)
-    fill = ImageOps.fit(meme, (box[2] - box[0], box[3] - box[1]), Image.LANCZOS).filter(ImageFilter.GaussianBlur(38))
-    fill = ImageEnhance.Brightness(fill).enhance(0.55).convert("RGBA")
-    tint = Image.new("RGBA", fill.size, G.GLASS[party][0] + (110,))
-    fill.alpha_composite(tint)
-    back = blank()
-    back.alpha_composite(fill, box[:2])
-    back.putalpha(stage)
-    shadow = blank()
-    shadow.putalpha(stage.filter(ImageFilter.GaussianBlur(22)).point(lambda v: int(v * 0.55)))
-    st.add("stage-shadow", ImageChops.offset(shadow, 0, 14))
-    st.add("stage", back)
-
-    third = (box[0], third_top, box[2], box[3])
-    cover = Image.new("L", SIZE, 0)
-    ImageDraw.Draw(cover).rectangle(third, fill=255)
-    panel = ImageChops.multiply(cover, stage)
-    mask, district = state_masks(f, 560, 560)
-    full = edge = None
-    if mask is not None:
-        full = Image.new("L", SIZE, 0)
-        gx, gy = box[2] - mask.width + 40, third_top - 120
-        full.paste(mask, (gx, gy))
-        edge = ImageChops.subtract(full.filter(ImageFilter.MaxFilter(5)), full.filter(ImageFilter.MinFilter(3)))
-        st.add("state-outline-back", tinted(edge, (255, 255, 255), 0.6))      # the part above the lower third runs behind the meme
-
-    has = has_portrait(f["rid"], party) and not item.get("no_portrait")
-    area_w = box[2] - box[0] - (440 if has else 60)
-    area_h = third_top - box[1] - 34
-    pic = upscale(meme, area_w, area_h)
-    mx = box[0] + 30 + (area_w - pic.width) // 2
-    my = box[1] + 18 + (area_h - pic.height) // 2
-    frame = blank()
-    ImageDraw.Draw(frame).rectangle([mx - 5, my - 5, mx + pic.width + 4, my + pic.height + 4], fill=(255, 255, 255, 255))
-    frame.alpha_composite(pic.convert("RGBA"), (mx, my))
-    fsh = tinted(frame.split()[-1].filter(ImageFilter.GaussianBlur(16)), (0, 0, 0), 0.55)
-    st.add("meme-shadow", ImageChops.offset(fsh, 0, 8))
-    st.add("meme", frame)
-
-    if has and item.get("portrait_behind"):
-        portrait(st, f["rid"], party, box[2] - 225, third_top + 200, int(item.get("face", 205)), max_top=box[1] + 6, clip=stage)
-    top, bot = G.GLASS[party]
-    grad = Image.new("RGBA", SIZE)
-    gd = ImageDraw.Draw(grad)
-    for i in range(W):
-        t = i / W
-        gd.line([(i, 0), (i, H)], fill=tuple(int(top[j] + (bot[j] - top[j]) * t) for j in range(3)) + (255,))
-    grad.putalpha(panel.point(lambda v: int(v * 0.92)))
-    st.add("lower-third", grad)
-    if full is not None:
-        st.add("state-ghost", tinted(ImageChops.multiply(full, panel), (255, 255, 255), 0.16))
-        st.add("state-edge", tinted(ImageChops.multiply(edge, panel), (255, 255, 255), 0.6))
-        if district is not None:
-            dm = Image.new("L", SIZE, 0)
-            dm.paste(district, (gx, gy))
-            st.add("district", tinted(ImageChops.multiply(dm, panel), (255, 255, 255), 0.5))
-    if has and not item.get("portrait_behind"):
-        portrait(st, f["rid"], party, box[2] - 225, third_top + 200, int(item.get("face", 205)), max_top=box[1] + 6,
-                 clip=stage, fade=70)
-    x = box[0] + 50
-    text_w = 1000 if has else 1200
-    race_title(st, f, x, third_top + 18, text_w, 38)
-    line = item.get("headline") or " ".join(winner_lines(f, party, name))
-    layer = blank()
-    dd = ImageDraw.Draw(layer)
-    dd.text((x, third_top + 164), line, font=C.fit(dd, line, text_w, C.ANTON, 104, 50), fill=(255, 255, 255, 255), anchor="ls")
-    row = box[3] - 32
-    G._check(dd, x, row - 20, 40)
-    tag = item.get("tag", "WINNER")
-    small = C.font(C.ANTON, 34)
-    dd.text((x + 54, row), tag, font=small, fill=G.YELLOW + (255,), anchor="lm")
-    if f["holder"]:
-        dd.text((x + 54 + dd.textlength(tag, font=small) + 26, row), result_label(f, party), font=small, fill=(255, 255, 255, 235), anchor="lm")
-    st.add("name", layer)
-    if item.get("caption"):
-        meme_caption(st, item["caption"], mx + pic.width // 2, my + 8, pic.width - 40, start=int(item.get("caption_size", 92)),
-                     anchor="mt", angle=0)
-
-
-def layout_side(st: Stack, f: dict, party: str, name: str | None, item: dict, meme: Image.Image) -> None:
-    """The base card with the meme as a tilted print on the right, for tall pictures and screenshots."""
-    panel = glass(st, party, PANEL)
-    ghost(st, f, party, panel, PANEL, strength=0.12)
-    px0, py0, _, py1 = PANEL
-    tx = px0 + 60
-    has = has_portrait(f["rid"], party) and not item.get("no_portrait")
-    floor = py1 - FOOT
-    if has:
-        portrait(st, f["rid"], party, tx + 300, floor, int(item.get("face", 190)), clip=panel, max_top=py0 + 120, fade=40)
-        scrim = Image.new("L", SIZE, 0)                # darkens the chest so the name reads over it
-        ramp = Image.linear_gradient("L").point(lambda v: min(255, v * 2)).resize((PANEL[2] - px0, floor - 390))
-        scrim.paste(ramp, (px0, 390))
-        st.add("name-scrim", tinted(ImageChops.multiply(scrim, panel), NAVY[party], 0.86))
-    footer(st, f, party, panel, PANEL, badge_right=int(item.get("badge_right", 830)), text="DECISION DESK")
-    pill(st, px0 + 56, py0 + 36)
-    race_title(st, f, tx, py0 + 110, 720, 50)
-    name_block(st, f, party, name, tx, 490 if has else py0 + 220, 720, 104 if has else 118)
-    pic = upscale(meme, int(item.get("max_w", 690)), int(item.get("max_h", 850)))
-    border = 10
-    card = Image.new("RGBA", (pic.width + border * 2, pic.height + border * 2), (255, 255, 255, 255))
-    card.paste(pic, (border, border))
-    card = card.rotate(float(item.get("tilt", 2.5)), resample=Image.BICUBIC, expand=True)
-    cx = int(item.get("cx", 1210))
-    x, y = cx - card.width // 2, (H - card.height) // 2
-    full = blank()
-    full.alpha_composite(card, (max(0, x), max(0, y)), (max(0, -x), max(0, -y)))
-    st.add("meme-shadow", ImageChops.offset(tinted(full.split()[-1].filter(ImageFilter.GaussianBlur(18)), (0, 0, 0), 0.6), -6, 12))
-    st.add("meme", full)
-    if item.get("caption"):
-        meme_caption(st, item["caption"], tx, 400, 720, start=int(item.get("caption_size", 92)))
-
-
-def layout_base(st: Stack, f: dict, party: str, name: str | None, item: dict | None) -> None:
-    """The plain card, and text-only memes: the caption sits over the name."""
-    item = item or {}
+def plain_card(st: Stack, f: dict, party: str, name: str | None, names: dict) -> None:
+    """The one card: state and winner on the glass, the loser in the fog below the name."""
     panel = glass(st, party, PANEL)
     ghost(st, f, party, panel, PANEL)
     px0, py0, px1, py1 = PANEL
     has = has_portrait(f["rid"], party)
+    forest, shape = fog_back(st, (60, 620, 850, py1 - FOOT), panel, party)
+    fog_slot(st, f["rid"], party, names)
+    fog_trees(st, forest, shape)
+    fog_front(st, (90, 760, 800, py1 - FOOT), panel, strength=0.62, top=170, left=170, right=170)
     if has:
-        portrait(st, f["rid"], party, px1 - 370, py1 - FOOT, 225, max_top=8)
+        above = Image.new("L", SIZE, 0)
+        ImageDraw.Draw(above).rectangle([px0, 0, px1, py0 + RADIUS], fill=255)
+        portrait(st, f["rid"], party, px1 - 290, py1 - FOOT, 205, max_top=8, clip=ImageChops.lighter(panel, above))
     footer(st, f, party, panel, PANEL)
     pill(st, px0 + 56, py0 + 36)
     badge(st, f, px1 - 36 if has else px1 - 56, py0 + 30, *((130, 105) if has else (210, 170)))
     tx = px0 + 60
     text_w = 800 if has else 1030
     race_title(st, f, tx, py0 + 112, text_w, 54)
-    if item.get("caption"):
-        lines = item["caption"].count("|") + 1
-        name_block(st, f, party, name, tx, PANEL[3] - FOOT - 170, text_w, 96, one_line=True)
-        meme_caption(st, item["caption"], tx - 8, py0 + 182, text_w + 40, start=int(item.get("caption_size", 190 if lines == 1 else 150)))
-    else:
-        name_block(st, f, party, name, tx, py0 + 210, text_w, 150 if not has else 128)
+    size = 128 if has or len(winner_lines(f, party, name)) > 1 else 150      # two big lines would run into the caption
+    name_block(st, f, party, name, tx, py0 + 210, text_w, size)
 
 
-LAYOUTS = {"stage": layout_stage, "side": layout_side}
-
-
-def render(rid: str, party: str, names: dict, plan: dict) -> Stack:
+def render(rid: str, party: str, names: dict) -> Stack:
     name = names.get(party)
-    f = C.race_facts(rid, party, name, None, None, False, None)
-    item = plan.get(f"{rid}_{party}")
     st = Stack()
-    if item and item.get("meme"):
-        LAYOUTS[item.get("layout", "stage")](st, f, party, name, item, load_meme(item, rid, party))
-    else:
-        layout_base(st, f, party, name, item)
+    plain_card(st, C.race_facts(rid, party, name, None, None, False, None), party, name, names)
     return st
+
+
+# ------------------------------------------------------------------------------------------------ Photoshop files
+GROUPS = (("Text", ("pill", "brand", "title", "name-line", "check", "winner-label", "flip-badge")),
+          ("State", ("state-", "district", "badge")),
+          ("Fog", ("fog-", FOG_SLOT)),
+          ("Portrait", ("portrait-",)),
+          ("Card", ("glass", "footer-strip")))
+
+
+def group_of(name: str) -> str:
+    return next(label for label, prefixes in GROUPS if name.startswith(prefixes))
+
+
+def grouped(st: Stack) -> list:
+    """The layers in their stacking order, in groups. A group appears twice when something from another group sits
+    between its layers: the footer strip in front of the portrait, say."""
+    items: list = []
+    for name, image in st.layers:
+        if name in ("fog-loser", "fog-caption"):           # these go in the slot itself
+            items[-1].children[-1].children.append(PSD.Layer(name, image))
+            continue
+        label = group_of(name)
+        if not (items and items[-1].name == label):
+            items.append(PSD.Group(label))
+        items[-1].children.append(PSD.Group(name) if image is None else PSD.Layer(name, image))
+    return items
+
+
+def discord_background() -> PSD.Layer:
+    return PSD.Layer("Discord dark background (preview only, leave hidden)", Image.new("RGBA", SIZE, (54, 57, 63, 255)), hidden=True)
+
+
+def write_template(cands: dict, replace: bool) -> str:
+    """The one master file to edit, the plain card with the Ohio Senate race on it.
+    The first save from here is kept beside it as the original, so edits can be read off by comparing the two."""
+    if TEMPLATE.exists() and not replace:
+        return f"{TEMPLATE.name} is already there, left alone. Add --replace to start it over."
+    plain = render("OH-SEN", "D", cands["OH-SEN"])
+    items: list = [discord_background(), PSD.Group("PLAIN CARD", grouped(plain))]
+    KIT.mkdir(parents=True, exist_ok=True)
+    count = PSD.write_psd(TEMPLATE, items, plain.flat())
+    shutil.copyfile(TEMPLATE, TEMPLATE_ORIGINAL)
+    return f"{TEMPLATE}: {count} layers, {TEMPLATE.stat().st_size / 1e6:.1f} MB"
+
+
+def write_race_psd(job: tuple) -> str:
+    """One race's Photoshop file."""
+    rid, party, names, replace = job
+    path = PSD_DIR / f"{rid}_{party}.psd"
+    if path.exists() and not replace:
+        return f"{path.name}: already there, left alone"
+    st = render(rid, party, names)
+    items = [discord_background(), *grouped(st)]
+    PSD_DIR.mkdir(parents=True, exist_ok=True)
+    count = PSD.write_psd(path, items, st.flat())
+    return f"{path.name}: {count} layers, {path.stat().st_size / 1e6:.1f} MB"
 
 
 # ------------------------------------------------------------------------------------------------ running it
@@ -516,10 +559,6 @@ def png_bytes(img: Image.Image) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()
-
-
-def load_plan() -> dict:
-    return {k: v for k, v in json.loads(PLAN.read_text(encoding="utf-8")).items() if not k.startswith("_")}
 
 
 def contact_sheet(paths: list[Path], out: Path, cols: int = 4, tw: int = 480) -> None:
@@ -538,7 +577,6 @@ def contact_sheet(paths: list[Path], out: Path, cols: int = 4, tw: int = 480) ->
 
 def main(argv):
     args = [a for a in argv[1:] if not a.startswith("--")]
-    plan = load_plan()
     cands = P.candidates()
     jobs = []
     for rid in P.races(False, cands):
@@ -547,15 +585,25 @@ def main(argv):
             jobs.append((rid, party, names))
     if args:
         jobs = [j for j in jobs if f"{j[0]}_{j[1]}" in args or j[0] in args]
-    if "--memes" in argv:
-        jobs = [j for j in jobs if f"{j[0]}_{j[1]}" in plan]
+
+    if "--template" in argv:
+        print(write_template(cands, "--replace" in argv))
+        return
+
+    if "--psd" in argv:
+        with ProcessPoolExecutor() as pool:
+            for line in pool.map(write_race_psd, [(rid, party, names, "--replace" in argv) for rid, party, names in jobs]):
+                print(line, flush=True)
+        print(f"Folder: {PSD_DIR}")
+        return
 
     if "--kit" in argv:
         for rid, party, names in jobs:
             folder = KIT / f"{rid}_{party}"
             folder.mkdir(parents=True, exist_ok=True)
-            for i, (name, layer) in enumerate(render(rid, party, names, plan).layers):
-                layer.save(folder / f"{i:02d}-{name}.png")
+            for i, (name, layer) in enumerate(render(rid, party, names).layers):
+                if layer is not None:
+                    layer.save(folder / f"{i:02d}-{name}.png")
             print(f"Layers written to {folder}")
         return
 
@@ -574,8 +622,10 @@ def main(argv):
                 if not (stand.get(path.name) == sha or made_by_us.get(path.name) == sha):
                     kept += 1                         # you've changed this one
                     continue
-            data = png_bytes(render(rid, party, names, plan).flat())
-            path.write_bytes(data)
+            data = png_bytes(render(rid, party, names).flat())
+            spare = path.with_suffix(".tmp")                   # the bot can post at any moment, so never leave half a file
+            spare.write_bytes(data)
+            spare.replace(path)
             made_by_us[path.name] = hashlib.sha256(data).hexdigest()
             stand.pop(path.name, None)
             made += 1
@@ -585,9 +635,9 @@ def main(argv):
         G.STAND_INS.write_text(json.dumps(stand, indent=0, sort_keys=True), encoding="utf-8")
     print(f"\r{made} drawn, {kept} of your own left alone. Folder: {CALLS}")
     if "--sheet" in argv:
-        shots = [CALLS / f"{k}.png" for k in plan if (CALLS / f"{k}.png").exists()]
+        shots = [CALLS / f"{j[0]}_{j[1]}.png" for j in jobs if (CALLS / f"{j[0]}_{j[1]}.png").exists()]
         KIT.mkdir(parents=True, exist_ok=True)
-        contact_sheet(shots, KIT / "_sheet_memes.jpg")
+        contact_sheet(shots, KIT / "_sheet_all.jpg")
 
 
 if __name__ == "__main__":
