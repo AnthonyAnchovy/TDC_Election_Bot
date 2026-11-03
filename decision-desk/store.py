@@ -47,8 +47,8 @@ class Store:
         return dict(self.db.execute("SELECT race_id, party FROM calls").fetchall())
 
     def all_full(self) -> dict[str, dict]:
-        rows = self.db.execute("SELECT race_id, party, called_at FROM calls").fetchall()
-        return {r[0]: {"party": r[1], "called_at": r[2]} for r in rows}
+        rows = self.db.execute("SELECT race_id, party, called_at, detail FROM calls").fetchall()
+        return {r[0]: {"party": r[1], "called_at": r[2], "outlet": json.loads(r[3] or "{}").get("outlet")} for r in rows}
 
     def call(self, race_id: str, party: str, detail: dict | None = None, ts: float | None = None):
         now = ts or time.time()

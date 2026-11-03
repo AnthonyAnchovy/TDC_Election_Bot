@@ -208,7 +208,7 @@ def desk_vs_pros(desk: dict[str, dict], procalls: list[dict]) -> dict:
             pros_only.add(p["race_id"])
         elif d["party"] != p["party"]:
             disagree.add(p["race_id"])
-        else:
+        elif not d.get("outlet"):           # a call that followed an outlet's isn't a race against the outlets
             by_outlet.setdefault(p["outlet"], []).append((p["ts"] - d["called_at"]) / 60)
     called_by_pros = {p["race_id"] for p in procalls}
     return {"by_outlet": by_outlet, "disagree": sorted(disagree), "pros_only": sorted(pros_only),

@@ -6,7 +6,9 @@ governors and battleground House seats) and /leaderboard scores everyone once re
 On election night: /call is one person's vote to call a race. Each vote is announced in
 #decision-desk-board. When a majority of the Election Junkie role agrees, the bot posts the
 official call (card + map) in #decision-desk. /realcall makes a call official without a
-majority. /procall logs an outlet's call (AP, NYT, Wasserman...) for the scoreboard.
+majority. /procall logs an outlet's call (AP, NYT, Wasserman...) for the scoreboard, and a call from AP,
+Decision Desk HQ, NYT or Wasserman makes a House seat official. DDHQ's and Wasserman's calls are also read
+from Bluesky automatically (/autocalls).
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +29,7 @@ from discord import app_commands
 from discord.ext import tasks
 from dotenv import load_dotenv
 
+import bluesky as BSKY
 import competitive as CMP
 import countywatch_run as CWR
 import cw_early as CE
@@ -60,6 +64,9 @@ PARTY_CHOICES = [
     app_commands.Choice(name="Independent", value="I"),
 ]
 OUTLETS = ["AP", "Decision Desk HQ", "NYT", "CNN", "NBC", "ABC", "CBS", "Fox News", "Dave Wasserman"]
+# /procall from one of these makes a House seat official. Lower case, without dots, as people actually type them.
+HOUSE_CALLERS = {"ap", "the ap", "associated press", "decision desk hq", "ddhq", "nyt", "new york times",
+                 "the new york times", "dave wasserman", "wasserman"}
 EMBED_COLOR = {"D": 0x2B6CD9, "R": 0xD63A3A, "I": 0x9A5CD6, None: 0x5A5F6B}
 DEFAULT_NAME = {"D": "the Democrat", "R": "the Republican", "I": "the independent"}
 
@@ -277,16 +284,21 @@ def prediction_check_text(guild, rid: str, winner: str) -> str | None:
     return "\n".join(parts)
 
 
-def claim_official(rid: str, party: str, how: str) -> bool:
+def claim_official(rid: str, party: str, how: str, outlet: str | None = None) -> bool:
     """Record the official call unless the race is already called. There's no await in here, so when two
-    /call or /realcall handlers reach it at the same moment, only the first one wins."""
+    /call, /realcall or /procall handlers reach it at the same moment, only the first one wins. `outlet` marks a
+    call that follows an outlet's, so /scoreboard doesn't time the desk against it."""
     if store.get(rid):
         return False
-    store.call(rid, party, {"how": how})
+    store.call(rid, party, {"how": how, "outlet": outlet} if outlet else {"how": how})
     return True
 
 
-async def make_official(guild, rid: str, party: str, how: str, fallback=None):
+def is_house_caller(outlet: str) -> bool:
+    return outlet.strip().lower().replace(".", "") in HOUSE_CALLERS
+
+
+async def make_official(guild, rid: str, party: str, how: str, fallback=None, outlet: str | None = None):
     """Post the card and map for a call already recorded with claim_official."""
     who = cand(rid, party)
     card = await card_file(rid, party, how)
@@ -300,7 +312,9 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None):
         lines.append(note)
     pros = [p for p in store.procalls(rid)]
     agree = [p for p in pros if p["party"] == party]
-    if agree:
+    if outlet:
+        lines.append(f"-# Projected by {outlet}.")
+    elif agree:
         first = agree[0]
         lines.append(flavor("desk_behind", outlet=first["outlet"],
                             lead=S.minutes_text((time.time() - first["ts"]) / 60)))
@@ -510,15 +524,35 @@ async def procall_cmd(interaction: discord.Interaction, race: str, winner: app_c
     else:
         await interaction.response.send_message(
             f"Logged. Posted in {channel_note(guild, 'board_channel')}.", ephemeral=True)
-    store.procall(rid, outlet, party, user.id)
+    await log_outlet_call(guild, rid, party, outlet, user.id, interaction.channel)
+
+
+def rival_house_caller(rid: str, party: str) -> str | None:
+    return next((p["outlet"] for p in store.procalls(rid) if p["party"] != party and is_house_caller(p["outlet"])), None)
+
+
+async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int, fallback=None, source: str | None = None):
+    """Log an outlet's call and post it to the board. From a trusted outlet, it also makes a House seat official."""
+    store.procall(rid, outlet, party, user_id)
     official = store.get(rid)
     lines = [f"📡 **{outlet}** has called {race_phrase(rid)} for **{cand(rid, party)}** "
              f"{S.EMOJI[party]} **{S.tag(rid, party)}**"]
-    if official and official["party"] == party:
+    house_caller = R.RACES[rid]["type"] == "house" and is_house_caller(outlet)
+    rival = rival_house_caller(rid, party) if house_caller else None
+    projected = (house_caller and not rival and
+                 claim_official(rid, party, f"Projected by {outlet}", outlet=outlet))
+    if projected:
+        lines.append(f"✅ That makes it official. Call posted in {channel_note(guild, 'desk_channel')}.")
+    elif official and official["party"] == party and official["detail"].get("outlet"):
+        lines.append(f"-# The desk already projected this from {official['detail']['outlet']}'s call.")
+    elif official and official["party"] == party:
         lead = (time.time() - official["called_at"]) / 60
         lines.append(flavor("desk_ahead", outlet=outlet, lead=S.minutes_text(lead)) or "The desk was first.")
     elif official:
         lines.append(flavor("desk_wrong") or "The desk called this the other way.")
+    elif rival:
+        lines.append(f"⚠️ {rival} called this the other way, so the desk is holding off: `/call` to vote, "
+                     "or `/realcall` to make it official.")
     else:
         lines.append("-# The desk hasn't called this yet: `/call` to vote, or `/realcall` to make it official.")
     early = [(ts, uid) for uid, r, p, ts in store.all_call_votes() if r == rid and p == party]
@@ -526,7 +560,109 @@ async def procall_cmd(interaction: discord.Interaction, race: str, winner: app_c
         ts, uid = min(early)
         lines.append(f"-# First desk vote for this: {name_of(guild, uid)}, "
                      f"{S.minutes_text((time.time() - ts) / 60)} before {outlet}")
-    await post(guild, "board_channel", interaction.channel, content="\n".join(lines))
+    if source:
+        lines.append(f"-# Read from Bluesky: <{source}>")
+    await post(guild, "board_channel", fallback, content="\n".join(lines))
+    if projected:
+        await make_official(guild, rid, party, f"Projected by {outlet}", fallback, outlet=outlet)
+
+
+# =========================================================================== House calls read from Bluesky
+_bsky = {"failures": 0, "warned": False, "checked": None, "error": None, "calls": 0, "reviews": 0}
+
+
+async def take_bluesky_call(guild, rid: str, party: str, outlet: str, link: str, safe: dict[str, list[str]]):
+    """A rated seat gets the full projection. Safe seats are added to `safe` for one roll-up: hundreds of them can come
+    in right after polls close, and a card for each would bury the seats people are watching."""
+    if rid in CMP.RATING_OF or store.get(rid) or rival_house_caller(rid, party):
+        return await log_outlet_call(guild, rid, party, outlet, 0, source=link)
+    store.procall(rid, outlet, party, 0)
+    if claim_official(rid, party, f"Projected by {outlet}", outlet=outlet):
+        safe.setdefault(party, []).append(rid)
+
+
+async def post_safe_seats(guild, safe: dict[str, list[str]]):
+    seats = [(party, rid) for party, rids in safe.items() for rid in rids]
+    for i in range(0, len(seats), 80):
+        part = seats[i:i + 80]
+        lines = [f"✅ **Safe House seats projected ({len(part)})**"]
+        for party in safe:
+            rids = [rid for p, rid in part if p == party]
+            if rids:
+                lines.append(f"{S.EMOJI[party]} {', '.join(rids)}")
+        await post(guild, "desk_channel", content="\n".join(lines + [house_line()]))
+
+
+async def bluesky_pass(guild):
+    seen = set(store.setting("bsky_seen", []))
+    posts, error = [], None
+    for did in BSKY.SOURCES:
+        try:
+            posts += await BSKY.fetch(did, seen)
+        except Exception as exc:    # one account failing shouldn't hold up the other
+            error = f"{BSKY.SOURCES[did]}: {exc}"
+            log.warning("Couldn't read %s from Bluesky: %s", BSKY.SOURCES[did], exc)
+    if error:
+        _bsky.update(failures=_bsky["failures"] + 1, error=error)
+    else:
+        _bsky.update(failures=0, warned=False, error=None, checked=time.time())
+    if _bsky["failures"] >= 10 and not _bsky["warned"]:
+        _bsky["warned"] = True
+        await post(guild, "board_channel", content=f"⚠️ I haven't been able to read Bluesky for about 5 minutes ({_bsky['error']}). "
+                                                   "Log House calls by hand with `/procall` until it's back.")
+    safe: dict[str, list[str]] = {}
+    for p in sorted(posts, key=lambda x: x["when"]):
+        outlet, link = BSKY.SOURCES[p["did"]], BSKY.post_link(p["did"], p["uri"])
+        seen.add(p["uri"])
+        store.set_setting("bsky_seen", sorted(seen))    # first, so a post that fails here can't be called twice
+        try:
+            got = BSKY.read(outlet, p["text"], lambda rid: load_candidates().get(rid))
+            if got and got.get("call"):
+                _bsky["calls"] += 1
+                await take_bluesky_call(guild, got["rid"], got["party"], outlet, link, safe)
+            elif got:
+                _bsky["reviews"] += 1
+                text = discord.utils.escape_markdown(re.sub(r"\s+", " ", p["text"]))[:220]
+                await post(guild, "board_channel",
+                           content=f"👀 **{outlet}** posted something a person should check ({got['review']}):\n"
+                                   f"> {text}\n<{link}>\n-# If it's a real call, log it with `/procall`.")
+        except Exception:
+            log.exception("Couldn't act on Bluesky post %s", link)
+    if safe:
+        await post_safe_seats(guild, safe)
+
+
+@tasks.loop(seconds=30)
+async def bluesky_loop():
+    # an exception escaping here would stop the task loop for the rest of the night, so nothing may
+    try:
+        guild = main_guild()
+        if guild and store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
+            await bluesky_pass(guild)
+    except Exception:
+        log.exception("Bluesky pass failed")
+
+
+@tree.command(name="autocalls", description="Admin: turn House calls read from Bluesky on or off, or see how they're doing.")
+@app_commands.guild_only()
+@app_commands.choices(turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
+async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Choice[str] | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    if turn:
+        store.set_setting("autocalls", turn.value == "on")
+    on = store.setting("autocalls", True)
+    lines = [f"Bluesky House calls are **{'on' if on else 'off'}**. Sources: {', '.join(BSKY.SOURCES.values())}."]
+    if datetime.now(N.ET) < BSKY.SINCE:
+        lines.append("They start reading at 5 PM ET on Nov 3.")
+    if _bsky["checked"]:
+        lines.append(f"Last read {S.minutes_text((time.time() - _bsky['checked']) / 60)} ago. Since the last restart: "
+                     f"{_bsky['calls']} calls, {_bsky['reviews']} posts sent to a person.")
+    if _bsky["error"]:
+        lines.append(f"⚠️ Last error: {_bsky['error']}")
+    if turn and not on:
+        lines.append("Anything posted while they're off is picked up when you turn them back on.")
+    await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
 
 # =========================================================================== /predict picker
@@ -2134,6 +2270,8 @@ async def on_ready():
         county_loop.start()
     if not field_loop.is_running():
         field_loop.start()
+    if not bluesky_loop.is_running():
+        bluesky_loop.start()
 
 
 def main():

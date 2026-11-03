@@ -82,7 +82,8 @@ Change the values under `points` in `config.json`. Picks are scored against outl
 | `/unvote race` | Election Junkie | Withdraws your vote. |
 | `/uncall race` | Election Junkie | A vote to retract an official call, using the same majority rule. |
 | `/realcall race winner` | Election Junkie | Makes the call official right away, without waiting for a majority. It also counts as your vote. |
-| `/procall race winner outlet` | Election Junkie | Logs a call by AP, NYT, Wasserman and the like. It posts to the board and feeds `/scoreboard`, but never changes the desk's map. |
+| `/procall race winner outlet` | Election Junkie | Logs a call by AP, NYT, Wasserman and the like. It posts to the board and feeds `/scoreboard`. **House seats:** a call from AP, Decision Desk HQ, NYT or Wasserman makes the seat official, unless another of those four called it the other way. Everything else never changes the desk's map. |
+| `/autocalls [on\|off]` | Admin | House calls read from Bluesky: turn them on or off, or see how they're doing. |
 | `/forceuncall race` | Admin | Retracts without a vote. |
 | `/scoreboard` | Anyone | Per person: right and wrong calls, how often they were first, and the average minutes ahead of each outlet (e.g. "AP +14m · NYT +22m · best: NC-SEN, 41 min before Wasserman"). Also shows the official desk against the pros. |
 | `/next` | Anyone | Races where polls have closed but the desk hasn't called, with vote counts and outlet calls. |
@@ -118,6 +119,8 @@ The feed links are in `results_sources.json`. The 2026 file names follow each st
 Race IDs look like `GA-SEN`, `AZ-GOV`, `PA-07` and `AK-AL`, and `HOUSE` means control of the House. Autocomplete suggests them as you type.
 
 **Majority** means more than half of the people who currently hold the Election Junkie role. To require a fixed number of votes instead, set `"threshold": 3` in `config.json`.
+
+**House calls from Bluesky:** starting at 5 PM ET on Nov 3, the bot reads two accounts every 30 seconds: Decision Desk HQ (`decisiondeskhq.bsky.social`) and an unofficial mirror of Dave Wasserman's posts (`redistrict.bluesky.bot`). A clear call on a House seat in the regular general election goes through the same rule as `/procall`, so it becomes official unless another trusted outlet called it the other way. Rated seats get the full projection; Safe seats post as a short roll-up. Anything unclear, like a winner whose party it can't find, a special election or a possible correction, goes to the board for a person. Other races are left alone. `/autocalls off` stops it. Parties come from `candidates.json`, then `house_parties.json`, built from the FEC's candidate file by `python tools/make_house_parties.py`. The bot can't see a post being deleted, so a bad call stays up until someone runs `/uncall`.
 
 **Early warning seats:** `/earlywarning` lists the 19 rated House seats in states closing by 7:30 PM ET (Likely D through Lean R), grouped by closing time, with what's been called. Poll-closing alerts list every rated seat in the closing states, with early-warning seats flagged. After each rated House call, the bot posts the ratings math: Dems start at 223 if every seat they're favored in goes their way, and every upset moves that number. Ratings are Adam Carlson's Oct 23 average of Cook, Inside Elections and Sabato, in `competitive.py`.
 
@@ -261,7 +264,7 @@ Things the code can't check for you. Do them on the PC that will run the bot:
 Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
 
 ## Known limits
-- `/results` live counts cover FL, NC and VA only (County Watch adds county-level feeds for GA, NC, MN and NE). There's no tweet feed yet, so outlet calls are logged by hand with `/procall`.
+- `/results` live counts cover FL, NC and VA only (County Watch adds county-level feeds for GA, NC, MN and NE). Only Decision Desk HQ's and Wasserman's House calls are read automatically (from Bluesky). Everything else is logged by hand with `/procall`.
 - North Carolina's file has no "precincts reporting" column, so the bot shows how many precincts have any votes.
 - `/seat` has the Cook PVI for only 18 of the 82 rated seats, and no nominees yet for 17 Likely-rated ones (AK-AL, AR-02, AZ-02, CA-06, CA-45, FL-07, FL-16, IN-05, KS-02, MI-08, MN-02, MO-02, NC-03, NE-01, NE-02, NJ-09, NY-19). Fill them in as you like in `seat_info.json` and `candidates.json`.
 - For House seats without a known incumbent (open or redrawn), the tag shows `(D)` instead of HOLD or PICKUP.

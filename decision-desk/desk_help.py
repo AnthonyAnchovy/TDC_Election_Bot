@@ -42,7 +42,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             f"3. Once **{need}** {role} {'vote agrees' if need == 1 else 'votes agree'}, the official call card "
             f"and map post in {desk}.\n"
             f"4. When AP, NYT, Wasserman or another outlet calls it, log it with `/procall`. "
-            "That feeds `/scoreboard`, which shows who beat the pros.\n\n"
+            "That feeds `/scoreboard`, which shows who beat the pros. For a House seat, a call from AP, "
+            "Decision Desk HQ, NYT or Wasserman also makes it official.\n\n"
             "**Race names** look like `GA-SEN`, `AZ-GOV`, `PA-07`, `AK-AL`. `HOUSE` means control of the House. "
             "Start typing and autocomplete fills them in.\n\n"
             "**Good first commands:** `/next`, `/board`, `/closings`.\n\n"
@@ -63,7 +64,9 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "A vote to retract an official call that looks wrong. It takes the same majority.\n\n"
             "**`/procall race winner outlet`** 🗳️\n"
             f"Logs a call by AP, Decision Desk HQ, NYT, CNN, Wasserman and others. It posts in {board} and "
-            "feeds `/scoreboard`, but **never** changes the desk's own map. Logging the same outlet again updates it.\n\n"
+            "feeds `/scoreboard`. **House seats:** a call from AP, Decision Desk HQ, NYT or Wasserman makes the seat "
+            "official in the desk's name, unless another of those four called it the other way. Every other race, "
+            "and every other outlet, never changes the desk's own map. Logging the same outlet again updates it.\n\n"
             "-# The bot replies to you privately (🔒) and makes the public posts itself."),
         "watch": (
             "Following the night",
@@ -115,6 +118,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "**Feeds (if numbers stop arriving)**\n"
             "**`/countyrefresh`** 🔧 Pulls every county feed and early vote now, rebuilds the workbook, and lists "
             "any feed errors.\n"
+            "**`/autocalls [on|off]`** 🔧 Decision Desk HQ's and Wasserman's House calls are read from Bluesky and "
+            "become official by themselves. Turn that off here, or see how it's doing.\n"
             "**`/excellink`** 🔧 Posts a card in this channel with the read-only link to the live workbook.\n"
             "**`/countyfeed state link`** 🔧 Points SC or IA (Clarity sites) at tonight's results link. Use `clear` "
             "to undo it.\n"
