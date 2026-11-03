@@ -208,7 +208,11 @@ def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | Non
         CL, last = W.CL, n + 1
         fips = [_fips(r[0]) for r in read("Counties", f"{CL['fips']}2:{CL['fips']}{last}")]
         manual = read("Counties", f"{CL['md']}2:{CL['mc']}{last}")
-        dash = read("Dashboard", f"A{W.DASH_ROW0}:G{W.DASH_ROW0 + len(M.STATES) - 1}")
+        # Columns are found by their headers, so the bot keeps working if the shared copy still has an older layout
+        end = get_column_letter(len(W.DCOLS))
+        head = read("Dashboard", f"A{W.DASH_ROW0 - 1}:{end}{W.DASH_ROW0 - 1}")[0]
+        dash = read("Dashboard", f"A{W.DASH_ROW0}:{end}{W.DASH_ROW0 + len(M.STATES) - 1}")
+        fac = head.index(W.FACTOR_HEADER) if W.FACTOR_HEADER in head else None
 
         # grey Feed columns
         by_fips = {str(f): row for rows in live.values() for f, row in rows.items()}
@@ -237,8 +241,14 @@ def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | Non
         STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
 
         # Dashboard: each state's read (None leaves a state without one alone), and the stamp
-        col = [[reads.get(st)] for st in M.STATES]
-        write("Dashboard", f"{W.D_READ}{W.DASH_ROW0}:{W.D_READ}{W.DASH_ROW0 + len(M.STATES) - 1}", "reads", values=col)
+        if W.OLD_READ_HEADER in head:
+            letter = get_column_letter(head.index(W.OLD_READ_HEADER) + 1)
+            col = [["\n".join(s for s in reads[row[0]] if s) if row[0] in reads else None] for row in dash]
+            write("Dashboard", f"{letter}{W.DASH_ROW0}:{letter}{W.DASH_ROW0 + len(M.STATES) - 1}", "reads", values=col)
+        else:
+            for st, secs in reads.items():
+                for j, (a, text) in enumerate(zip(W.take_cells(st), secs)):
+                    write("Dashboard", a, f"take-{st}-{j}", values=[[text]])
         write("Dashboard", "A3", values=[[f"Last bot update: {stamp}"]])
 
         # Early Vote: rewritten only when the numbers behind it change
@@ -251,8 +261,8 @@ def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | Non
         if m:
             keep[f] = m
     for row in dash:
-        if row[0] in M.STATES and isinstance(row[6], (int, float)) and not isinstance(row[6], bool):
-            keep["factor"][row[0]] = row[6]
+        if fac is not None and row[0] in M.STATES and isinstance(row[fac], (int, float)) and not isinstance(row[fac], bool):
+            keep["factor"][row[0]] = row[fac]
     return keep
 
 

@@ -75,7 +75,7 @@ def poll_ref(st: str, key: str) -> str:
 
 
 def dash_ref(st: str, col: str) -> str:
-    return f"Dashboard!${col}${W.DASH_ROW0 + list(M.STATES).index(st)}"
+    return f"Dashboard!${W.DC[col]}${W.dash_row(st)}"
 
 
 def polls_sheet(ws, names: dict, kept: dict | None):
@@ -125,7 +125,7 @@ def polls_sheet(ws, names: dict, kept: dict | None):
         s = {**(seed.get("states", {}).get(st) or {}), **{k: v for k, v in (kept.get(st) or {}).items() if v not in (None, "")}}
         dn, rn = names[st]
         race = f"{M.STATES[st]}: {W._surname(dn)} v {W._surname(rn)}" + (" (bellwether)" if st in M.BELLWETHER else "")
-        conf = dash_ref(st, "T")
+        conf = dash_ref(st, "conf")
         vals = {
             "st": st, "race": race, **{k: s.get(k) for k in POLL_INPUTS},
             "pm": f'=IF(AND(ISNUMBER({P["d"]}),ISNUMBER({P["r"]}),{P["d"]}+{P["r"]}>0),({P["d"]}-{P["r"]})/({P["d"]}+{P["r"]}),"")',
@@ -134,7 +134,7 @@ def polls_sheet(ws, names: dict, kept: dict | None):
             "weff": f'=IF(AND(ISNUMBER({P["pub"]}),ISNUMBER({P["old"]})),{P["old"]}-{P["pub"]},"")',
             "oldm": f'=IF(OR({P["pm"]}="",{P["weff"]}=""),"",{P["pm"]}+{P["weff"]}/({P["d"]}+{P["r"]}))',
             "m20": f'=IF({P["pm"]}="","",{P["pm"]}-0.05)',
-            "proj": f'=IF(OR({conf}="medium",{conf}="high"),{dash_ref(st, "Q")},"")',
+            "proj": f'=IF(OR({conf}="medium",{conf}="high"),{dash_ref(st, "proj")},"")',
             "err": f'=IF(AND({P["proj"]}<>"",{P["pm"]}<>""),{P["proj"]}-{P["pm"]},"")',
             "adj": f'=IF({P["pm"]}="","",IF({POLL_AVG}="",{P["pm"]},{P["pm"]}+{POLL_AVG}))',
         }
@@ -198,7 +198,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
     races.sort(key=lambda s: (N.first_close(s), M.STATES[s]))
     bells = sorted((st for st in M.STATES if st in M.BELLWETHER), key=N.first_close)
     ws.sheet_view.showGridLines = False
-    widths = {"A": 2, "B": 17, "C": 12, "D": 9, "E": 17, "F": 10, "G": 17, "H": 22, "I": 19, "J": 11, "K": 10, "L": 12, "M": 2}
+    widths = {"A": 2, "B": 17, "C": 12, "D": 9, "E": 17, "F": 10, "G": 17, "H": 22, "I": 22, "J": 16, "K": 10, "L": 12, "M": 2}
     for c, w in widths.items():
         ws.column_dimensions[c].width = w
 
@@ -229,8 +229,8 @@ def glance_sheet(ws, names: dict, national_swing: str):
         ws.cell(row=hr0, column=H0 + i, value=h).font = F(bold=True)
     for j, st in enumerate(races):
         r = hr0 + 1 + j
-        poll, conf = poll_ref(st, "pm"), dash_ref(st, "T")
-        proj = f'IF(OR({conf}="medium",{conf}="high"),{dash_ref(st, "Q")},"")'
+        poll, conf = poll_ref(st, "pm"), dash_ref(st, "conf")
+        proj = f'IF(OR({conf}="medium",{conf}="high"),{dash_ref(st, "proj")},"")'
         live_or = lambda alt: f'=IF({proj}<>"",{proj},{alt})'
         vals = [M.STATES[st],
                 f'=IF({poll}="",NA(),{poll}*100)',
@@ -238,7 +238,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
                 live_or(f'IF({poll}="","",{poll})'),
                 live_or(f'IF({poll}="","",{poll}-0.05)'),
                 live_or(f'IF({poll_ref(st, "oldm")}<>"",{poll_ref(st, "oldm")},IF({poll}="","",{poll}))'),
-                live_or(f'IF({dash_ref(st, "AH")}<>"",{dash_ref(st, "AH")},IF({poll}="","",{poll}))'),
+                live_or(f'IF({dash_ref(st, "implied")}<>"",{dash_ref(st, "implied")},IF({poll}="","",{poll}))'),
                 f'=IF({poll_ref(st, "err")}="",NA(),{poll_ref(st, "err")}*100)']
         for i, v in enumerate(vals):
             ws.cell(row=r, column=H0 + i, value=v)
@@ -285,8 +285,8 @@ def glance_sheet(ws, names: dict, national_swing: str):
         ("F", "G", "RESULTS VS POLLS SO FAR",
          f'=IF({POLL_AVG}="","waiting",IF({POLL_AVG}>=0,"D +","R +")&TEXT(ABS({POLL_AVG})*100,"0.0")&" vs polls")', POLL_AVG),
         ("H", "H", "EXPECTED VOTE COUNTED",
-         f"=IFERROR(SUM(Dashboard!$I${W.DASH_ROW0}:$I${W.DASH_ROW0 + len(M.STATES) - 1})/"
-         f"SUM(Dashboard!$H${W.DASH_ROW0}:$H${W.DASH_ROW0 + len(M.STATES) - 1}),0)", None),
+         f"=IFERROR(SUM(Dashboard!${W.DC['counted']}${W.DASH_ROW0}:${W.DC['counted']}${W.DASH_ROW0 + len(M.STATES) - 1})/"
+         f"SUM(Dashboard!${W.D_EXP}${W.DASH_ROW0}:${W.D_EXP}${W.DASH_ROW0 + len(M.STATES) - 1}),0)", None),
         ("I", "J", "RACES WITH A SOLID PROJECTION",
          f'=COUNTIF({rngh("Projection")},">-1000")&" of {len(races)}"', None),
         ("K", "L", "NATIONAL SWING VS 2024",
@@ -332,14 +332,13 @@ def glance_sheet(ws, names: dict, national_swing: str):
     r = b0 + 1
     first = r
     for st in races:
-        dr = W.DASH_ROW0 + list(M.STATES).index(st)
         dn, rn = names[st]
-        poll, conf, proj_raw = poll_ref(st, "pm"), f"Dashboard!$T${dr}", f"Dashboard!$Q${dr}"
+        poll, conf, proj_raw = poll_ref(st, "pm"), dash_ref(st, "conf"), dash_ref(st, "proj")
         proj = f'IF(OR({conf}="medium",{conf}="high",{conf}="low"),{proj_raw},"")'
         show = f'IF({proj}<>"",{proj},{poll})'
         is_proj = f'{proj}<>""'
         bar = lambda side: (f'=IF({is_proj},{_bar(proj, side, "█")},{_bar(poll, side, "░")})')
-        counted = f"Dashboard!$J${dr}"
+        counted = dash_ref(st, "pct")
         cells = {
             "B": f"{M.STATES[st]}",
             "C": _close(st),
@@ -347,11 +346,11 @@ def glance_sheet(ws, names: dict, national_swing: str):
             "E": bar("R"),
             "F": f'={show}',
             "G": bar("D"),
-            "H": f'=IF({is_proj},Dashboard!$S${dr},IF({poll}="","no poll entered",IF({poll}=0,"poll: tied","poll: "&IF({poll}>0,"{W._surname(dn)}","{W._surname(rn)}")&" ahead")))',
+            "H": f'=IF({is_proj},{dash_ref(st, "call")},IF({poll}="","no poll entered",IF({poll}=0,"poll: tied","poll: "&IF({poll}>0,"{W._surname(dn)}","{W._surname(rn)}")&" ahead")))',
             "I": f'=REPT("▰",ROUND(MIN(1,{counted})*10,0))&REPT("▱",10-ROUND(MIN(1,{counted})*10,0))&"  "&TEXT({counted},"0%")',
-            "J": (f'=IF(Dashboard!$AF${dr}="","—",{_mtxt(f"Dashboard!$AF${dr}")}&" to "&{_mtxt(f"Dashboard!$AG${dr}")})'),
+            "J": (f'=IF({dash_ref(st, "lo")}="","—",{_mtxt(dash_ref(st, "lo"))}&" to "&{_mtxt(dash_ref(st, "hi"))})'),
             "K": f'={poll_ref(st, "err")}',
-            "L": f'={dash_ref(st, "AH")}',
+            "L": f'={dash_ref(st, "implied")}',
         }
         for col, v in cells.items():
             c = ws[f"{col}{r}"]
@@ -391,13 +390,12 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ws[f"B{r}"].font = F(bold=True, size=8, color=SOFT)
     r += 1
     for st in bells:
-        dr = W.DASH_ROW0 + list(M.STATES).index(st)
         ws[f"B{r}"] = M.STATES[st]
         ws[f"B{r}"].font = F(bold=True, size=10)
         ws[f"B{r}"].alignment = Alignment(indent=1)
         ws[f"C{r}"] = _close(st)
         ws[f"C{r}"].alignment = Alignment(horizontal="center")
-        sw = f"Dashboard!$N${dr}"
+        sw = dash_ref(st, "swing")
         ws[f"E{r}"] = f'={_bar(sw, "R", "█")}'
         ws[f"E{r}"].font = Font(name="Consolas", size=10, color=RED)
         ws[f"E{r}"].alignment = Alignment(horizontal="right")
@@ -407,7 +405,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
         ws[f"F{r}"].font = F(bold=True)
         ws[f"G{r}"] = f'={_bar(sw, "D", "█")}'
         ws[f"G{r}"].font = Font(name="Consolas", size=10, color=BLUE)
-        ws[f"H{r}"] = f'=IF({sw}="","no county finished yet",TEXT(Dashboard!$K${dr},"0")&" counties finished")'
+        ws[f"H{r}"] = f'=IF({sw}="","no county finished yet",TEXT({dash_ref(st, "done")},"0")&" counties finished")'
         ws[f"H{r}"].font = F(size=9, color="595959")
         r += 1
 
@@ -428,7 +426,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ws.merge_cells(f"B{r}:C{r}")
     r += 1
     scen_desc = ["Every poll is right", "2020-size miss (5 pts to R)", "Times/Siena's old weighting",
-                 "Off by tonight's average miss"]
+                 "If other states' results hold"]
     for j, lab in enumerate(scen_desc):
         ws.merge_cells(f"B{r}:C{r}")
         ws[f"B{r}"] = lab
@@ -618,12 +616,12 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
         else:
             dn, rn = names[st]
             poll = poll_ref(st, "pm")
-            conf = dash_ref(st, "T")
-            proj = f'IF(OR({conf}="low",{conf}="medium",{conf}="high"),{dash_ref(st, "Q")},"")'
+            conf = dash_ref(st, "conf")
+            proj = f'IF(OR({conf}="low",{conf}="medium",{conf}="high"),{dash_ref(st, "proj")},"")'
             # m, lo, hi in columns E-G of the block's first row
             ws[L(4)] = f'=IF({proj}<>"",{proj},IF({poll}<>"",{poll},""))'
-            ws[L(5)] = f'=IF({proj}<>"",{dash_ref(st, "AF")},IF({poll}<>"",{poll}-{POLL_RANGE},""))'
-            ws[L(6)] = f'=IF({proj}<>"",{dash_ref(st, "AG")},IF({poll}<>"",{poll}+{POLL_RANGE},""))'
+            ws[L(5)] = f'=IF({proj}<>"",{dash_ref(st, "lo")},IF({poll}<>"",{poll}-{POLL_RANGE},""))'
+            ws[L(6)] = f'=IF({proj}<>"",{dash_ref(st, "hi")},IF({poll}<>"",{poll}+{POLL_RANGE},""))'
             m, lo, hi = L(4), L(5), L(6)
             Dg, Lg, Hg = deg(m), deg(lo), deg(hi)
             blank = f'{m}=""'
@@ -640,12 +638,10 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
             text = (f'=IF({m}="","no poll or result",IF(ROUND({m}*100,1)=0,"even",IF({m}>0,"{sd}","{sr}")&" +"'
                     f'&TEXT(ABS({m})*100,"0.0"))&IF({proj}<>""," · projected"," · final poll"))')
             colour = m
-            dr_ = W.DASH_ROW0 + list(M.STATES).index(st)
-            rem, lose, need, pace = (f"Dashboard!$AJ${dr_}", f"Dashboard!$AM${dr_}", f"Dashboard!$AN${dr_}",
-                                     f"Dashboard!$AO${dr_}")
+            rem, lose, need, pace = dash_ref(st, "left"), dash_ref(st, "loser"), dash_ref(st, "needs"), dash_ref(st, "pace")
             vt = lambda x: f'IF({x}>=1000000,TEXT({x}/1000000,"0.00")&"M",TEXT({x}/1000,"0")&"K")'
             who = f'IF({lose}="D","{sd}","{sr}")'
-            line3 = (f'=IF({lose}="",IF(Dashboard!$I${dr_}>0,{vt(rem)}&" votes left · no projection yet",'
+            line3 = (f'=IF({lose}="",IF({dash_ref(st, "counted")}>0,{vt(rem)}&" votes left · no projection yet",'
                      f'"≈"&{vt(rem)}&" votes expected"),{vt(rem)}&" left · "&{who}&IF({need}>1," can\'t catch up",'
                      f'" needs "&TEXT({need},"0.0%")&", on pace for "&TEXT({pace},"0.0%")))')
         nr, tr = top + 4, top + 5

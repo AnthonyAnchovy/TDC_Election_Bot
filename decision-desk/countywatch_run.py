@@ -483,7 +483,7 @@ def reads(cache=None) -> dict:
     out = {}
     for st in M.STATES:
         p = projection(st, cache, man, fac)
-        out[st] = "\n".join(l.replace("**", "") for l in M.read_lines(st, p, *nm[st]))
+        out[st] = M.take(st, p, *nm[st])
     return out
 
 

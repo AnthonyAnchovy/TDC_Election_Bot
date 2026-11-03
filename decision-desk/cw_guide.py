@@ -133,7 +133,7 @@ GUIDE = [
 
     ("h", "The other tabs, in plain English"),
     ("b", "Read Me|The technical notes: formulas, sources and limits. Skip it unless you're curious."),
-    ("b", "Dashboard|One row per state with every number behind At a Glance, plus a short written read of each race."),
+    ("b", "Dashboard|One row per race, in poll-closing order. Graphics on the left, every number behind At a Glance on the right, and a written take on each race under the table."),
     ("b", "Polls|The final polls, and how far results are running from them."),
     ("b", "Key Counties|6 to 11 counties per state that matter most, with a note on why and what to watch for."),
     ("b", "County Benchmarks|For each key county: the margin it needs to post for its candidate to be on track to "

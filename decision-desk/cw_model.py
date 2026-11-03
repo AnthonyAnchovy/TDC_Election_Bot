@@ -489,6 +489,60 @@ def read_lines(st: str, p: dict, d_name: str = "D", r_name: str = "R", max_key: 
     return lines
 
 
+def take(st: str, p: dict, d_name: str = "D", r_name: str = "R") -> list[str]:
+    """The bot's written take for the Dashboard, as four cells: where it stands, swing and turnout, key counties ahead of
+    the D side's pace, key counties behind it."""
+    dl, rl = d_name.split()[-1], r_name.split()[-1]
+    if not p["counted"]:
+        return ["\n".join(read_lines(st, p, d_name, r_name)), "Nothing counted yet.", "None in yet.", "None in yet."]
+    story = []
+    if p["proj_m"] is not None:
+        rg = p.get("range90")
+        story.append(f"Projection: {fmt(p['proj_m'], dl, rl)}" + (f". 90% range: {fmt(rg[0], dl, rl)} to {fmt(rg[1], dl, rl)}." if rg else "."))
+        story.append(f"Confidence {p['confidence']}: {p['done']} finished {'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote.")
+        if p.get("trailer"):
+            who = dl if p["trailer"] == "D" else rl
+            need = p["need_share"]
+            story.append(f"About {votes_txt(p['remaining'])} votes left. " + (f"{who} can't catch up: it would take more than all of them." if need > 1 else
+                                                                               f"{who} needs {need:.1%} of them to tie and is on pace for {p['pace_share']:.1%}."))
+    else:
+        story.append("No county is fully counted yet, so there's no projection.")
+    story.append(f"Raw count: {fmt(p['raw_m'], dl, rl)} with {p['counted']:,} votes, about {p['counted_share']:.0%} of the expected total.")
+    note = mode_note(st)
+    if note and p["done_share"] < 0.5:
+        story.append(note)
+    swing = []
+    if p["state_swing"] is not None:
+        need, ahead = p["needed_swing"], p["state_swing"] - p["needed_swing"]
+        sg = lambda s: f"{abs(s) * 100:.1f} {'D' if s >= 0 else 'R'}"
+        swing.append(f"Swing in finished counties: {sg(p['state_swing'])}. {dl} " + (f"needs {sg(need)}" if need > 0 else f"can lose {abs(need) * 100:.1f}")
+                     + f", so {abs(ahead) * 100:.1f} {'ahead' if ahead > 0 else 'behind'}.")
+        for t, s in sorted(p["type_swing"].items(), key=lambda kv: -kv[1]):
+            swing.append(f"   {t}: {sg(s)} ({p['type_n'][t]} in)")
+        if p["turnout_vs_22"]:
+            swing.append(f"Turnout: {p['turnout_vs_22']:.0%} of 2022 in finished counties, {p['pace']:.0%} projected statewide.")
+        (di, dn), (ri, rn) = p["d_index"], p["r_index"]
+        parts = ([f"{dl} counties {idx_txt(di)}"] if di is not None else []) + ([f"{rl} counties {idx_txt(ri)}"] if ri is not None else [])
+        if parts:
+            swing.append("Turnout index (100 = state pace): " + ", ".join(parts) + ".")
+        moved = [r for r in p["rows"] if r["complete"] and r["swing"] is not None and r["D"] + r["R"] > 2000]
+        if len(moved) >= 3:
+            best, worst = max(moved, key=lambda r: r["swing"]), min(moved, key=lambda r: r["swing"])
+            swing.append(f"Most D swing: {best['name']} {sg(best['swing'])}. Least: {worst['name']} {sg(worst['swing'])}.")
+
+    def score(r):
+        return r["overall"] if r["overall"] is not None else r["live_m"] - r["breakeven"]
+
+    def tag(r):
+        needs = r["t_be"] if r["t_index"] is not None else r["breakeven"]
+        t = f"{r['name']}: {fmt(r['live_m'])}, needs {fmt(needs)}"
+        return t + (f", turnout {idx_txt(r['t_index'])}" if r["t_index"] is not None else f", {r['est_in']:.0%} in")
+    keys = sorted((r for r in p["rows"] if r["key"] and r["D"] + r["R"] > 0 and r["live_m"] is not None), key=score, reverse=True)
+    ahead = [tag(r) for r in keys if score(r) >= 0]
+    behind = [tag(r) for r in reversed(keys) if score(r) < 0]
+    return ["\n".join(story), "\n".join(swing) or "No county finished yet.", "\n".join(ahead) or "None so far.", "\n".join(behind) or "None so far."]
+
+
 def key_table(st: str, p: dict | None = None) -> list[dict]:
     rows = (p or project(st, {}))["rows"]
     return sorted([r for r in rows if r["key"]], key=lambda r: -r["t24"])
