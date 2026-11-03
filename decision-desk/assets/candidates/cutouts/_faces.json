@@ -1,0 +1,2002 @@
+{
+"AK-GOV_D": {
+"face": [
+159,
+80,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AK-SEN_D": {
+"face": [
+153,
+76,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AK-SEN_R": {
+"face": [
+266,
+99,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AL-02_D": {
+"face": [
+195,
+36,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AL-02_R": {
+"face": [
+35,
+28,
+107,
+107
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AL-GOV_D": {
+"face": [
+166,
+88,
+226,
+226
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AL-GOV_R": {
+"face": [
+182,
+114,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AL-SEN_R": {
+"face": [
+207,
+99,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AR-GOV_D": {
+"face": [
+204,
+44,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AR-GOV_R": {
+"face": [
+220,
+67,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AR-SEN_D": {
+"face": [
+145,
+91,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AR-SEN_R": {
+"face": [
+189,
+142,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AZ-01_D": {
+"face": [
+307,
+141,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AZ-01_R": {
+"face": [
+264,
+44,
+267,
+267
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AZ-06_R": {
+"face": [
+229,
+82,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AZ-GOV_D": {
+"face": [
+89,
+81,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"AZ-GOV_R": {
+"face": [
+50,
+33,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-13_D": {
+"face": [
+245,
+94,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-13_R": {
+"face": [
+148,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-22_R": {
+"face": [
+125,
+97,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-48_D": {
+"face": [
+233,
+59,
+221,
+221
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-48_R": {
+"face": [
+141,
+126,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-GOV_D": {
+"face": [
+203,
+77,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CA-GOV_R": {
+"face": [
+106,
+34,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-03_R": {
+"face": [
+258,
+80,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-04_D": {
+"face": [
+281,
+109,
+276,
+276
+],
+"guessed": false,
+"reaches_bottom": false
+},
+"CO-04_R": {
+"face": [
+159,
+120,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-05_R": {
+"face": [
+213,
+95,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-08_D": {
+"face": [
+282,
+107,
+258,
+258
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-08_R": {
+"face": [
+142,
+76,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-GOV_D": {
+"face": [
+130,
+96,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-GOV_R": {
+"face": [
+63,
+79,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-SEN_D": {
+"face": [
+221,
+98,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CO-SEN_R": {
+"face": [
+142,
+47,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CT-GOV_D": {
+"face": [
+190,
+103,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"CT-GOV_R": {
+"face": [
+294,
+95,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"DE-SEN_D": {
+"face": [
+95,
+113,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-09_D": {
+"face": [
+107,
+67,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-13_R": {
+"face": [
+185,
+102,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-14_D": {
+"face": [
+161,
+105,
+267,
+267
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-14_R": {
+"face": [
+23,
+20,
+82,
+82
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-25_D": {
+"face": [
+229,
+114,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-27_R": {
+"face": [
+222,
+123,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-GOV_D": {
+"face": [
+148,
+62,
+202,
+202
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-GOV_R": {
+"face": [
+249,
+86,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-SEN_D": {
+"face": [
+162,
+86,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"FL-SEN_R": {
+"face": [
+285,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"GA-GOV_D": {
+"face": [
+153,
+122,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"GA-GOV_R": {
+"face": [
+136,
+59,
+174,
+174
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"GA-SEN_D": {
+"face": [
+212,
+98,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"GA-SEN_R": {
+"face": [
+248,
+114,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"HI-GOV_D": {
+"face": [
+185,
+37,
+169,
+169
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-01_D": {
+"face": [
+170,
+104,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-01_R": {
+"face": [
+134,
+86,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-02_D": {
+"face": [
+230,
+113,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-02_R": {
+"face": [
+99,
+86,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-03_D": {
+"face": [
+200,
+62,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-03_R": {
+"face": [
+203,
+84,
+201,
+201
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-GOV_D": {
+"face": [
+121,
+94,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-SEN_D": {
+"face": [
+108,
+70,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IA-SEN_R": {
+"face": [
+215,
+80,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ID-GOV_R": {
+"face": [
+235,
+109,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ID-SEN_I": {
+"face": [
+19,
+105,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ID-SEN_R": {
+"face": [
+190,
+60,
+242,
+242
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IL-GOV_D": {
+"face": [
+181,
+104,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IL-GOV_R": {
+"face": [
+68,
+92,
+227,
+227
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IL-SEN_D": {
+"face": [
+91,
+72,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"IN-01_D": {
+"face": [
+170,
+91,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KS-GOV_D": {
+"face": [
+138,
+115,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KS-GOV_R": {
+"face": [
+246,
+176,
+262,
+262
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KS-SEN_D": {
+"face": [
+65,
+78,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KS-SEN_R": {
+"face": [
+261,
+72,
+195,
+195
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KY-06_R": {
+"face": [
+260,
+49,
+284,
+284
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KY-SEN_D": {
+"face": [
+83,
+43,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"KY-SEN_R": {
+"face": [
+76,
+40,
+169,
+169
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"LA-SEN_R": {
+"face": [
+174,
+153,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MA-GOV_D": {
+"face": [
+237,
+106,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MA-SEN_D": {
+"face": [
+200,
+74,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MA-SEN_R": {
+"face": [
+159,
+53,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MD-GOV_D": {
+"face": [
+185,
+47,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MD-GOV_R": {
+"face": [
+84,
+84,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-02_D": {
+"face": [
+71,
+33,
+146,
+146
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-02_R": {
+"face": [
+34,
+48,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-GOV_D": {
+"face": [
+326,
+100,
+280,
+280
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-GOV_I": {
+"face": [
+60,
+61,
+200,
+200
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-GOV_R": {
+"face": [
+120,
+100,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-SEN_D": {
+"face": [
+77,
+74,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"ME-SEN_R": {
+"face": [
+164,
+113,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-04_R": {
+"face": [
+149,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-07_D": {
+"face": [
+198,
+105,
+289,
+289
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-07_R": {
+"face": [
+241,
+81,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-GOV_D": {
+"face": [
+221,
+132,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-GOV_R": {
+"face": [
+220,
+111,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-SEN_D": {
+"face": [
+56,
+55,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MI-SEN_R": {
+"face": [
+49,
+105,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MN-01_R": {
+"face": [
+261,
+97,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MN-GOV_D": {
+"face": [
+328,
+112,
+254,
+254
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MN-GOV_R": {
+"face": [
+285,
+117,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MN-SEN_D": {
+"face": [
+185,
+51,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MN-SEN_R": {
+"face": [
+63,
+51,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MS-SEN_D": {
+"face": [
+80,
+46,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MS-SEN_R": {
+"face": [
+199,
+153,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MT-01_D": {
+"face": [
+103,
+118,
+240,
+240
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MT-SEN_I": {
+"face": [
+122,
+71,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"MT-SEN_R": {
+"face": [
+131,
+91,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NC-01_D": {
+"face": [
+237,
+82,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NC-01_R": {
+"face": [
+185,
+59,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NC-11_R": {
+"face": [
+75,
+94,
+236,
+236
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NC-SEN_D": {
+"face": [
+48,
+114,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NC-SEN_R": {
+"face": [
+77,
+25,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NE-GOV_R": {
+"face": [
+244,
+130,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NE-SEN_I": {
+"face": [
+220,
+91,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NE-SEN_R": {
+"face": [
+171,
+49,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NH-02_D": {
+"face": [
+193,
+94,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NH-02_R": {
+"face": [
+128,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NH-GOV_R": {
+"face": [
+131,
+78,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NH-SEN_D": {
+"face": [
+141,
+36,
+173,
+173
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NH-SEN_R": {
+"face": [
+253,
+90,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NJ-07_R": {
+"face": [
+208,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NJ-SEN_D": {
+"face": [
+181,
+42,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NM-02_D": {
+"face": [
+227,
+93,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NM-GOV_D": {
+"face": [
+183,
+81,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NM-SEN_D": {
+"face": [
+196,
+84,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NV-01_D": {
+"face": [
+146,
+109,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NV-03_D": {
+"face": [
+141,
+84,
+280,
+280
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NV-03_R": {
+"face": [
+29,
+39,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NV-04_D": {
+"face": [
+279,
+69,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NV-GOV_D": {
+"face": [
+76,
+59,
+300,
+300
+],
+"guessed": true,
+"reaches_bottom": true
+},
+"NV-GOV_R": {
+"face": [
+191,
+102,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-03_D": {
+"face": [
+181,
+93,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-03_R": {
+"face": [
+141,
+78,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-04_D": {
+"face": [
+247,
+106,
+279,
+279
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-17_D": {
+"face": [
+64,
+48,
+135,
+135
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-17_R": {
+"face": [
+185,
+90,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-GOV_D": {
+"face": [
+158,
+113,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"NY-GOV_R": {
+"face": [
+189,
+85,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-01_D": {
+"face": [
+155,
+61,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-07_R": {
+"face": [
+163,
+102,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-09_D": {
+"face": [
+149,
+118,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-09_R": {
+"face": [
+99,
+110,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-10_R": {
+"face": [
+185,
+101,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-13_D": {
+"face": [
+245,
+88,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-15_R": {
+"face": [
+78,
+52,
+187,
+187
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-GOV_D": {
+"face": [
+225,
+44,
+255,
+255
+],
+"guessed": false,
+"reaches_bottom": false
+},
+"OH-GOV_R": {
+"face": [
+130,
+128,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-SEN_D": {
+"face": [
+374,
+61,
+194,
+194
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OH-SEN_R": {
+"face": [
+232,
+68,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OK-GOV_D": {
+"face": [
+169,
+93,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OK-GOV_R": {
+"face": [
+89,
+55,
+159,
+159
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OK-SEN_R": {
+"face": [
+147,
+98,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OR-GOV_D": {
+"face": [
+97,
+99,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OR-GOV_R": {
+"face": [
+108,
+92,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OR-SEN_D": {
+"face": [
+139,
+64,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"OR-SEN_R": {
+"face": [
+66,
+30,
+85,
+85
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-01_R": {
+"face": [
+114,
+71,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-07_R": {
+"face": [
+192,
+88,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-08_D": {
+"face": [
+131,
+130,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-08_R": {
+"face": [
+211,
+79,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-10_D": {
+"face": [
+65,
+59,
+300,
+300
+],
+"guessed": true,
+"reaches_bottom": true
+},
+"PA-10_R": {
+"face": [
+140,
+101,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-GOV_D": {
+"face": [
+96,
+74,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"PA-GOV_R": {
+"face": [
+107,
+65,
+163,
+163
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"RI-GOV_D": {
+"face": [
+330,
+94,
+227,
+227
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"RI-SEN_D": {
+"face": [
+145,
+70,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SC-01_D": {
+"face": [
+318,
+72,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SC-GOV_R": {
+"face": [
+114,
+69,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SC-SEN_D": {
+"face": [
+51,
+88,
+173,
+173
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SC-SEN_R": {
+"face": [
+219,
+89,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SD-GOV_R": {
+"face": [
+132,
+97,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"SD-SEN_R": {
+"face": [
+312,
+113,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TN-GOV_R": {
+"face": [
+168,
+126,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TN-SEN_D": {
+"face": [
+125,
+32,
+110,
+110
+],
+"guessed": false,
+"reaches_bottom": false
+},
+"TN-SEN_R": {
+"face": [
+208,
+111,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-15_R": {
+"face": [
+202,
+106,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-23_R": {
+"face": [
+47,
+119,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-28_D": {
+"face": [
+237,
+58,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-34_D": {
+"face": [
+288,
+72,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-GOV_D": {
+"face": [
+183,
+73,
+209,
+209
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-GOV_R": {
+"face": [
+128,
+67,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-SEN_D": {
+"face": [
+205,
+79,
+278,
+278
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"TX-SEN_R": {
+"face": [
+100,
+37,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-01_R": {
+"face": [
+248,
+96,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-02_D": {
+"face": [
+156,
+99,
+288,
+288
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-02_R": {
+"face": [
+261,
+101,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-05_D": {
+"face": [
+81,
+56,
+241,
+241
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-05_R": {
+"face": [
+253,
+93,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-07_D": {
+"face": [
+201,
+49,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-SEN_D": {
+"face": [
+236,
+90,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VA-SEN_R": {
+"face": [
+216,
+54,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"VT-GOV_R": {
+"face": [
+152,
+46,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WA-03_D": {
+"face": [
+262,
+123,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WA-03_R": {
+"face": [
+43,
+52,
+203,
+203
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WI-01_R": {
+"face": [
+165,
+90,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WI-03_D": {
+"face": [
+120,
+130,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WI-03_R": {
+"face": [
+175,
+34,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WI-GOV_D": {
+"face": [
+309,
+54,
+273,
+273
+],
+"guessed": true,
+"reaches_bottom": true
+},
+"WI-GOV_R": {
+"face": [
+199,
+75,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WV-SEN_R": {
+"face": [
+221,
+110,
+275,
+275
+],
+"guessed": false,
+"reaches_bottom": true
+},
+"WY-SEN_D": {
+"face": [
+110,
+59,
+300,
+300
+],
+"guessed": true,
+"reaches_bottom": true
+},
+"WY-SEN_R": {
+"face": [
+222,
+111,
+300,
+300
+],
+"guessed": false,
+"reaches_bottom": true
+}
+}

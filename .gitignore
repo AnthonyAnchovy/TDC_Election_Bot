@@ -22,6 +22,9 @@ decision-desk/countywatch/field_history.json
 decision-desk/countywatch/inbox/
 decision-desk/County Watch live.csv
 
+# Layers and contact sheets from make_projection_art.py, rebuilt on demand
+decision-desk/assets/kit/
+
 # Microsoft sign-in for the shared workbook (a live credential)
 decision-desk/countywatch/ms_token.json
 
