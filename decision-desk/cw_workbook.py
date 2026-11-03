@@ -76,7 +76,7 @@ CL = {k: get_column_letter(i + 1) for i, (_, k, _, _) in enumerate(CCOLS)}
 DASH_ROW0 = 6          # first state row on Dashboard
 TYPE_ROW0 = 4
 # Dashboard layout: visuals on the left, raw numbers on the right. Other tabs and the bot read columns through DC, by key.
-STRIP_N, CONF_N = 31, 20
+STRIP_N, CONF_N, KEY_N = 31, 20, 6
 TYPE_SLOTS = [("Big metro core", "Metro core"), ("College suburb/metro", "College suburb"), ("Mid-size/working metro", "Working metro"),
               ("Black Belt", "Black Belt"), ("Hispanic", "Hispanic"), ("Native American", "Native American"), ("Small town & rural", "Small town & rural")]
 FACTOR_HEADER = "Turnout factor (vs 2022)"
@@ -90,7 +90,8 @@ DCOLS = [("st", "State", 7), ("race", "Race", 31),
          ("why", "What sets this confidence level", 34),
          ("left", "Votes still expected", 12), ("trailer", "Trailing candidate", 14), ("needs", "Needs of the rest to tie", 10), ("pace", "On pace for", 9), ("gap", "Needs minus pace", 13),
          ("need", "Swing D needs vs 2024", 11), ("swing", "Swing in finished counties", 11), ("ahead", "Ahead / behind needed swing", 11)] + \
-        [(f"sw{i}", f"{lab} swing", 13) for i, (_, lab) in enumerate(TYPE_SLOTS)] + \
+        [(f"sw{i}", f"{lab}: needs and pace", 20) for i, (_, lab) in enumerate(TYPE_SLOTS)] + \
+        [(f"kc{i}", f"Key county {i + 1}", 18) for i in range(KEY_N)] + \
         [("paceproj", "Projected turnout (vs 2022)", 11), ("paceobs", "Turnout in finished counties (vs 2022)", 12),
          ("idxd", "Turnout index: D-leaning finished counties", 12), ("idxr", "Turnout index: R-leaning finished counties", 12), ("idxgap", "D index minus R index", 10)] + \
         [(f"to{i}", f"{lab} turnout", 11) for i, (_, lab) in enumerate(TYPE_SLOTS)] + \
@@ -104,13 +105,16 @@ DCOLS = [("st", "State", 7), ("race", "Race", 31),
          ("lo", "Projection, 90% range: low", 11), ("hi", "Projection, 90% range: high", 11),
          ("early", "Early votes so far", 11), ("earlypct", "Early vote as % of 2022 turnout", 11)] + \
         [("h_m", "helper", 6), ("h_lo", "helper", 6), ("h_hi", "helper", 6)] + \
-        [(f"h_sw{i}", "helper", 6) for i in range(len(TYPE_SLOTS))] + [(f"h_to{i}", "helper", 6) for i in range(len(TYPE_SLOTS))]
+        [(f"h_sw{i}", "helper", 6) for i in range(len(TYPE_SLOTS))] + \
+        [(f"h_kc{i}", "helper", 6) for i in range(KEY_N)] + [(f"h_kn{i}", "helper", 6) for i in range(KEY_N)] + \
+        [(f"h_to{i}", "helper", 6) for i in range(len(TYPE_SLOTS))]
 # Wide enough that no header word breaks in the middle (bold Arial runs about 1.15 column units a letter)
 DCOLS = [(k, h, max(w, max(len(x) for x in h.split()) * 1.15 + 2) if h else w) for k, h, w in DCOLS]
 DC = {k: get_column_letter(i + 1) for i, (k, _, _) in enumerate(DCOLS)}
 DZONES = [("RACE", "1F2A44", "st", "race"), ("WHO'S AHEAD", "1F4E9A", "call", "rangetxt"), ("WHAT SETS THE CONFIDENCE", "6B4E9B", "conf", "why"),
           ("CAN THE TRAILER CATCH UP?", "B7791F", "left", "gap"),
-          ("SWING SINCE 2024, BY COUNTY TYPE · color = against the swing the D side needs", "A23B3B", "need", f"sw{len(TYPE_SLOTS) - 1}"),
+          ("WHAT EACH COUNTY TYPE NEEDS · needs = its margin in a statewide tie · pace = where it's heading · color = pace against needs", "A23B3B", "need", f"sw{len(TYPE_SLOTS) - 1}"),
+          ("WHAT THE BIGGEST KEY COUNTIES NEED · color = final margin against needs", "7A3E6B", "kc0", f"kc{KEY_N - 1}"),
           ("TURNOUT, BY COUNTY TYPE · percent = vs 2022, index = vs the state's pace", "2F5D50", "paceproj", f"to{len(TYPE_SLOTS) - 1}"),
           ("SECOND OPINIONS", "595959", "polladj", "impliedn"), ("THE RAW NUMBERS", "404040", "dem", "earlypct")]
 D_NEED, D_FACTOR, D_DONE, D_PACE_USED, D_PACE = DC["need"], DC["factor"], DC["done"], DC["paceused"], DC["paceproj"]
@@ -345,7 +349,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
 
     # ---------------- Dashboard
     import cw_dashboard as DB
-    DB.dashboard_sheet(dash, data, names, rng, trow, keep, reads)
+    DB.dashboard_sheet(dash, data, names, rng, trow, keep, reads, rowmap)
 
     # ---------------- Key Counties
     _keys_sheet(keys, data, names, rowmap, trow)

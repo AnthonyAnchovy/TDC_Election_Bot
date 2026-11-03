@@ -54,12 +54,21 @@ NOTES = {
     "factor": "Expected 2026 turnout as a multiple of 2022, used until 3 counties are known to be finished. Early vote running well ahead of 2022 is a reason to raise it.",
     "spread": "How much finished counties disagree on their swing. Fixed at 5 points until 5 counties finish, and never under 2 after that.",
 }
-for k, lab in W.TYPE_SLOTS:
-    pass
+NEEDS_NOTE = ("Needs: this type's margin if the state ends in a tie, with every county moving the same amount from 2024 on 2022's turnout. The D side has to beat it and the R side "
+              "has to hold it below that. A miss here can be made up in another type. Pace: the type's 2024 margin moved by the swing in its finished counties. Swing: that movement. "
+              "Last line: counties finished and the type's share of the state's vote. County types stand in for groups of voters. They aren't exit polls.")
+KEY_NOTE = ("A race's biggest key counties. Needs: the county's margin in a statewide tie, adjusted for its actual turnout once it's finished. At: its margin so far. "
+            "Color appears once a county is finished, because a partial count can lean either way. Key Counties and County Benchmarks have the full list and more targets.")
+NOTES.update({f"sw{i}": NEEDS_NOTE for i in range(len(W.TYPE_SLOTS))})
+NOTES.update({f"kc{i}": KEY_NOTE for i in range(W.KEY_N)})
 
 
 def _swing_txt(ref: str) -> str:
     return f'IF({ref}>=0,"+"&TEXT({ref}*100,"0.0")&" D","+"&TEXT(-{ref}*100,"0.0")&" R")'
+
+
+def _lvl(ref: str) -> str:
+    return W._mt(f"MAX(-1,MIN(1,{ref}))")
 
 
 def _hdr_lines(text: str, width: float) -> int:
@@ -73,7 +82,7 @@ def _hdr_lines(text: str, width: float) -> int:
     return n
 
 
-def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
+def dashboard_sheet(ws, data, names, rng, trow, keep, reads, rowmap):
     ws.sheet_view.zoomScale = 85
     ws.sheet_view.showGridLines = False
     # Frozen columns clip text at their edge in Excel Online, so only short text goes in A and the long line starts in C
@@ -209,11 +218,20 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
                 continue
             E, D_, Fv, Gs, Lsh = (f"Types!$E${tr}", f"Types!$D${tr}", f"Types!$F${tr}", f"Types!$G${tr}", f"Types!$L${tr}")
             vs, ti, po = ty("Swing vs what D needs", tr), ty("Turnout index (complete counties)", tr), ty("Turnout pace observed (vs 2022)", tr)
+            tie, base = ty("Type margin if state ends tie", tr), ty("2024 margin (2022 pattern)", tr)
             head = "Alaska districts: " if st == "AK" else ""
-            forms[f"sw{i}"] = (f'="{head}"&IF({Gs}="","no swing yet",{_swing_txt(Gs)})&CHAR(10)&{E}&" of "&{D_}&" in"&CHAR(10)&IF({Lsh}<0.01,"<1%",TEXT({Lsh},"0%"))&" of the vote"')
+            forms[f"sw{i}"] = (f'="{head}Needs "&{_lvl(tie)}&CHAR(10)&IF({Gs}="","no swing yet","Pace "&{_lvl(f"({base}+{Gs})")}&CHAR(10)&"Swing "&{_swing_txt(Gs)})'
+                               f'&CHAR(10)&{E}&" of "&{D_}&" · "&IF({Lsh}<0.01,"<1%",TEXT({Lsh},"0%"))')
             forms[f"h_sw{i}"] = f'=IF({vs}="","",{vs})'
             forms[f"to{i}"] = f'="{head}"&IF({po}="","–",TEXT({po},"0%")&CHAR(10)&"index "&TEXT({ti},"0"))'
             forms[f"h_to{i}"] = f'=IF({ti}="","",{ti}-100)'
+        keys = sorted((x for x in data[st] if x["key"]), key=lambda x: -x["t24"])[:W.KEY_N]
+        for i, x in enumerate(keys):
+            K = lambda k: f"Counties!${W.CL[k]}${rowmap[x['fips']]}"
+            forms[f"h_kn{i}"] = f'=MAX(-1,MIN(1,IF({K("tbe")}="",{K("be")},{K("tbe")})))'
+            forms[f"h_kc{i}"] = f'=IF({K("done")}=1,{K("lm")}-{c(f"h_kn{i}")},"")'
+            forms[f"kc{i}"] = (f'="{x["name"]}"&CHAR(10)&"Needs "&{W._mt(c(f"h_kn{i}"))}&CHAR(10)&IF({K("lm")}="","not in yet","At "&{W._mt(K("lm"))}'
+                               f'&CHAR(10)&IF({K("done")}=1,"final",TEXT({K("ein")},"0%")&" in"))')
         for key, head, _ in W.DCOLS:
             cell = ws[f"{DC[key]}{r}"]
             if key in forms:
@@ -237,6 +255,8 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
         for i in range(len(W.TYPE_SLOTS)):
             ws[f"{DC[f'sw{i}']}{r}"].font = F(size=9)
             ws[f"{DC[f'to{i}']}{r}"].font = F(size=9)
+        for i in range(W.KEY_N):
+            ws[f"{DC[f'kc{i}']}{r}"].font = F(size=9)
         # the scale behind the strip and the zones behind the confidence bar
         for i in range(W.STRIP_N):
             v = i - 15
@@ -250,7 +270,7 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
         for i in range(W.CONF_N):
             ws[f"{DC[f'c{i}']}{r}"].fill = fill("F8CFCA" if i < 2 else "FBEBC8" if i < 8 else "DFF0E3")
             ws[f"{DC[f'c{i}']}{r}"].border = Border(top=GAP, bottom=GAP)
-        ws.row_dimensions[r].height = 50
+        ws.row_dimensions[r].height = 58
 
     # number formats
     fmts = {W.MARGIN: ("raw", "m24", "lo", "hi", "polladj"), W.SWING: ("need", "swing", "ahead", "pollerr"),
@@ -297,7 +317,10 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     for i, cond in enumerate((f"{hto}>=3", f"{hto}>=1", f"{hto}>-1", f"{hto}>-3", "TRUE")):
         cf(to, FormulaRule(formula=[f'AND(ISNUMBER({hto}),{cond})'], stopIfTrue=True, fill=fill(TURN_FILLS[i]),
                            font=Font(name=W.FONT, size=9, color=TURN_FONT[i], bold=True)))
-    cf(f"{DC['sw0']}{r0}:{DC[f'sw{len(W.TYPE_SLOTS) - 1}']}{rN}", FormulaRule(formula=[f'LEFT({DC["sw0"]}{r0},2)="no"'], font=Font(name=W.FONT, size=9, italic=True, color="8C8C8C")))
+    cf(sw, FormulaRule(formula=[f'AND({DC["sw0"]}{r0}<>"",{hsw}="")'], font=Font(name=W.FONT, size=9, color="595959")))
+    kc = f"{DC['kc0']}{r0}:{DC[f'kc{W.KEY_N - 1}']}{rN}"
+    hkc = f"{DC['h_kc0']}{r0}"
+    W._tier_colors_num(ws, kc, hkc, [f"{hkc}>=0.05", f"{hkc}>=0.01", f"{hkc}>-0.01", f"{hkc}>-0.05", "TRUE"])
 
     for key, note in NOTES.items():
         cm = Comment(note, "County Watch")
@@ -309,7 +332,8 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads):
     for i, line in enumerate([
         "How to read it",
         "• Confidence is only about how much is finished: low = under 5 counties or under 10% of the expected vote, medium = under 40%, high = 40% or more. It doesn't look at how close the race is.",
-        "• Swing by county type: the number is that type's swing since 2024 in its finished counties. Color = against the swing the D side needs statewide (dark blue 5+ ahead, light blue 1 to 5 ahead, grey within 1, light red 1 to 5 behind, dark red 5+ behind).",
+        "• County types: Needs = the margin this type posts if the state ends in a tie. The D side has to beat it and the R side has to hold it below that. Pace = where the type is heading on its finished counties' swing. Color = pace against needs (dark blue 5+ ahead, light blue 1 to 5 ahead, grey within 1, light red 1 to 5 behind, dark red 5+ behind).",
+        "• Key counties: the race's biggest, with the margin each needs in a statewide tie and where it stands. It takes color once finished, on the same scale. A miss in one place can be made up in another. County types stand in for groups of voters, and aren't exit polls.",
         "• Turnout by county type: the percent is votes compared with 2022 in that type's finished counties. The index compares it with the state: 100 = same pace. Purple = above the state's pace, orange = below.",
         "• Needs of the rest to tie: green = over 100%, so the trailer can't catch up. Amber = under 50%, so the 'trailer' is actually ahead in the raw count and nothing is settled.",
         "• Other states imply: apply the swings that similar kinds of counties are showing in other states tonight to this state. It's a second opinion from outside the state and never feeds the projection.",
