@@ -146,6 +146,7 @@ A county-by-county read of 15 Senate races: the 14 that Cook doesn't rate Solid 
 | `/countytest state` | Admin | Checks a live county feed against its Nov 2024 file (or, for Ohio, South Carolina and Alaska, that the site answers). **Run it once for each state before the night.** |
 | `/countyfeed state link` | Admin | Points a Clarity state (South Carolina, Iowa) at its election link, e.g. `https://www.enr-scvotes.org/SC/127500/`, if the site doesn't list Nov 3 by date. `clear` undoes it. |
 | `/countyrefresh` | Admin | Pulls everything now and rebuilds the workbook. |
+| `/excellink` | Admin | Posts a card in the current channel with the read-only workbook link (`CLOUD_VIEW_LINK` in `.env`) and a preview picture from before results. |
 
 **What the bot pulls by itself:**
 - **Live county results:** Georgia, Florida, North Carolina, Minnesota, Nebraska, Iowa, South Carolina and Alaska (plus Virginia as a bellwether), all checked at once every 30 seconds from 6 PM ET on Nov 3 to 8 AM ET Nov 4. Ohio and Texas are tried too, but their sites sit behind Cloudflare's bot check; if they answer the bot with a challenge page, it stops trying for 15 minutes and posts once that you should use the grab button. The bot only downloads a file again when the state has changed it. Georgia uses its single-race endpoint, about 1.6 MB instead of the 33 MB full export. Each state is ignored until its polls close, because states load test numbers into their live files beforehand.

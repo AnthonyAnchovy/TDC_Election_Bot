@@ -40,6 +40,7 @@ import scoring as S
 from store import Store
 
 HERE = Path(__file__).parent
+COUNTY_CARD = HERE / "assets" / "county_watch_card.png"
 load_dotenv(HERE / ".env")
 CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
 TZ = ZoneInfo(CFG.get("timezone", "America/Chicago"))
@@ -2019,6 +2020,35 @@ async def countyrefresh_cmd(interaction: discord.Interaction):
         f"Early vote: {'ok' if early.get('uf') else early.get('uf_error')} · NC file: "
         f"{'ok' if early.get('nc') else early.get('nc_error')}\nLive feeds: {errs or 'all ok'}\nWorkbook: {_cw['status']}",
         ephemeral=True)
+
+
+def county_card(link: str) -> dict:
+    """send() arguments for the workbook card. A OneDrive link gets no preview in Discord, so this stands in for one.
+    The picture is a snapshot from before results (assets/county_watch_card.png), and the footer says so."""
+    e = discord.Embed(title="County Watch 2026: live Senate workbook", url=link, color=0x1F2A44,
+                      description="Live county-by-county numbers for every Senate race we're watching. It updates every couple of "
+                                  "minutes once polls close. View only. If you're new to this, read the Start Here tab first.")
+    e.set_footer(text="Picture is a preview from before results, based on final polls. Open the workbook for live numbers.")
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Open the workbook", url=link))
+    kwargs = {"embed": e, "view": view}
+    if COUNTY_CARD.exists():
+        e.set_image(url=f"attachment://{COUNTY_CARD.name}")
+        kwargs["file"] = discord.File(COUNTY_CARD, filename=COUNTY_CARD.name)
+    return kwargs
+
+
+@tree.command(name="excellink", description="Admin: post a card here with the read-only link to the live workbook.")
+@app_commands.guild_only()
+async def excellink_cmd(interaction: discord.Interaction):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    link = os.getenv("CLOUD_VIEW_LINK")
+    if not link:
+        return await interaction.response.send_message(
+            "No link yet. Run `python cw_cloud.py share --view`, put the link in .env as CLOUD_VIEW_LINK, and restart "
+            "the bot.", ephemeral=True)
+    await interaction.response.send_message(allowed_mentions=NO_PINGS, **county_card(link))
 
 
 # =========================================================================== startup
