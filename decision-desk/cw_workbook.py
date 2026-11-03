@@ -126,6 +126,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     wb = Workbook()
     glance = wb.active
     glance.title = "At a Glance"
+    guide = wb.create_sheet("Start Here")
     readme = wb.create_sheet("Read Me")
     dash = wb.create_sheet("Dashboard")
     polls = wb.create_sheet("Polls")
@@ -420,7 +421,9 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     G.polls_sheet(polls, names, keep.get("polls"))
     G.glance_sheet(glance, names, f"Types!${get_column_letter(len(TYPE_COLS) + 5)}${TYPE_ROW0}")
 
-    # ---------------- Read Me
+    # ---------------- Start Here and Read Me
+    import cw_guide
+    cw_guide.guide_sheet(guide)
     _readme(readme)
     _protect(wb)
     wb.save(path)
@@ -1089,6 +1092,7 @@ def _readme(ws):
         ("A county-by-county read of the competitive Senate races (AK, GA, IA, KS, ME, MI, MN, MS, NC, NE, NH, OH, SC, TX, FL), plus Virginia and Kentucky as early-closing bellwethers for the national swing.", ""),
         ("Before election night it holds the benchmarks (2024 and 2022 results by county, demographics, break-even margins) and the early vote. On the night it projects each race from the counties that have finished counting.", ""),
         ("Sheets", "h"),
+        ("Start Here: a plain-language guide for anyone new to election nights, and how this workbook works.", ""),
         ("At a Glance: the one-screen view for the night. Seat tally, results vs polls, a bar per race in poll-closing order (light bars = final poll, solid = live projection), what the Senate looks like if the polls miss in different ways, and two charts. Nothing to type here.", ""),
         ("Polls: the final poll in each race (yellow cells, seeded with the Nov 1 NYT/Siena polls; replace with averages if you have them), its sampling error, how much Times/Siena's new weighting moved it, and on the night, how far the projection is running from it. Polls never feed the projection.", ""),
         ("Dashboard: one row per state with the projection, swing, confidence and the bot's written read.", ""),

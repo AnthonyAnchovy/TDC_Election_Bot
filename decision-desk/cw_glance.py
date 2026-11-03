@@ -212,7 +212,7 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ws.row_dimensions[1].height = 36
     ws.merge_cells("B2:H2")
     ws["B2"] = ("Solid bars = live projection from finished counties. Light bars = final poll, until a projection exists. "
-                "Blue = Democratic side, red = Republican. One block = 1 point.")
+                "Blue = Democratic side, red = Republican. One block = 1 point. New to this? Read the Start Here tab first.")
     ws["B2"].font = F(italic=True, color="595959", size=9)
     ws.merge_cells("I2:L2")
     ws["I2"] = "=Dashboard!A3"
