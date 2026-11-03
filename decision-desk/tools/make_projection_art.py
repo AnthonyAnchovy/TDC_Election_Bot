@@ -67,6 +67,7 @@ class Stack:
 
     def __init__(self):
         self.layers: list[tuple[str, Image.Image]] = []
+        self.live: dict[str, list] = {}      # what a layer becomes in a Photoshop file, when it holds editable text
 
     def add(self, name: str, img: Image.Image, xy: tuple[int, int] = (0, 0)) -> None:
         if img.size != SIZE or xy != (0, 0):
@@ -94,6 +95,27 @@ def blank() -> Image.Image:
 
 def tinted(mask: Image.Image, color, alpha: float = 1.0) -> Image.Image:
     return C.solid(mask, color, alpha)
+
+
+POSTSCRIPT = {"arialbd.ttf": "Arial-BoldMT", "Anton-Regular.ttf": "Anton-Regular"}
+
+
+def live_text(x: float, y: float, text: str, fnt, color, anchor: str) -> PSD.Text:
+    """The same words Pillow draws at (x, y) with this anchor, as Photoshop type. Anchors: lt, lm or mm."""
+    ascent, descent = fnt.getmetrics()
+    base = y - fnt.getbbox(text, anchor="ls")[1] if anchor[1] == "t" else y + (ascent - descent) / 2    # t is the top of these letters
+    return PSD.Text(text, POSTSCRIPT[Path(fnt.path).name], fnt.size, x, base, tuple(color[:3]), fnt.getlength(text), ascent, descent,
+                    PSD.CENTER if anchor[0] == "m" else PSD.LEFT)
+
+
+def punched_label(st: Stack, name: str, text: str, fnt, center: tuple[float, float], shape: Image.Image, color) -> None:
+    """A pill with its words punched through to the glass. Type can't be punched through, so in the Photoshop file
+    the pill is solid and the words are type in the color of the glass behind them."""
+    words = G._text_mask(SIZE, center, text, fnt)
+    behind = st.flat().crop(words.getbbox()).convert("RGB").resize((1, 1), Image.BOX).getpixel((0, 0))
+    st.add(name, G._knockout(SIZE, shape, words, color))
+    st.live[name] = [PSD.Layer(name, tinted(shape, color)),
+                     PSD.Layer(f"{name}-text", tinted(words, behind), text=live_text(*center, text, fnt, behind, "mm"))]
 
 
 # ------------------------------------------------------------------------------------------------ the glass
@@ -381,8 +403,7 @@ def footer(st: Stack, f: dict, party: str, panel: Image.Image, box: tuple[int, i
     bw = int(d.textlength(label, font=bf)) + 56
     bx1 = px1 - 50
     pm = G._rounded_mask(SIZE, [bx1 - bw, py1 - 70, bx1, py1 - 16], 27)
-    tm = G._text_mask(SIZE, (bx1 - bw / 2, py1 - 43), label, bf)
-    st.add("flip-badge", G._knockout(SIZE, pm, tm, G.YELLOW if f["flip"] else (255, 255, 255)))
+    punched_label(st, "flip-badge", label, bf, (bx1 - bw / 2, py1 - 43), pm, G.YELLOW if f["flip"] else (255, 255, 255))
 
 
 def pill(st: Stack, x: int, y: int, text: str = "KEY RACE ALERT") -> None:
@@ -391,7 +412,7 @@ def pill(st: Stack, x: int, y: int, text: str = "KEY RACE ALERT") -> None:
     tf = G.font(34)
     tw = int(d.textlength(text, font=tf)) + 64
     pm = G._rounded_mask(SIZE, [x, y, x + tw, y + 58], 29)
-    st.add("pill", G._knockout(SIZE, pm, G._text_mask(SIZE, (x + tw / 2, y + 29), text, tf), (255, 255, 255)))
+    punched_label(st, "pill", text, tf, (x + tw / 2, y + 29), pm, (255, 255, 255))
     brand(st, x + tw + 24, y + 29, "lm")
 
 
@@ -399,6 +420,7 @@ def brand(st: Stack, x: int, y: int, anchor: str) -> None:
     layer = blank()
     ImageDraw.Draw(layer).text((x, y), BRAND, font=G.font(32), fill=(255, 255, 255, 245), anchor=anchor)
     st.add("brand", layer)
+    st.live["brand"] = [PSD.Layer("brand", layer, text=live_text(x, y, BRAND, G.font(32), (255, 255, 255), anchor))]
 
 
 def badge(st: Stack, f: dict, right: int, top: int, bw=190, bh=150) -> None:
@@ -442,9 +464,10 @@ def name_block(st: Stack, f: dict, party: str, name: str | None, x: int, y: int,
     check = int(size * 0.56)
     st.add("check", check_mark(x, y, check))
     word = blank()
-    ImageDraw.Draw(word).text((x + check + 20, y + check // 2 + 2), "WINNER", fill=G.YELLOW + (255,), anchor="lm",
-                              font=C.fit(d, "WINNER", max_w, "Anton-Regular.ttf", int(size * 0.5)))
+    word_font = C.fit(d, "WINNER", max_w, "Anton-Regular.ttf", int(size * 0.5))
+    ImageDraw.Draw(word).text((x + check + 20, y + check // 2 + 2), "WINNER", fill=G.YELLOW + (255,), anchor="lm", font=word_font)
     st.add("winner-label", word)
+    st.live["winner-label"] = [PSD.Layer("winner-label", word, text=live_text(x + check + 20, y + check // 2 + 2, "WINNER", word_font, G.YELLOW, "lm"))]
     yy = y + check + 12
     lines = winner_lines(f, party, name)
     for i, line in enumerate(lines, 1):
@@ -454,6 +477,7 @@ def name_block(st: Stack, f: dict, party: str, name: str | None, x: int, y: int,
         text = blank()
         ImageDraw.Draw(text).text((x, yy), line, font=fnt, fill=(255, 255, 255, 255), anchor="lt")
         st.add(f"name-line-{i}", text)
+        st.live[f"name-line-{i}"] = [PSD.Layer(f"name-line-{i}", text, text=live_text(x, yy, line, fnt, (255, 255, 255), "lt"), shadow=True)]
         yy += fnt.size + 12
     return yy
 
@@ -462,8 +486,10 @@ def race_title(st: Stack, f: dict, x: int, y: int, max_w: int, size: int = 58) -
     layer = blank()
     d = ImageDraw.Draw(layer)
     text = title_of(f)
-    d.text((x, y), text, font=G.fit(d, text, max_w, size), fill=(255, 255, 255, 240), anchor="lt")
+    fnt = G.fit(d, text, max_w, size)
+    d.text((x, y), text, font=fnt, fill=(255, 255, 255, 240), anchor="lt")
     st.add("title", layer)
+    st.live["title"] = [PSD.Layer("title", layer, text=live_text(x, y, text, fnt, (255, 255, 255), "lt"))]
 
 
 def plain_card(st: Stack, f: dict, party: str, name: str | None, names: dict) -> None:
@@ -519,15 +545,21 @@ def group_of(name: str) -> str:
 
 def grouped(st: Stack) -> list:
     """The layers in their stacking order, in groups. A group appears twice when something from another group sits
-    between its layers: the footer strip in front of the portrait, say."""
+    between its layers: the footer strip in front of the portrait, say. Text comes out as live type, and a name's
+    shadow comes out as a layer style on the name rather than a picture that would stay behind when the name changes."""
     items: list = []
     for name, image in st.layers:
+        if name.startswith("name-line") and name.endswith("-shadow"):
+            continue
         if name in ("fog-loser", "fog-caption"):           # these go in the slot itself
             items[-1].children[-1].children.append(PSD.Layer(name, image))
             continue
         label = group_of(name)
         if not (items and items[-1].name == label):
             items.append(PSD.Group(label))
+        if name in st.live:
+            items[-1].children.extend(st.live[name])
+            continue
         items[-1].children.append(PSD.Group(name) if image is None else PSD.Layer(name, image))
     return items
 

@@ -158,7 +158,17 @@ def is_junkie(member) -> bool:
 
 def is_admin(member) -> bool:
     perms = getattr(member, "guild_permissions", None)
-    return bool(perms and perms.manage_guild) or CFG.get("admin_role", "") in _roles(member)
+    given = getattr(member, "resolved_permissions", None)     # what Discord itself says, which counts the server owner
+    return bool(perms and perms.manage_guild) or bool(given and given.manage_guild) or CFG.get("admin_role", "") in _roles(member)
+
+
+def wipe_refusal(interaction: discord.Interaction, confirm: str, word: str) -> str | None:
+    """Why a command that erases data won't run, or None. Capitals and stray spaces in the word don't matter."""
+    if not is_admin(interaction.user):
+        return "Nothing was changed. Admins only: you need the Manage Server permission."
+    if confirm.strip().upper() != word:
+        return f"Nothing was changed. To confirm, type {word} in the `confirm` box. It received: {confirm[:40]!r}"
+    return None
 
 
 def junkie_ids(guild) -> set[int]:
@@ -513,8 +523,9 @@ def cleared_text(gone: dict) -> str:
 @app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", confirm="Type CLEAR to confirm")
 @app_commands.autocomplete(race=race_autocomplete)
 async def clearrace_cmd(interaction: discord.Interaction, race: str, confirm: str):
-    if not is_admin(interaction.user) or confirm != "CLEAR":
-        return await interaction.response.send_message("Admins only, and type CLEAR to confirm.", ephemeral=True)
+    refusal = wipe_refusal(interaction, confirm, "CLEAR")
+    if refusal:
+        return await interaction.response.send_message(refusal, ephemeral=True)
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
@@ -1821,8 +1832,9 @@ async def board_cmd(interaction: discord.Interaction):
 @app_commands.guild_only()
 @app_commands.describe(confirm="Type RESET to confirm", include_predictions="Also wipe everyone's predictions")
 async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_predictions: bool = False):
-    if not is_admin(interaction.user) or confirm != "RESET":
-        return await interaction.response.send_message("Admins only, and type RESET to confirm.", ephemeral=True)
+    refusal = wipe_refusal(interaction, confirm, "RESET")
+    if refusal:
+        return await interaction.response.send_message(refusal, ephemeral=True)
     await interaction.response.defer()
     gone = store.reset(include_predictions=include_predictions)
     reset_field()
@@ -2049,6 +2061,8 @@ async def county_loop():
         loaded = await asyncio.to_thread(CWR.scan_inbox)
         for res in loaded:
             await _announce_file(main_guild(), res, "the grab button" if res.get("grab") else "the inbox folder")
+        for m in CWR.workbook_notices():
+            await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
         busy = _cw.get("wb_task") and not _cw["wb_task"].done()
         # the shared workbook syncs even when no feed moved, so what people type into it reaches the bot
         if ((_cw.get("dirty") or CWR.CC.enabled()) and not busy

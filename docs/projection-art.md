@@ -68,7 +68,7 @@ Each layer is a separate piece of the card, in groups that keep the card's stack
 | Fog | The forest image, your images group (the loser and the caption), then what goes over them: a faint copy of the forest and the mist. Move an image lower to sink it further |
 | Card | The glass gradient, the light streaks, the shadow, the footer strip and the backdrop |
 
-A group can appear twice when something sits between its layers. The footer strip has to be in front of the portrait, for example. Text is pixels rather than live type, so to change wording, hide the layer and type over it. The fonts are Arial Bold and Anton, which is in `assets/fonts`.
+A group can appear twice when something sits between its layers. The footer strip has to be in front of the portrait, for example. Text is live type, so double-click a text layer's thumbnail to change the wording. A name's shadow is a layer style that follows the text. The alert pill and flip badge each have a separate `-text` layer on a solid pill. The caption in the fog is the exception: it's still a picture, because it was rebuilt from the letters in the meme. The fonts are Arial Bold and Anton. Install `assets/fonts/Anton-Regular.ttf` to edit `WINNER`, or Photoshop will swap in another font.
 
 The bottom layer is Discord's dark background, hidden by default. Turn it on to preview the card, then hide it again before exporting, or the transparent corners will export as solid grey.
 

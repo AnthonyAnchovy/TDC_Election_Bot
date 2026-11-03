@@ -82,7 +82,17 @@
         "count_only": true,
         "note": "no 2024 file set; checks only that the site answers"
       },
-      "contest_re": "(united states|u\\.\\s?s\\.)\\s+senat"
+      "contest_re": "(united states|u\\.\\s?s\\.)\\s+senat",
+      "fallback": {
+        "format": "nyt_json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-south-carolina-us-senate.json",
+        "contest": "U.S. Senate",
+        "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+        "test": {
+          "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-south-carolina-president.json",
+          "contest": "President"
+        }
+      }
     },
     "OH": {
       "format": "oh_api",
@@ -95,7 +105,7 @@
       },
       "fallback": {
         "format": "nyt_json",
-        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-ohio-us-senate.json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-ohio-us-senate-special.json",
         "contest": "U.S. Senate",
         "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
         "test": {

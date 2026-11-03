@@ -95,6 +95,8 @@ def now_et() -> datetime:
 
 
 BLOCK_RETRY = 15 * 60       # seconds before re-trying a site that answered with a bot check
+THROTTLE_MAX = 5 * 60       # longest wait between tries of a site that answered 429 or 403, unless it asks for longer
+THROTTLE_WARN = 3 * 60      # how long that goes on before the board hears about it
 
 
 def _suspect_pull(new: dict, old: dict | None, minutes_since_close: float = 999) -> str | None:
@@ -119,13 +121,16 @@ async def refresh_live() -> dict:
     states load test numbers into the live file beforehand (Minnesota's did in late October).
     Sets cache['changed'] to the states whose numbers moved since the last pull."""
     import night as N
-    blocked0 = live_cache().get("blocked", {})
+    before = live_cache()
+    blocked0, throttled0 = before.get("blocked", {}), before.get("throttled", {})
     todo, waiting = [], []
     for st in FD.feed_states():
         if now_et() < N.first_close(st):
             waiting.append(st)
         elif time.time() - blocked0.get(st, 0) < BLOCK_RETRY and not FD.has_fallback(st):
             continue            # its site answered with a bot check; don't keep knocking
+        elif time.time() < throttled0.get(st, {}).get("until", 0):
+            continue            # its site said to slow down; wait out the time it's owed
         else:
             todo.append(st)
     timeout = aiohttp.ClientTimeout(total=45)
@@ -135,6 +140,14 @@ async def refresh_live() -> dict:
         return _apply_pulls(todo, results, waiting)
 
 
+def _slow_down(entry: dict | None, exc: FD.Throttled) -> dict:
+    """The next try for a site that answered 429 or 403. The wait doubles from a minute up to THROTTLE_MAX, or is what
+    the site asked for if that's longer."""
+    t, fails = time.time(), (entry or {}).get("fails", 0) + 1
+    wait = max(min(30 * 2 ** fails, THROTTLE_MAX), exc.wait or 0)
+    return {"fails": fails, "since": (entry or {}).get("since", t), "until": t + wait, "why": str(exc)}
+
+
 def _apply_pulls(todo, results, waiting) -> dict:
     import night as N
     cache = live_cache()
@@ -142,6 +155,7 @@ def _apply_pulls(todo, results, waiting) -> dict:
     cache.setdefault("errors", {})
     cache["changed"] = []
     blocked = cache.setdefault("blocked", {})
+    throttled = cache.setdefault("throttled", {})
     for st in waiting:
         cache["states"].pop(st, None)
         cache["errors"][st] = f"waiting for polls to close ({N.fmt(N.first_close(st), N.ET)})"
@@ -150,8 +164,13 @@ def _apply_pulls(todo, results, waiting) -> dict:
             cache["errors"][st] = str(res)[:200] or type(res).__name__
             if isinstance(res, FD.BotCheck):
                 blocked[st] = time.time()
+                throttled.pop(st, None)
+            elif isinstance(res, FD.Throttled):
+                throttled[st] = _slow_down(throttled.get(st), res)
+                cache["errors"][st] += f"; kept the last numbers, next try at {datetime.fromtimestamp(throttled[st]['until']):%I:%M:%S %p}"
             continue
         blocked.pop(st, None)
+        throttled.pop(st, None)
         bad = _suspect_pull(res["counties"], cache["states"].get(st),
                             (now_et() - N.first_close(st)).total_seconds() / 60)
         if bad:                                  # an error page or a cut-off file: keep the last good numbers
@@ -280,9 +299,11 @@ def _turnout_tag(p: dict, dl: str, rl: str) -> str:
 
 @_locked
 def blocked_notices(cache: dict) -> list[str]:
-    """One message per state whose site answered the bot with a bot check (said once per night)."""
+    """One message per state whose site answered the bot with a bot check (said once per night), and one for the states
+    that have been answering 429 or 403 for THROTTLE_WARN, with a follow-up when they answer again."""
     seen = _load("alerts.json", {})
     told = seen.setdefault("_blocked_told", [])
+    slow_told = seen.setdefault("_throttled_told", [])
     out = []
     for st in sorted(cache.get("blocked", {})):
         if st not in told:
@@ -290,6 +311,20 @@ def blocked_notices(cache: dict) -> list[str]:
             out.append(f"🚧 {M.STATES[st]}'s results site answered the bot with a bot check, so it can't pull "
                        f"{st} automatically. Use the **County Watch grab** button on that site in your browser "
                        f"(one click saves the numbers and the bot loads them in seconds), or `/countyfile`.")
+    throttled = cache.get("throttled", {})
+    late = [st for st in sorted(throttled)
+            if st not in slow_told and time.time() - throttled[st]["since"] >= THROTTLE_WARN]
+    if late:
+        slow_told.extend(late)
+        why = "; ".join(f"{st}: {throttled[st]['why']}" for st in late)
+        out.append(f"🐢 **Stale feed: {', '.join(M.STATES.get(st, st) for st in late)}.** The results site has been turning "
+                   f"the bot away for at least {THROTTLE_WARN // 60} minutes ({why}). These feeds are stuck on their last "
+                   "good numbers. The bot keeps trying, more slowly. To keep them moving, use the **County Watch grab** "
+                   "button (OH, TX, KS), `/countyfile`, or `/countyset`.")
+    back = [st for st in slow_told if st not in throttled and st not in cache.get("blocked", {})]
+    if back:
+        seen["_throttled_told"] = [st for st in slow_told if st not in back]
+        out.append(f"✅ **{', '.join(M.STATES.get(st, st) for st in sorted(back))}:** the results site is answering the bot again.")
     if out:
         _save("alerts.json", seen)
     return out
@@ -567,6 +602,24 @@ def nc_summary(nc: dict) -> list[str]:
 
 
 # ------------------------------------------------------------------ workbook
+WB_WARN = 3         # failed shared workbook updates in a row before the board hears about it
+_WB = {"fails": 0, "error": None, "told": False}
+
+
+def workbook_notices() -> list[str]:
+    """One message once the shared workbook has missed WB_WARN updates in a row, and one when it's updating again."""
+    if _WB["fails"] >= WB_WARN and not _WB["told"]:
+        _WB["told"] = True
+        return [f"⚠️ **The shared workbook has stopped updating.** The last {_WB['fails']} updates failed ({_WB['error']}). "
+                "Anyone looking at it is seeing old numbers, and what's typed into it isn't reaching the bot. The bot keeps "
+                "trying, and the feeds and board posts aren't affected. If it's the Microsoft sign-in, "
+                "`python cw_cloud.py check` on the bot's PC will say so."]
+    if _WB["fails"] == 0 and _WB["told"]:
+        _WB["told"] = False
+        return ["✅ **The shared workbook is updating again.**"]
+    return []
+
+
 def write_workbook(cache=None, *, local: bool = False) -> str:
     """Bring the workbook up to date: the shared copy when it's set up (cw_cloud), else the file in this folder.
     local=True always rebuilds the file here."""
@@ -581,9 +634,11 @@ def write_workbook(cache=None, *, local: bool = False) -> str:
             try:
                 _INPUTS["cloud"] = CC.sync(live=live, reads=rd, stamp=datetime.now().strftime("%b %d %I:%M %p"),
                                            uf=early.get("uf"), nc=nc, entries=extra)
+                _WB.update(fails=0, error=None)
                 return "updated the shared workbook"
             except Exception as exc:
                 log.exception("shared workbook update failed")
+                _WB.update(fails=_WB["fails"] + 1, error=str(exc)[:150] if isinstance(exc, CC.CloudError) else type(exc).__name__)
                 done = W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
                 return f"shared workbook update failed ({exc}), so {done} on this PC instead"
         return W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)

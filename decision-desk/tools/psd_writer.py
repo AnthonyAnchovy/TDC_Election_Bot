@@ -2,6 +2,9 @@
 
 Layers are given bottom first as Layer or Group. Each is stored cropped to what it actually paints, RLE compressed.
 Layout follows Adobe's "Photoshop File Formats Specification".
+
+A Layer given a Text is a live type layer. Photoshop's text data is too long to write from nothing, so psd_text_model/
+holds a text layer and a drop shadow saved by Photoshop itself, and each new layer is that one with its details changed.
 """
 from __future__ import annotations
 
@@ -13,6 +16,22 @@ from pathlib import Path
 from PIL import Image
 
 RUN = re.compile(rb"(.)\1{2,}", re.S)      # three or more of the same byte
+MODEL = Path(__file__).resolve().parent / "psd_text_model"
+LEFT, RIGHT, CENTER = 0, 1, 2              # Photoshop's numbers for text alignment
+
+
+@dataclass
+class Text:
+    text: str
+    font: str                     # PostScript name, like Arial-BoldMT
+    size: int
+    x: float                      # where the baseline starts (LEFT), ends (RIGHT) or has its middle (CENTER)
+    y: float                      # the baseline
+    color: tuple[int, int, int]
+    width: float                  # how wide it is as drawn, and how far it reaches above and below the baseline
+    ascent: float
+    descent: float
+    align: int = LEFT
 
 
 @dataclass
@@ -21,6 +40,8 @@ class Layer:
     image: Image.Image            # RGBA, the size of the canvas
     hidden: bool = False
     blend: bytes = b"norm"        # Photoshop's four-letter blend mode key
+    text: Text | None = None      # makes it a live type layer, with image as what it looks like until it's edited
+    shadow: bool = False          # a drop shadow as a layer style, so it follows the text when the text changes
 
 
 @dataclass
@@ -69,8 +90,50 @@ def _tagged(key: bytes, data: bytes) -> bytes:
     return b"8BIM" + key + struct.pack(">I", len(data)) + data
 
 
+def _engine_string(text: str) -> bytes:
+    """A string the way the text engine stores it: UTF-16 with a byte order mark, and its brackets escaped."""
+    return re.sub(rb"([()\\])", rb"\\\1", b"\xfe\xff" + text.encode("utf-16-be"))
+
+
+def _once(data: bytes, old: bytes, new: bytes) -> bytes:
+    assert old in data, old
+    return data.replace(old, new, 1)
+
+
+def _type_block(t: Text) -> bytes:
+    """The TySh block: the model layer's, with this text, font, size, color and position."""
+    model = (MODEL / "TySh.bin").read_bytes()
+    engine_at = model.index(b"EngineDatatdta") + 14
+    engine_len = struct.unpack(">I", model[engine_at:engine_at + 4])[0]
+    engine = model[engine_at + 4:engine_at + 4 + engine_len]
+
+    start = engine.index(b"/Text (") + 7                # the model's text has no brackets in it to confuse this
+    engine = engine[:start] + _engine_string(t.text + "\r") + engine[engine.index(b")", start):]
+    length = len(t.text) + 1
+    engine = engine.replace(b"/RunLengthArray [ 12 ]", b"/RunLengthArray [ %d ]" % length)
+    engine = _once(engine, b"/FontSize 128.0", b"/FontSize %d.0" % t.size)
+    engine = _once(engine, b"/Leading 153.60001", b"/Leading %.5f" % (t.size * 1.2))
+    engine = _once(engine, b"/Values [ 1.0 .98039 .83922 .24314 ]", b"/Values [ 1.0 %.5f %.5f %.5f ]" % tuple(c / 255 for c in t.color))
+    engine = _once(engine, b"/Justification 0", b"/Justification %d" % t.align)
+    engine = engine.replace("Arial-BoldMT".encode("utf-16-be"), t.font.encode("utf-16-be"))
+
+    left = {LEFT: 0, RIGHT: -t.width, CENTER: -t.width / 2}[t.align]
+    bounds = (left, -t.ascent, left + t.width, t.descent)
+    body = model[50:engine_at] + struct.pack(">I", len(engine)) + engine + model[engine_at + 4 + engine_len:]
+    head = body.index(b"Txt TEXT") + 8
+    old_chars = struct.unpack(">I", body[head:head + 4])[0]
+    body = (body[:head] + struct.pack(">I", length) + t.text.encode("utf-16-be") + b"\0\0"
+            + body[head + 4 + old_chars * 2:])
+    for box in (b"boundsObjc", b"boundingBoxObjc"):
+        at = body.index(box)
+        for key, value in zip((b"LeftUntF#Pnt", b"Top UntF#Pnt", b"RghtUntF#Pnt", b"BtomUntF#Pnt"), bounds):
+            at = body.index(key, at) + 12
+            body = body[:at] + struct.pack(">d", value) + body[at + 8:]
+    return struct.pack(">H6d", 1, 1, 0, 0, 1, t.x, t.y) + body
+
+
 def _record(name: str, bounds: tuple[int, int, int, int], channels: list[tuple[int, int]], *, blend: bytes = b"norm",
-            flags: int = 0x08, section: int | None = None) -> bytes:
+            flags: int = 0x08, section: int | None = None, blocks: bytes = b"") -> bytes:
     """One layer record. bounds = top, left, bottom, right. channels = (id, data length)."""
     head = struct.pack(">iiiiH", *bounds, len(channels))
     head += b"".join(struct.pack(">hI", cid, size) for cid, size in channels)
@@ -82,6 +145,7 @@ def _record(name: str, bounds: tuple[int, int, int, int], channels: list[tuple[i
     extra = struct.pack(">II", 0, 0) + pascal + _tagged(b"luni", struct.pack(">I", len(name)) + wide)
     if section is not None:
         extra += _tagged(b"lsct", struct.pack(">I", section) + b"8BIMpass")
+    extra += blocks
     return head + struct.pack(">I", len(extra)) + extra
 
 
@@ -127,7 +191,13 @@ def write_psd(path: Path, items: list, merged: Image.Image) -> int:
             table, rows = _rle(plane)
             channels.append((cid, 2 + len(table) + len(rows)))
             chunks.append(struct.pack(">H", 1) + table + rows)
-        records.append(_record(item.name, (top, left, bottom, right), channels, blend=item.blend, flags=0x08 | (0x02 if item.hidden else 0)))
+        blocks = b""
+        if item.shadow:
+            blocks += b"".join(_tagged(key, (MODEL / f"{key.decode()}.bin").read_bytes()) for key in (b"lfx2", b"lrFX"))
+        if item.text:
+            blocks += _tagged(b"TySh", _type_block(item.text))
+        records.append(_record(item.name, (top, left, bottom, right), channels, blend=item.blend,
+                               flags=0x08 | (0x02 if item.hidden else 0), blocks=blocks))
         data.append(b"".join(chunks))
         drawn += 1
 

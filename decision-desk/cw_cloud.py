@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
+import cw_feeds as FD
 import cw_model as M
 import cw_workbook as W
 
@@ -46,6 +47,8 @@ _lock = threading.Lock()
 _auth: dict = {}       # msal app + token cache, made once
 _item: dict = {}       # the workbook's drive item, resolved once
 _sent: dict = {}       # last payload written per region, so unchanged blocks aren't rewritten
+_resume_at = 0.0       # when Microsoft said the bot may call again, after it asked for a long wait
+LONGEST_NAP = 30       # seconds worth waiting in place; for longer, give up until a later sync
 
 
 class CloudError(Exception):
@@ -107,12 +110,20 @@ def login():
 
 # ------------------------------------------------------------------ Graph
 def _call(method: str, url: str, **kw) -> requests.Response:
+    global _resume_at
+    if time.time() < _resume_at:
+        raise CloudError(f"Microsoft asked the bot to wait; about {_resume_at - time.time():.0f} seconds left")
     headers = kw.pop("headers", {})
     for attempt in range(4):
         r = requests.request(method, url if url.startswith("http") else GRAPH + url, timeout=60,
                              headers={"Authorization": f"Bearer {token()}", **headers}, **kw)
         if r.status_code in (429, 503, 504) and attempt < 3:
-            time.sleep(min(int(r.headers.get("Retry-After", 2 ** attempt)), 30))
+            wait = FD._retry_after(r.headers.get("Retry-After"))
+            wait = 2 ** attempt if wait is None else wait
+            if wait > LONGEST_NAP:      # calling again sooner than it said can make the throttling last longer
+                _resume_at = time.time() + wait
+                raise CloudError(f"Microsoft asked the bot to wait {wait:.0f} seconds")
+            time.sleep(wait)
             continue
         if r.status_code >= 400:
             try:

@@ -29,6 +29,7 @@ import json
 import re
 import time
 import zipfile
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -353,7 +354,8 @@ def parse_nyt(raw: bytes, cfg: dict) -> dict:
     absentee ballots still out (Michigan), so it only counts as in once the expected vote agrees."""
     want = cfg.get("contest", "U.S. Senate").lower()
     race = next((r for r in json.loads(raw).get("races") or []
-                 if (r.get("office") or "").lower() == want and (r.get("type") or "").lower() == "general"), None)
+                 if (r.get("office") or "").lower() == want
+                 and (r.get("type") or "").lower() in ("general", "special general")), None)   # Ohio's is a special
     if not race:
         raise RuntimeError(f"the NYT file has no {cfg.get('contest', 'U.S. Senate')} general election race")
     st = cfg["state"]
@@ -436,6 +438,7 @@ def clarity_from_link(link: str) -> dict | None:
 _COND: dict = {}        # url -> (etag, last_modified, parsed result)
 _BLOCKED_UNTIL: dict = {}   # state -> when to try its own bot-checked site again, while its fallback covers it
 BLOCK_RETRY = 15 * 60
+THROTTLE_REST = 5 * 60      # how long a state with a fallback leaves its own site alone after a 429 or 403
 _GA_IDS: dict = {}      # (election_date or id, contest) -> (election_id, ballot_item_id)
 GA_API = "https://results.sos.ga.gov/results/public/api"
 
@@ -446,6 +449,28 @@ class NotModified(Exception):
 
 class BotCheck(RuntimeError):
     """The site answered with a bot-check page (Cloudflare and the like) instead of data."""
+
+
+class Throttled(RuntimeError):
+    """The site said to slow down (429) or refused the bot (403) with no bot-check page. wait: seconds it asked for."""
+
+    def __init__(self, status: int, wait: float | None = None):
+        super().__init__(f"HTTP {status}: the site " + ("told the bot to slow down" if status == 429 else "refused the bot"))
+        self.wait = wait
+
+
+def _retry_after(value: str | None) -> float | None:
+    """A Retry-After header in seconds: either a number or a date. Capped, so a strange one can't stop a state all night."""
+    if not value:
+        return None
+    try:
+        wait = float(value)
+    except ValueError:
+        try:
+            wait = parsedate_to_datetime(value).timestamp() - time.time()
+        except (TypeError, ValueError):
+            return None
+    return min(max(wait, 0), BLOCK_RETRY)
 
 
 def _is_challenge(status: int, headers, body: bytes) -> bool:
@@ -473,6 +498,8 @@ async def _get(session, url: str, conditional: bool = False) -> bytes:
         if _is_challenge(r.status, r.headers, body):
             raise BotCheck("the site answered with a bot check instead of data, so the bot can't pull it; "
                            "use the County Watch grab button in your browser")
+        if r.status in (429, 403):
+            raise Throttled(r.status, _retry_after(r.headers.get("Retry-After")))
         if r.status != 200:
             raise RuntimeError(f"HTTP {r.status}")
         if conditional:
@@ -568,6 +595,8 @@ async def fetch_state(state: str, *, test: bool = False, session=None) -> dict:
             failure = exc
             if isinstance(exc, BotCheck):
                 _BLOCKED_UNTIL[state] = time.time() + BLOCK_RETRY
+            elif isinstance(exc, Throttled):
+                _BLOCKED_UNTIL[state] = time.time() + max(exc.wait or 0, THROTTLE_REST)
     alt = {**backup, "state": state}
     try:
         res = await _pull({**alt, **alt.get("test", {})} if test else alt, test, session)
