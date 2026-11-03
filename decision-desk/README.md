@@ -84,14 +84,16 @@ Change the values under `points` in `config.json`. Picks are scored against outl
 | `/realcall race winner` | Election Junkie | Makes the call official right away, without waiting for a majority. It also counts as your vote. |
 | `/procall race winner outlet` | Election Junkie | Logs a call by AP, NYT, Wasserman and the like. It posts to the board and feeds `/scoreboard`. **House seats:** a call from AP, Decision Desk HQ, NYT or Wasserman makes the seat official, unless another of those four called it the other way. Everything else never changes the desk's map. |
 | `/autocalls [on\|off]` | Admin | House calls read from Bluesky: turn them on or off, or see how they're doing. |
-| `/forceuncall race` | Admin | Retracts without a vote. |
+| `/forceuncall race` | Admin | Retracts without a vote. Outlet calls stay logged and keep scoring the race. |
+| `/clearrace race CLEAR` | Admin | Erases one race's official call, votes and outlet calls, so it scores nothing. For a test or a call logged by mistake. |
 | `/scoreboard` | Anyone | Per person: right and wrong calls, how often they were first, and the average minutes ahead of each outlet (e.g. "AP +14m · NYT +22m · best: NC-SEN, 41 min before Wasserman"). Also shows the official desk against the pros. |
 | `/next` | Anyone | Races where polls have closed but the desk hasn't called, with vote counts and outlet calls. |
 | `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. |
 | `/closings` | Anyone | Poll-closing schedule. Alerts post to the board automatically as each wave closes. |
 | `/field [chamber] [timelapse]` | Anyone | The field (below): every race as a circle between safe D and safe R. It animates what moved since the last board post, or plays the whole night with `timelapse`. |
+| `/fieldposts [pause\|resume]` | Admin | Pauses or resumes the field's automatic posts. Snapshots keep saving while paused, and a timelapse that comes due waits until you resume. Blank shows which it is. |
 | `/fieldtest [chamber] [view] [seed]` | Admin | Tries the field on a simulated night, visible only to you: the whole night, one 30-minute update, or the real field right now. |
-| `/deskreset RESET` | Admin | Clears test calls and votes, and the field's snapshots. Predictions are kept unless you tick `include_predictions`. |
+| `/deskreset RESET` | Admin | Clears every call, vote and outlet call, the points they gave, the final House seat count and the field's snapshots. Predictions are kept unless you tick `include_predictions`. |
 
 ### The field
 

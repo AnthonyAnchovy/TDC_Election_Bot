@@ -158,10 +158,22 @@ class Store:
         self.db.commit()
 
     # ------------------------------------------------------------------ reset
-    def reset(self, include_predictions: bool = False):
-        for t in ("calls", "history", "desk_votes", "procalls", "sent_alerts"):
+    def clear_race(self, race_id: str) -> dict[str, int]:
+        """Erase one race as if nobody had called it, so it scores nothing. Returns how much went."""
+        gone = {key: self.db.execute(f"DELETE FROM {t} WHERE race_id = ?", (race_id,)).rowcount
+                for key, t in (("calls", "calls"), ("votes", "desk_votes"), ("outlets", "procalls"), ("history", "history"))}
+        self.db.commit()
+        return gone
+
+    def reset(self, include_predictions: bool = False) -> dict[str, int]:
+        """Wipe the night, and everything scored from it. Returns how much went."""
+        gone = {key: self.db.execute(f"DELETE FROM {t}").rowcount
+                for key, t in (("calls", "calls"), ("votes", "desk_votes"), ("outlets", "procalls"))}
+        for t in ("history", "sent_alerts"):
             self.db.execute(f"DELETE FROM {t}")
+        self.db.execute("DELETE FROM settings WHERE key IN ('final_house_dem', 'bsky_seen')")
         if include_predictions:
             self.db.execute("DELETE FROM predictions")
             self.db.execute("DELETE FROM prediction_meta")
         self.db.commit()
+        return gone

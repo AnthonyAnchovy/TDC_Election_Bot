@@ -114,7 +114,10 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
         "admin": (
             "Admin tools",
             "**Fixing calls**\n"
-            "**`/forceuncall race`** 🔧 Retracts an official call immediately, with no vote.\n\n"
+            "**`/forceuncall race`** 🔧 Retracts an official call immediately, with no vote. Outlet calls stay logged and "
+            "keep scoring the race.\n"
+            "**`/clearrace race CLEAR`** 🔧 Erases one race's official call, votes and outlet calls, so it scores nothing. "
+            "For a test or a call logged by mistake.\n\n"
             "**Feeds (if numbers stop arriving)**\n"
             "**`/countyrefresh`** 🔧 Pulls every county feed and early vote now, rebuilds the workbook, and lists "
             "any feed errors.\n"
@@ -130,8 +133,11 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "download link as `url` in `results_sources.json` on the bot's PC. No restart needed.\n\n"
             "**Look & wrap-up**\n"
             "**`/cardtheme [theme]`** 🔧 Changes the look of call cards.\n"
+            "**`/fieldposts [pause|resume]`** 🔧 Pauses or resumes the field's automatic posts. Leave it blank to see which "
+            "it is.\n"
             "**`/fieldtest`** 🔧 Tries the field on a simulated night. Only you see it.\n"
             "**`/finalhouse seats`** 🔧 Enter the final Democratic House seat count. It settles leaderboard ties.\n"
-            "**`/deskreset RESET`** 🔧 Wipes **all** calls, votes and outlet calls. **Not during the night.**"),
+            "**`/deskreset RESET`** 🔧 Wipes **all** calls, votes and outlet calls, and the points they gave. **Not during "
+            "the night.**"),
     }[key]
     return body

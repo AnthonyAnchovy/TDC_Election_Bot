@@ -465,12 +465,46 @@ async def forceuncall_cmd(interaction: discord.Interaction, race: str):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     if not rid or not store.get(rid):
-        return await interaction.response.send_message("That race hasn't been called.", ephemeral=True)
-    await interaction.response.send_message("Retracted.", ephemeral=True)
+        return await interaction.response.send_message(
+            "That race hasn't been called." + (outlet_note(rid) if rid else ""), ephemeral=True)
+    await interaction.response.send_message("Retracted." + outlet_note(rid), ephemeral=True)
     await post(interaction.guild, "board_channel", interaction.channel,
                content=f"↩️ **{interaction.user.display_name}** retracted the call in {label(rid)} (admin).")
     await retract_official(interaction.guild, rid, f"Retracted by {interaction.user.display_name}",
                            interaction.channel)
+
+
+def outlet_note(rid: str) -> str:
+    """A retraction leaves outlet calls in place, and those keep scoring the race. Tell the admin."""
+    outlets = [p["outlet"] for p in store.procalls(rid)]
+    if not outlets:
+        return ""
+    return (f" An outlet call is still logged here ({', '.join(outlets)}), so the race keeps scoring for predictions. "
+            "If that was a test or a mistake, `/clearrace` removes it.")
+
+
+def cleared_text(gone: dict) -> str:
+    return ", ".join(f"{gone[key]} {name}{'s' * (gone[key] != 1)}" for key, name in
+                     (("calls", "official call"), ("votes", "vote"), ("outlets", "outlet call")))
+
+
+@tree.command(name="clearrace", description="Admin: erase one race's call, votes and outlet calls, so it scores nothing.")
+@app_commands.guild_only()
+@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", confirm="Type CLEAR to confirm")
+@app_commands.autocomplete(race=race_autocomplete)
+async def clearrace_cmd(interaction: discord.Interaction, race: str, confirm: str):
+    if not is_admin(interaction.user) or confirm != "CLEAR":
+        return await interaction.response.send_message("Admins only, and type CLEAR to confirm.", ephemeral=True)
+    rid = resolve(race)
+    if not rid:
+        return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    gone = store.clear_race(rid)
+    if not any(gone.values()):
+        return await interaction.response.send_message(f"Nothing to clear in {label(rid)}.", ephemeral=True)
+    await interaction.response.send_message(f"Cleared {cleared_text(gone)} from {label(rid)}. It scores nothing now.",
+                                            ephemeral=True)
+    await post(interaction.guild, "board_channel", interaction.channel,
+               content=f"🧹 **{interaction.user.display_name}** cleared everything logged on {label(rid)} (admin).")
 
 
 # =========================================================================== /realcall and /procall
@@ -1677,20 +1711,24 @@ async def board_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=e)
 
 
-@tree.command(name="deskreset", description="Admin: wipe calls, votes and outlet calls (after testing).")
+@tree.command(name="deskreset", description="Admin: wipe every call, vote and outlet call, and the points they gave (after testing).")
 @app_commands.guild_only()
 @app_commands.describe(confirm="Type RESET to confirm", include_predictions="Also wipe everyone's predictions")
 async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_predictions: bool = False):
     if not is_admin(interaction.user) or confirm != "RESET":
         return await interaction.response.send_message("Admins only, and type RESET to confirm.", ephemeral=True)
-    store.reset(include_predictions=include_predictions)
+    await interaction.response.defer()
+    gone = store.reset(include_predictions=include_predictions)
     reset_field()
     cw = await asyncio.to_thread(CWR.reset_night)
     _cw["dirty"] = True
-    await interaction.response.send_message(
-        "Calls, votes, outlet calls, alerts and the field's snapshots cleared" + (
-            " along with predictions." if include_predictions else ". Predictions kept.")
-        + f" County Watch: {cw}. Numbers typed straight into the workbook's Manual columns stay; clear those by hand.")
+    await interaction.followup.send(
+        f"Cleared {cleared_text(gone)}, so nobody has points from them. Alerts, the final House seat count and the "
+        "field's snapshots are cleared too" + (
+            ", along with predictions." if include_predictions else ". Predictions kept.")
+        + f" County Watch: {cw}. Numbers typed straight into the workbook's Manual columns stay; clear those by hand."
+        + (" The field's automatic posts are still paused: `/fieldposts resume` turns them back on."
+           if store.setting("field_paused", False) else ""))
 
 
 @tree.command(name="cardtheme", description="Admin: change the look of official call cards.")
@@ -1802,17 +1840,38 @@ async def fieldtest_cmd(interaction: discord.Interaction, chamber: app_commands.
     await interaction.followup.send(note, file=field_file(buf, ext, kind), ephemeral=True)
 
 
+@tree.command(name="fieldposts", description="Admin: pause or resume the field's automatic posts, or see which it is.")
+@app_commands.guild_only()
+@app_commands.choices(action=[app_commands.Choice(name="pause", value="pause"),
+                              app_commands.Choice(name="resume", value="resume")])
+async def fieldposts_cmd(interaction: discord.Interaction, action: app_commands.Choice[str] | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    if action:
+        store.set_setting("field_paused", action.value == "pause")
+    if store.setting("field_paused", False):
+        text = ("The field's automatic posts are **paused**. It still keeps track of the night, so the first post after "
+                "you resume shows everything that moved, and the timelapse stays complete. `/field` still works.")
+    else:
+        text = (f"The field's automatic posts are **on**. On the night they go to {channel_note(interaction.guild, 'board_channel')} "
+                f"every {CFG.get('field_minutes', 30)} minutes, or soon after a call.")
+    await interaction.response.send_message(text, ephemeral=True)
+
+
 @tasks.loop(seconds=60)
 async def field_loop():
     """On the night: snapshot each field in config's field_auto every minute (kept when something moved, for the
     timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 AM ET Nov 4, post
-    the night's timelapse once."""
+    the night's timelapse once. /fieldposts pause holds the posts, and the snapshots carry on."""
     try:
         kinds = [k for k in CFG.get("field_auto", ["senate"]) if k in F.KINDS]
+        paused = store.setting("field_paused", False)
         if cw_night():
             for kind in kinds:
                 snap = await field_snapshot(kind)
                 await asyncio.to_thread(F.record, snap)
+                if paused:
+                    continue
                 last = store.setting(f"field_last_{kind}")
                 since = time.time() - store.setting(f"field_at_{kind}", 0)
                 called = lambda s: {rid for rid, v in s["races"].items() if v[3]}
@@ -1825,7 +1884,7 @@ async def field_loop():
                            file=field_file(buf, ext, kind))
                 store.set_setting(f"field_last_{kind}", snap)
                 store.set_setting(f"field_at_{kind}", time.time())
-        elif now() > N.ELECTION_DAY.replace(day=4, hour=8) and not store.setting("field_timelapse_posted"):
+        elif not paused and now() > N.ELECTION_DAY.replace(day=4, hour=8) and not store.setting("field_timelapse_posted"):
             store.set_setting("field_timelapse_posted", True)
             for kind in kinds:
                 snaps = F.history(kind)
