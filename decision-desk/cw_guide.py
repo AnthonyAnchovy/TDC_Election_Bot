@@ -21,8 +21,8 @@ NOTE = PatternFill("solid", fgColor="FFF8E1")
 # term ("Word|meaning"), gap
 GUIDE = [
     ("title", "Start here: what this workbook is and how to read it"),
-    ("lede", "If you've never followed an election night county by county, this page is for you. Read it once before "
-             "polls close and the rest of the workbook will make a lot more sense. It takes about ten minutes."),
+    ("lede", "If you've never followed an election night county by county, start with this page. It takes about ten minutes "
+             "to read."),
     ("gap", ""),
 
     ("h", "The short version"),
@@ -30,13 +30,13 @@ GUIDE = [
           "the national mood. As each county finishes counting, we compare its result with how it voted in 2024. If "
           "the counties that are done have moved toward one party, we assume the counties still counting will move "
           "the same way, and add it all up. That's our projection."),
-    ("p", "Open the At a Glance tab on the night. Everything you need is there: one needle per race, a bar showing "
+    ("p", "Open the At a Glance tab on the night. It has one needle per race, a bar showing "
           "who's ahead, and how sure we are. The other tabs are the workings behind it."),
     ("p", "You don't need to do anything but watch. The workbook updates itself about every 2 minutes on the night, "
           "and the top right of At a Glance shows when it last updated. If that time looks old, reload the page."),
     ("gap", ""),
 
-    ("h", "How election night actually works"),
+    ("h", "How election night works"),
     ("p", "Polls close at different times in different states, from 6 PM Eastern in parts of Kentucky to 1 AM "
           "Eastern in Alaska. Nothing gets counted publicly until a state's polls close."),
     ("p", "After that, each county counts its own ballots and posts the numbers as it goes. There are usually three "
@@ -46,23 +46,20 @@ GUIDE = [
     ("b", "Mail ballots|Sometimes counted early, sometimes last. It depends entirely on the state's rules."),
     ("b", "Election Day votes|Cast today at the precinct. These come in through the evening as each polling place "
           "reports."),
-    ("p", "Here's the catch: in recent years Democrats have voted early and by mail more than Republicans, and "
+    ("p", "In recent years Democrats have voted early and by mail more than Republicans, and "
           "Republicans have voted on Election Day more than Democrats. So the first batch from a county can look "
-          "wildly lopsided, and then swing hard the other way as the rest comes in. Nobody's cheating. The ballots "
-          "just got counted in a different order."),
+          "lopsided, then swing the other way as the rest comes in. This is normal."),
     ("ex", "Example: a county posts its early votes at 7:31 PM and the Democrat is up by 30. By 10 PM, with Election "
-           "Day votes added, she's up by 8. The county didn't change its mind. The 30-point lead was only ever part "
-           "of the count."),
+           "Day votes added, she's up by 8."),
     ("p", "That's why this workbook mostly ignores half-counted counties. It waits until a county is finished, "
-          "because only a finished county tells you something real."),
+          "because a finished county's result is close to final."),
     ("gap", ""),
 
     ("h", "Who \"calls\" a race, and what our projection is"),
     ("p", "News organizations like the AP and the New York Times \"call\" a race when they're confident who won, "
           "usually long before every vote is counted. They use their own models and data we don't have."),
-    ("p", "This workbook does something simpler and more transparent. It doesn't call races. It shows where each "
-          "race is heading based on the counties that are completely counted, and how uncertain that is. So you can "
-          "see for yourself why a race is leaning the way it is, and often before anyone has called it."),
+    ("p", "This workbook doesn't call races. It shows where each race is heading based on the counties that are "
+          "completely counted, and how uncertain that is, often before a race is called."),
     ("gap", ""),
 
     ("h", "How the projection is built, step by step"),
@@ -104,10 +101,9 @@ GUIDE = [
           "live projection. One block is one point of margin. The call column turns blue or red as a race leans "
           "one way."),
     ("b", "\"If the polls are off\"|What the Senate would look like if the polls were right, if they missed the "
-          "way they did in 2020, and so on. Handy before results, less so once real counties are in."),
+          "way they did in 2020, and so on. Most useful before results come in."),
     ("ex", "A needle sitting near the middle with a wide grey arc means \"we really don't know yet.\" A needle well "
-           "into the blue with a narrow arc that stays blue means the Democrat is very likely to win. Watch the arc, "
-           "not just the needle."),
+           "into the blue with a narrow arc that stays blue means the Democrat is very likely to win."),
     ("gap", ""),
 
     ("h", "What the colors and words mean"),
@@ -128,7 +124,7 @@ GUIDE = [
           "ahead of or behind its poll."),
     ("p", "That matters because polls tend to miss in the same direction everywhere at once. In 2020 they "
           "underestimated Republicans almost across the board. So if the first few states come in 3 points more "
-          "Republican than their polls, it's a fair bet the later states will too. Not a sure thing, just a hint."),
+          "Republican than their polls, the later states may be too."),
     ("b", "Other states imply|On the race board, this column estimates a race from how similar counties are "
           "voting in other states tonight. It's how you get a feel for Iowa before Iowa has counted much. It only "
           "compares like with like (rural counties with rural counties in the same region, for example), and it "
@@ -141,7 +137,7 @@ GUIDE = [
     ("b", "Polls|The final polls, and how far results are running from them."),
     ("b", "Key Counties|6 to 11 counties per state that matter most, with a note on why and what to watch for."),
     ("b", "County Benchmarks|For each key county: the margin it needs to post for its candidate to be on track to "
-          "win, lose narrowly, or win big. Great for checking a county the moment it finishes."),
+          "win, lose narrowly, or win big."),
     ("b", "First Counties|Which counties tend to report first in each state, and what their first numbers really "
           "mean once you account for early votes leaning Democratic."),
     ("b", "Counties|Every county, with its history and tonight's numbers."),
@@ -157,16 +153,16 @@ GUIDE = [
     ("gap", ""),
 
     ("h", "Things that fool people on election night"),
-    ("b", "The early lead that melts away|Covered above, but worth repeating: early and mail votes lean "
-          "Democratic, Election Day votes lean Republican. Don't celebrate or panic at 7:45 PM."),
+    ("b", "Early leads that shrink|Early and mail votes lean Democratic and Election Day votes lean Republican, "
+          "so a big early lead often gets smaller."),
     ("b", "Rural counties finish first|Small counties are quick to count, big cities are slow. So the first "
           "projection in a state often leans on a handful of small towns. That's why the range starts wide."),
     ("b", "\"Only 20% reporting\"|That number counts precincts, not votes, and not every precinct is the same "
           "size. Twenty percent of precincts can be 5% of the vote or 40% of it."),
     ("b", "A state counting overnight|Alaska won't be meaningful until well after midnight, and states with lots "
-          "of mail ballots can take days. A slow count isn't a sign anything is wrong."),
-    ("b", "One county isn't the state|A big swing in one county is interesting. A consistent swing across many "
-          "counties of different types is what decides races."),
+          "of mail ballots can take days."),
+    ("b", "One county isn't the state|A big swing in one county doesn't mean much alone. Look for the same "
+          "swing across many counties of different types."),
     ("gap", ""),
 
     ("h", "A few words you'll hear"),
@@ -190,11 +186,7 @@ GUIDE = [
           "finished counties, and anywhere a big city hasn't reported yet. It also can't see things like a "
           "candidate's home-town advantage, a ballot problem in one county, or a late batch of mail votes that "
           "breaks differently from everything before it."),
-    ("p", "It's a tool for asking good questions (\"is Fulton County where it needs to be?\"), not an oracle. When it "
-          "disagrees with the AP, the AP is usually right, and the interesting part is figuring out why."),
-    ("gap", ""),
-    ("note", "Questions on the night? Ask whoever sent you the link. If they don't know either, that's a good sign "
-             "the question is worth asking."),
+    ("p", "When it disagrees with the AP, the AP is usually right."),
 ]
 
 
