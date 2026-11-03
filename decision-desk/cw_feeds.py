@@ -14,6 +14,8 @@ Verified against real files (Nov 2024 or the live 2026 setup) on Oct 29, 2026:
   TX  results.texas-election.com County.json                county by FIPS; Nov 2024 file matched exactly
   AK  ENRbyPrecinct.csv (elections.alaska.gov)              precinct -> state House district
   KS  ent.sos.ks.gov county pages                           only through the County Watch grab button
+  MI, ME, MS, NH, KY, KS  New York Times results data        county or town; Nov 2024 files read fine, 2026 unconfirmed
+  OH, TX also fall back on that data when their own sites block the bot or have no votes
 OH, TX, KS (and Florida's early-vote files) sit behind Cloudflare's bot check. A normal request from the bot may
 get a challenge page instead of data; the bot then stops trying that state and says to use the grab button
 (countywatch/grab.js), which saves the same data from your own browser with one click.
@@ -25,6 +27,7 @@ import csv
 import io
 import json
 import re
+import time
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -339,9 +342,55 @@ def parse_ak(raw: bytes, cfg: dict) -> dict:
     return out
 
 
+NYT_FULL_SHARE = 0.95      # of a county's expected vote, before "every precinct in" is believed
+NYT_DONE_SHARE = 0.985     # a county with this much of its expected vote is finished, even if a tiny precinct or an
+NYT_DONE_PRECINCTS = 0.8   # empty Maine township never reports, as long as this share of its precincts is in
+
+
+def parse_nyt(raw: bytes, cfg: dict) -> dict:
+    """The New York Times' results data: not a state feed, and not a published one, so it can change or go away. Maine
+    and New Hampshire come by town, so towns are added up into counties. A county's precincts can all be in with
+    absentee ballots still out (Michigan), so it only counts as in once the expected vote agrees."""
+    want = cfg.get("contest", "U.S. Senate").lower()
+    race = next((r for r in json.loads(raw).get("races") or []
+                 if (r.get("office") or "").lower() == want and (r.get("type") or "").lower() == "general"), None)
+    if not race:
+        raise RuntimeError(f"the NYT file has no {cfg.get('contest', 'U.S. Senate')} general election race")
+    st = cfg["state"]
+    sides = {}
+    for cid, m in (race.get("candidate_metadata") or {}).items():
+        party = m.get("party")
+        sides[cid] = side(st, party.get("name") if isinstance(party, dict) else party, m.get("last_name"), cfg)
+    if not {"D", "R"} & set(sides.values()):
+        raise RuntimeError("the NYT file doesn't say which candidate is in which party")
+    units = race.get("reporting_units") or []
+    places = [u for u in units if u.get("level") == "county"] or [u for u in units if u.get("level") == "township"]
+    out: dict = {}
+    counts: dict = {}
+    for u in places:
+        if not u.get("fips_state") or not u.get("fips_county"):
+            continue
+        f = f"{u['fips_state']}{u['fips_county']}"
+        row = out.setdefault(f, _blank())
+        for c in u.get("candidates") or []:
+            row[sides.get(c.get("nyt_id"), "O")] += int((c.get("votes") or {}).get("total") or 0)
+        n = counts.setdefault(f, [0, 0, 0, 0])
+        for i, key in enumerate(("precincts_reporting", "precincts_total", "total_votes", "total_expected_vote")):
+            n[i] += int(u.get(key) or 0)
+    for f, row in out.items():
+        reporting, total, votes, expected = counts[f]
+        precincts = reporting / total if total and (reporting or not votes) else None
+        counted = votes / expected if expected else None
+        short = counted is not None and counted < NYT_FULL_SHARE
+        row["pct_in"] = (counted if precincts is None else min(precincts, counted)) if short else precincts
+        if counted is not None and counted >= NYT_DONE_SHARE and (precincts or 0) >= NYT_DONE_PRECINCTS:
+            row["pct_in"] = 1.0
+    return out
+
+
 PARSERS = {"ga_ev": parse_ga, "ga_item": parse_ga_item, "nc_pct": parse_nc, "fl_txt": parse_fl, "mn_media": parse_mn,
            "ne_ws": parse_ne, "clarity": parse_clarity, "clarity_enr": parse_clarity, "oh_api": parse_oh,
-           "tx_static": parse_tx, "ak_csv": parse_ak, "cw_json": parse_cw}
+           "tx_static": parse_tx, "ak_csv": parse_ak, "cw_json": parse_cw, "nyt_json": parse_nyt}
 
 
 # ------------------------------------------------------------------ config + fetching
@@ -385,6 +434,8 @@ def clarity_from_link(link: str) -> dict | None:
 
 
 _COND: dict = {}        # url -> (etag, last_modified, parsed result)
+_BLOCKED_UNTIL: dict = {}   # state -> when to try its own bot-checked site again, while its fallback covers it
+BLOCK_RETRY = 15 * 60
 _GA_IDS: dict = {}      # (election_date or id, contest) -> (election_id, ballot_item_id)
 GA_API = "https://results.sos.ga.gov/results/public/api"
 
@@ -493,15 +544,42 @@ async def _tx_url(session, cfg: dict) -> str:
     return f"{base}/election/{info['ID']}/{ev}/County.json"
 
 
+def _has_votes(res: dict) -> bool:
+    return any((r.get("D") or 0) + (r.get("R") or 0) > 0 for r in res["counties"].values())
+
+
 async def fetch_state(state: str, *, test: bool = False, session=None) -> dict:
-    """{'counties': {fips: row}, 'url': str, 'changed': bool} for one state, or raises."""
-    import asyncio
+    """{'counties': {fips: row}, 'url': str, 'changed': bool} for one state, or raises. A state with a "fallback" feed
+    uses it when its own feed is blocked, down or has no votes yet. A blocked site is left alone for a while."""
     cfg = dict(load_sources().get("states", {}).get(state) or {})
     if not cfg or cfg.get("format") not in PARSERS:
         raise LookupError(f"No live county feed for {state}")
     cfg["state"] = state
-    if test:
-        cfg = {**cfg, **cfg.get("test", {})}
+    backup = cfg.get("fallback")
+    if not backup:
+        return await _pull({**cfg, **cfg.get("test", {})} if test else cfg, test, session)
+    own, failure = None, None
+    if test or time.time() >= _BLOCKED_UNTIL.get(state, 0):
+        try:
+            own = await _pull({**cfg, **cfg.get("test", {})} if test else cfg, test, session)
+            if _has_votes(own):
+                return own
+        except Exception as exc:
+            failure = exc
+            if isinstance(exc, BotCheck):
+                _BLOCKED_UNTIL[state] = time.time() + BLOCK_RETRY
+    alt = {**backup, "state": state}
+    try:
+        res = await _pull({**alt, **alt.get("test", {})} if test else alt, test, session)
+    except Exception as exc:
+        if own:
+            return own
+        raise (failure or exc) from None
+    return res if _has_votes(res) or not own else own
+
+
+async def _pull(cfg: dict, test: bool, session) -> dict:
+    import asyncio
     own = session is None
     if own:
         session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60), headers={"User-Agent": UA})
@@ -529,6 +607,10 @@ async def fetch_state(state: str, *, test: bool = False, session=None) -> dict:
     if not test and url in _COND:
         _COND[url] = (_COND[url][0], _COND[url][1], counties)
     return {"counties": counties, "url": url, "changed": True}
+
+
+def has_fallback(state: str) -> bool:
+    return bool((load_sources().get("states", {}).get(state) or {}).get("fallback"))
 
 
 def feed_states() -> list[str]:

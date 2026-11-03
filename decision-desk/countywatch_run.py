@@ -124,7 +124,7 @@ async def refresh_live() -> dict:
     for st in FD.feed_states():
         if now_et() < N.first_close(st):
             waiting.append(st)
-        elif time.time() - blocked0.get(st, 0) < BLOCK_RETRY:
+        elif time.time() - blocked0.get(st, 0) < BLOCK_RETRY and not FD.has_fallback(st):
             continue            # its site answered with a bot check; don't keep knocking
         else:
             todo.append(st)

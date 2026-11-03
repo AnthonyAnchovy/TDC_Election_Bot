@@ -92,6 +92,16 @@
       "test": {
         "count_only": true,
         "contest": "U.S. Senator"
+      },
+      "fallback": {
+        "format": "nyt_json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-ohio-us-senate.json",
+        "contest": "U.S. Senate",
+        "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+        "test": {
+          "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-ohio-us-senate.json",
+          "contest": "U.S. Senate"
+        }
       }
     },
     "TX": {
@@ -102,6 +112,16 @@
       "test": {
         "url": "https://results.texas-election.com/static/data/election/49664/1012/County.json",
         "contest_re": "^PRESIDENT"
+      },
+      "fallback": {
+        "format": "nyt_json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-texas-us-senate.json",
+        "contest": "U.S. Senate",
+        "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+        "test": {
+          "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-texas-president.json",
+          "contest": "President"
+        }
       }
     },
     "AK": {
@@ -113,6 +133,66 @@
         "url": "https://www.elections.alaska.gov/results/24GENR/ENRbyPrecinct.csv",
         "contest": "U.S. President",
         "count_only": true
+      }
+    },
+    "MI": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-michigan-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-michigan-us-senate.json",
+        "contest": "U.S. Senate"
+      }
+    },
+    "ME": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-maine-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-maine-us-senate.json",
+        "contest": "U.S. Senate"
+      }
+    },
+    "MS": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-mississippi-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-mississippi-us-senate.json",
+        "contest": "U.S. Senate"
+      }
+    },
+    "NH": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-new-hampshire-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-new-hampshire-president.json",
+        "contest": "President"
+      }
+    },
+    "KY": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-kentucky-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-kentucky-president.json",
+        "contest": "President"
+      }
+    },
+    "KS": {
+      "format": "nyt_json",
+      "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-kansas-us-senate.json",
+      "contest": "U.S. Senate",
+      "source": "New York Times (unofficial; a 404 means it isn't posted yet)",
+      "test": {
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-kansas-president.json",
+        "contest": "President"
       }
     }
   },

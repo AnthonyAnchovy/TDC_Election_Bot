@@ -2090,7 +2090,7 @@ async def countyclear_cmd(interaction: discord.Interaction, state: app_commands.
 @tree.command(name="countytest", description="Admin: check a state's live county feed against its Nov 2024 file.")
 @app_commands.guild_only()
 @app_commands.choices(state=[app_commands.Choice(name=CM.STATES[s], value=s)
-                             for s in ("GA", "NC", "MN", "FL", "VA", "IA", "OH", "TX", "SC", "AK")])
+                             for s in ("GA", "NC", "MN", "FL", "VA", "IA", "OH", "TX", "SC", "AK", "MI", "ME", "MS", "NH", "KY", "KS")])
 async def countytest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
