@@ -11,6 +11,8 @@
 
 Commands work in any channel. The bot replies to you privately and posts publicly only in the two desk channels.
 
+**New to the bot?** Run `/help`. It explains every election-night command, and only you can see it. Pick a section from its menu: calling races, following the night, County Watch, scores, and (for admins only) admin tools.
+
 ## One-time setup
 
 ### 1. Create the bot in Discord
