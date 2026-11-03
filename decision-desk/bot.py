@@ -31,6 +31,7 @@ import countywatch_run as CWR
 import cw_early as CE
 import cw_feeds as CF
 import cw_model as CM
+import desk_help as H
 import field as F
 import graphics as G
 import night as N
@@ -2049,6 +2050,44 @@ async def excellink_cmd(interaction: discord.Interaction):
             "No link yet. Run `python cw_cloud.py share --view`, put the link in .env as CLOUD_VIEW_LINK, and restart "
             "the bot.", ephemeral=True)
     await interaction.response.send_message(allowed_mentions=NO_PINGS, **county_card(link))
+
+
+# =========================================================================== help
+def help_embed(interaction: discord.Interaction, key: str) -> discord.Embed:
+    guild, user = interaction.guild, interaction.user
+    title, body = H.section(key, role=CFG["junkie_role"], board=channel_note(guild, "board_channel"),
+                            desk=channel_note(guild, "desk_channel"), junkie=is_junkie(user),
+                            admin=is_admin(user), need=votes_needed(guild))
+    e = discord.Embed(title=f"📖 Election night guide · {title}", description=_trim(body, 4096), color=0xFAD63E)
+    e.set_footer(text="Only you can see this. Switch sections with the menu.")
+    return e
+
+
+class HelpView(discord.ui.View):
+    def __init__(self, admin: bool, current: str):
+        super().__init__(timeout=30 * 60)
+        self.menu.options = [discord.SelectOption(label=label, value=key, description=desc, default=key == current)
+                             for key, label, desc in H.sections_for(admin)]
+
+    @discord.ui.select(placeholder="Pick a section")
+    async def menu(self, interaction: discord.Interaction, select: discord.ui.Select):
+        key = select.values[0]
+        for opt in select.options:
+            opt.default = opt.value == key
+        await interaction.response.edit_message(embed=help_embed(interaction, key), view=self)
+
+
+@tree.command(name="help", description="What each election night command does. Only you see it.")
+@app_commands.guild_only()
+@app_commands.describe(section="Jump straight to a section (default: Start here)")
+@app_commands.choices(section=[app_commands.Choice(name=label, value=key) for key, label, _ in H.SECTIONS])
+async def help_cmd(interaction: discord.Interaction, section: app_commands.Choice[str] | None = None):
+    admin = is_admin(interaction.user)
+    key = section.value if section else "start"
+    if key == "admin" and not admin:
+        key = "start"
+    await interaction.response.send_message(embed=help_embed(interaction, key), view=HelpView(admin, key),
+                                            ephemeral=True)
 
 
 # =========================================================================== startup
