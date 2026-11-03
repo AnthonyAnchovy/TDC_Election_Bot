@@ -459,12 +459,15 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ch.type = "bar"
     ch.grouping = "clustered"
     ch.title = "Final poll vs live projection (two-party margin)"
+    ch.title.overlay = False                          # Excel floats a title over the plot unless told not to
     ch.add_data(Reference(ws, min_col=H0 + 1, max_col=H0 + 2, min_row=hr0, max_row=hlast), titles_from_data=True)
     ch.set_categories(cats)
     for s, colr in zip(ch.series, ("A6B4CC", NAVY)):
         s.graphicalProperties = GraphicalProperties(solidFill=colr, ln=LineProperties(noFill=True))
+        s.invertIfNegative = False                    # or Excel draws Republican-side bars hollow
     ch.x_axis.scaling.orientation = "maxMin"          # first-closing state at top, like the board
     ch.y_axis.number_format = '"D+"0;"R+"0;0'
+    ch.y_axis.crosses = "max"                         # the reversed states would otherwise pull this axis to the top
     ch.y_axis.scaling.min, ch.y_axis.scaling.max, ch.y_axis.majorUnit = -20, 20, 5   # fixed, so 0 stays centered
     ch.y_axis.majorGridlines.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E3E3"))
     ch.x_axis.delete = False
@@ -472,27 +475,32 @@ def glance_sheet(ws, names: dict, national_swing: str):
     ch.x_axis.tickLblPos = "low"
     ch.gapWidth = 60
     ch.legend.position = "b"
+    ch.legend.overlay = False
     ch.visible_cells_only = False
-    ch.height, ch.width = 10, 16
-    ws.add_chart(ch, f"B{charts_row}")
+    # Pinned to cells, not a fixed size: a chart sized in cm can run into its neighbor when fonts render wider.
+    ch.anchor = TwoCellAnchor(_from=AnchorMarker(col=1, row=charts_row - 1), to=AnchorMarker(col=7, row=charts_row + 19))
+    ws.add_chart(ch)
 
     seat = BarChart()
     seat.type = "bar"
     seat.grouping = "stacked"
     seat.overlap = 100
     seat.title = "Senate seats under each polling story (51 for a majority)"
+    seat.title.overlay = False
     seat.add_data(Reference(ws, min_col=H0 + 1, max_col=H0 + 4, min_row=s0, max_row=s0 + len(scen)), titles_from_data=True)
     seat.set_categories(Reference(ws, min_col=H0, min_row=s0 + 1, max_row=s0 + len(scen)))
     for s, colr in zip(seat.series, (BLUE, GREEN, GREY_MID, RED)):
         s.graphicalProperties = GraphicalProperties(solidFill=colr, ln=LineProperties(solidFill="FFFFFF", w=19050))
+        if colr in (GREEN, GREY_MID):                 # a seat or two is too thin for a label; the table above has them
+            continue
         s.dLbls = DataLabelList()
         s.dLbls.showVal = True
-        s.dLbls.numFmt = '0;-0;;'                     # hide zero-seat labels
         s.dLbls.txPr = RichText(p=[Paragraph(pPr=ParagraphProperties(defRPr=CharacterProperties(
             b=True, sz=1000, solidFill="FFFFFF" if colr != GREY_MID else "1F1F1F")), endParaRPr=CharacterProperties())])
         for a in ("showSerName", "showCatName", "showLegendKey", "showPercent"):
             setattr(s.dLbls, a, False)
     seat.x_axis.scaling.orientation = "maxMin"
+    seat.y_axis.crosses = "max"
     seat.y_axis.scaling.min = 0
     seat.y_axis.scaling.max = 100
     seat.y_axis.majorUnit = 10
@@ -501,9 +509,11 @@ def glance_sheet(ws, names: dict, national_swing: str):
     seat.y_axis.delete = False
     seat.gapWidth = 50
     seat.legend.position = "b"
+    seat.legend.overlay = False
     seat.visible_cells_only = False
-    seat.height, seat.width = 10, 15.5
-    ws.add_chart(seat, f"H{charts_row}")
+    seat.anchor = TwoCellAnchor(_from=AnchorMarker(col=7, colOff=114300, row=charts_row - 1),
+                                to=AnchorMarker(col=12, row=charts_row + 19))
+    ws.add_chart(seat)
 
     foot = charts_row + 21
     for i, line in enumerate([

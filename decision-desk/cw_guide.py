@@ -1,5 +1,5 @@
-"""County Watch: the 'Start Here' tab. A plain-language guide for people who've never watched results come in
-county by county, and an explanation of how this workbook turns those counties into a projection."""
+"""County Watch: the 'Start Here' tab. A plain-language guide for people who are only watching the workbook and have
+never followed results county by county, and an explanation of how it turns those counties into a projection."""
 from __future__ import annotations
 
 import math
@@ -32,6 +32,8 @@ GUIDE = [
           "the same way, and add it all up. That's our projection."),
     ("p", "Open the At a Glance tab on the night. Everything you need is there: one needle per race, a bar showing "
           "who's ahead, and how sure we are. The other tabs are the workings behind it."),
+    ("p", "You don't need to do anything but watch. The workbook updates itself about every 2 minutes on the night, "
+          "and the top right of At a Glance shows when it last updated. If that time looks old, reload the page."),
     ("gap", ""),
 
     ("h", "How election night actually works"),
@@ -59,14 +61,14 @@ GUIDE = [
     ("p", "News organizations like the AP and the New York Times \"call\" a race when they're confident who won, "
           "usually long before every vote is counted. They use their own models and data we don't have."),
     ("p", "This workbook does something simpler and more transparent. It doesn't call races. It shows where each "
-          "race is heading based on the counties that are completely counted, and how uncertain that is. The group "
-          "makes its own calls in Discord with /call. The workbook is there to help you decide, not to decide for you."),
+          "race is heading based on the counties that are completely counted, and how uncertain that is. So you can "
+          "see for yourself why a race is leaning the way it is, and often before anyone has called it."),
     ("gap", ""),
 
     ("h", "How the projection is built, step by step"),
     ("b", "1. Wait for finished counties.|A county counts as finished when the state says every precinct has "
-          "reported, when someone marks it Y in the Counties tab, or when its count reaches 97% of the votes we "
-          "expected from it. Until a state has at least one finished county, there's no projection, only the poll."),
+          "reported, when one of the people helping on the night marks it complete, or when its count reaches 97% of "
+          "the votes we expected from it. Until a state has at least one finished county, there's no projection, only the poll."),
     ("b", "2. Measure the swing.|For each finished county, we compare tonight's margin with its 2024 presidential "
           "margin. If Cobb County went for Harris by 15 and tonight goes for the Democrat by 19, that's a 4-point "
           "swing toward the Democrats."),
@@ -135,31 +137,23 @@ GUIDE = [
 
     ("h", "The other tabs, in plain English"),
     ("b", "Read Me|The technical notes: formulas, sources and limits. Skip it unless you're curious."),
-    ("b", "Dashboard|One row per state with every number behind At a Glance, plus the bot's written read of each "
-          "race."),
+    ("b", "Dashboard|One row per state with every number behind At a Glance, plus a short written read of each race."),
     ("b", "Polls|The final polls, and how far results are running from them."),
     ("b", "Key Counties|6 to 11 counties per state that matter most, with a note on why and what to watch for."),
     ("b", "County Benchmarks|For each key county: the margin it needs to post for its candidate to be on track to "
           "win, lose narrowly, or win big. Great for checking a county the moment it finishes."),
     ("b", "First Counties|Which counties tend to report first in each state, and what their first numbers really "
           "mean once you account for early votes leaning Democratic."),
-    ("b", "Counties|Every county, with its history and tonight's numbers. This is where county results get typed in."),
+    ("b", "Counties|Every county, with its history and tonight's numbers."),
     ("b", "Types|The county groups from step 3 above, with how each is doing."),
     ("b", "Early Vote|How many people voted before today, compared with 2022."),
     ("gap", ""),
 
-    ("h", "Typing in results (if you're helping)"),
-    ("p", "Some states don't post files the bot can read, so a few of us will enter key counties by hand from the "
-          "New York Times, the AP or the county's own website. Two ways to do it:"),
-    ("b", "In Discord|/countyset state county dem rep. Add done when every precinct is in. This is the easiest way."),
-    ("b", "In this workbook|On the Counties tab, find the county (the filter on the header row helps), type the "
-          "Democratic and Republican votes in the yellow Manual columns, and put Y in Manual complete when it's "
-          "fully counted."),
-    ("p", "Only mark a county complete when it really is. A county marked done too early is the single easiest way "
-          "to throw off a projection. If in doubt, leave it blank. The workbook ignores a row until both the D and R "
-          "numbers are filled in, so you can't break anything by typing one number at a time."),
-    ("p", "Most of the workbook is locked so nobody can type over a formula by accident. The yellow Manual columns "
-          "stay open. If you really need to change something else, ask whoever is running the bot."),
+    ("h", "Where the numbers come from"),
+    ("p", "Many results come in automatically from state election websites. Some states don't post them in "
+          "a form that can be read automatically, so a few people enter key counties by hand from the New York Times, "
+          "the AP or the county's own website. That's why you may see a county's numbers jump all at once, or a state "
+          "fill in more slowly than the news."),
     ("gap", ""),
 
     ("h", "Things that fool people on election night"),
@@ -199,7 +193,7 @@ GUIDE = [
     ("p", "It's a tool for asking good questions (\"is Fulton County where it needs to be?\"), not an oracle. When it "
           "disagrees with the AP, the AP is usually right, and the interesting part is figuring out why."),
     ("gap", ""),
-    ("note", "Questions on the night? Ask in Discord. Somebody will know, and if nobody does, that's a good sign "
+    ("note", "Questions on the night? Ask whoever sent you the link. If they don't know either, that's a good sign "
              "the question is worth asking."),
 ]
 
