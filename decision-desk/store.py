@@ -171,7 +171,7 @@ class Store:
                 for key, t in (("calls", "calls"), ("votes", "desk_votes"), ("outlets", "procalls"))}
         for t in ("history", "sent_alerts"):
             self.db.execute(f"DELETE FROM {t}")
-        self.db.execute("DELETE FROM settings WHERE key IN ('final_house_dem', 'bsky_seen')")
+        self.db.execute("DELETE FROM settings WHERE key IN ('final_house_dem', 'bsky_seen', 'nyt_seen', 'safe_batch')")
         if include_predictions:
             self.db.execute("DELETE FROM predictions")
             self.db.execute("DELETE FROM prediction_meta")

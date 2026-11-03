@@ -8,6 +8,7 @@
   "card_theme": "wire",
   "field_auto": ["senate"],
   "field_minutes": 30,
+  "safe_batch_minutes": 5,
   "predictions_deadline": "2026-11-03T18:00:00-05:00",
   "hide_predictions_until_deadline": false,
   "points": {

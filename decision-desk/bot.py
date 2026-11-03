@@ -8,7 +8,8 @@ On election night: /call is one person's vote to call a race. Each vote is annou
 official call (card + map) in #decision-desk. /realcall makes a call official without a
 majority. /procall logs an outlet's call (AP, NYT, Wasserman...) for the scoreboard, and a call from AP,
 Decision Desk HQ, NYT or Wasserman makes a House seat official. DDHQ's and Wasserman's calls are also read
-from Bluesky automatically (/autocalls).
+from Bluesky automatically, and NYT's from its results data (/autocalls). Safe House seats post in text roll-ups
+every few minutes; only rated seats get a card.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import desk_help as H
 import field as F
 import graphics as G
 import night as N
+import nyt_house as NYT
 import races as R
 import results as LIVE
 import scoring as S
@@ -298,8 +300,26 @@ def is_house_caller(outlet: str) -> bool:
     return outlet.strip().lower().replace(".", "") in HOUSE_CALLERS
 
 
+def is_safe_seat(rid: str) -> bool:
+    """A House seat no rater has as competitive: anything that isn't Likely, Lean, Tilt or Toss-up."""
+    return R.RACES[rid]["type"] == "house" and rid not in CMP.RATING_OF
+
+
+def queue_safe_seat(rid: str, party: str):
+    """Saved, not held in memory, so a restart can't lose a seat that hasn't been announced yet."""
+    store.set_setting("safe_batch", store.setting("safe_batch", []) + [[rid, party, time.time()]])
+
+
+def official_note(guild, rid: str) -> str:
+    where = channel_note(guild, "desk_channel")
+    return f"It goes in the next safe seat roll-up in {where}." if is_safe_seat(rid) else f"Call posted in {where}."
+
+
 async def make_official(guild, rid: str, party: str, how: str, fallback=None, outlet: str | None = None):
-    """Post the card and map for a call already recorded with claim_official."""
+    """Post the card and map for a call already recorded with claim_official. A Safe House seat only joins the next
+    roll-up, so the seats people are watching don't get buried."""
+    if is_safe_seat(rid):
+        return queue_safe_seat(rid, party)
     who = cand(rid, party)
     card = await card_file(rid, party, how)
     h = S.holder(rid)
@@ -333,9 +353,9 @@ async def retract_official(guild, rid: str, how: str, fallback=None):
     if not prev:  # a simultaneous retraction already went through
         return
     store.uncall(rid, {"how": how})
-    card = await card_file(rid, prev["party"], how, retracted=True)
     text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{flavor('retract') or ''}".strip()
-    await post(guild, "desk_channel", fallback, content=text, file=card)
+    extra = {} if is_safe_seat(rid) else {"file": await card_file(rid, prev["party"], how, retracted=True)}
+    await post(guild, "desk_channel", fallback, content=text, **extra)
     await follow_up(guild, rid, fallback)
 
 
@@ -405,7 +425,7 @@ async def call_cmd(interaction: discord.Interaction, race: str, winner: app_comm
             f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**{switched}\n"
             f"-# {min(len(support), need)} of {need} votes needed for an official call")
     if reached:
-        text += f"\n✅ That's a majority. Official call posted in {channel_note(guild, 'desk_channel')}."
+        text += f"\n✅ That's a majority. {official_note(guild, rid)}"
     elif store.get(rid):  # another vote completed the majority while this one was being recorded
         text += "\n-# The desk had just called it."
     await post(guild, "board_channel", interaction.channel, content=text)
@@ -529,7 +549,7 @@ async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_
     if not store.active_vote(user.id, rid, "call") or store.active_vote(user.id, rid, "call")["party"] != party:
         store.cast(user.id, rid, "call", party)
     await interaction.response.send_message(
-        f"Called. Posted in {channel_note(guild, 'desk_channel')}.", ephemeral=True)
+        f"Called. {official_note(guild, rid)}", ephemeral=True)
     await post(guild, "board_channel", interaction.channel,
                content=f"⚡ **{user.display_name}** called {race_phrase(rid)} without waiting for a majority: "
                        f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**")
@@ -576,7 +596,7 @@ async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int
     projected = (house_caller and not rival and
                  claim_official(rid, party, f"Projected by {outlet}", outlet=outlet))
     if projected:
-        lines.append(f"✅ That makes it official. Call posted in {channel_note(guild, 'desk_channel')}.")
+        lines.append(f"✅ That makes it official. {official_note(guild, rid)}")
     elif official and official["party"] == party and official["detail"].get("outlet"):
         lines.append(f"-# The desk already projected this from {official['detail']['outlet']}'s call.")
     elif official and official["party"] == party:
@@ -595,24 +615,27 @@ async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int
         lines.append(f"-# First desk vote for this: {name_of(guild, uid)}, "
                      f"{S.minutes_text((time.time() - ts) / 60)} before {outlet}")
     if source:
-        lines.append(f"-# Read from Bluesky: <{source}>")
+        lines.append(f"-# {source}")
     await post(guild, "board_channel", fallback, content="\n".join(lines))
     if projected:
         await make_official(guild, rid, party, f"Projected by {outlet}", fallback, outlet=outlet)
 
 
-# =========================================================================== House calls read from Bluesky
+# =========================================================================== House calls read automatically
 _bsky = {"failures": 0, "warned": False, "checked": None, "error": None, "calls": 0, "reviews": 0}
+_nyt = {"failures": 0, "warned": False, "checked": None, "error": None, "calls": 0, "reviews": 0}
 
 
-async def take_bluesky_call(guild, rid: str, party: str, outlet: str, link: str, safe: dict[str, list[str]]):
-    """A rated seat gets the full projection. Safe seats are added to `safe` for one roll-up: hundreds of them can come
-    in right after polls close, and a card for each would bury the seats people are watching."""
-    if rid in CMP.RATING_OF or store.get(rid) or rival_house_caller(rid, party):
-        return await log_outlet_call(guild, rid, party, outlet, 0, source=link)
+async def take_auto_call(guild, rid: str, party: str, outlet: str, source: str):
+    """A rated seat gets the full projection, and so does any call that disagrees with another. Otherwise it's a Safe
+    seat: it joins the next roll-up, and a later outlet agreeing with it is logged without a post. Hundreds of them can
+    come in right after polls close, and a post for each would bury the seats people are watching."""
+    official = store.get(rid)
+    if not is_safe_seat(rid) or rival_house_caller(rid, party) or (official and official["party"] != party):
+        return await log_outlet_call(guild, rid, party, outlet, 0, source=source)
     store.procall(rid, outlet, party, 0)
     if claim_official(rid, party, f"Projected by {outlet}", outlet=outlet):
-        safe.setdefault(party, []).append(rid)
+        queue_safe_seat(rid, party)
 
 
 async def post_safe_seats(guild, safe: dict[str, list[str]]):
@@ -625,6 +648,30 @@ async def post_safe_seats(guild, safe: dict[str, list[str]]):
             if rids:
                 lines.append(f"{S.EMOJI[party]} {', '.join(rids)}")
         await post(guild, "desk_channel", content="\n".join(lines + [house_line()]))
+
+
+async def flush_safe_seats(guild):
+    """Post the waiting Safe seats once the oldest has waited safe_batch_minutes. A seat retracted while it waited is
+    left out."""
+    queue = store.setting("safe_batch", [])
+    if not queue or time.time() - queue[0][2] < 60 * CFG.get("safe_batch_minutes", 5):
+        return
+    safe: dict[str, list[str]] = {}
+    for rid, party, _ts in queue:
+        if (store.get(rid) or {}).get("party") == party and rid not in safe.get(party, []):
+            safe.setdefault(party, []).append(rid)
+    await post_safe_seats(guild, safe)
+    store.set_setting("safe_batch", store.setting("safe_batch", [])[len(queue):])
+
+
+@tasks.loop(seconds=30)
+async def safe_batch_loop():
+    try:
+        guild = main_guild()
+        if guild:
+            await flush_safe_seats(guild)
+    except Exception:
+        log.exception("Safe seat roll-up failed")
 
 
 async def bluesky_pass(guild):
@@ -644,7 +691,6 @@ async def bluesky_pass(guild):
         _bsky["warned"] = True
         await post(guild, "board_channel", content=f"⚠️ I haven't been able to read Bluesky for about 5 minutes ({_bsky['error']}). "
                                                    "Log House calls by hand with `/procall` until it's back.")
-    safe: dict[str, list[str]] = {}
     for p in sorted(posts, key=lambda x: x["when"]):
         outlet, link = BSKY.SOURCES[p["did"]], BSKY.post_link(p["did"], p["uri"])
         seen.add(p["uri"])
@@ -653,7 +699,7 @@ async def bluesky_pass(guild):
             got = BSKY.read(outlet, p["text"], lambda rid: load_candidates().get(rid))
             if got and got.get("call"):
                 _bsky["calls"] += 1
-                await take_bluesky_call(guild, got["rid"], got["party"], outlet, link, safe)
+                await take_auto_call(guild, got["rid"], got["party"], outlet, f"Read from Bluesky: <{link}>")
             elif got:
                 _bsky["reviews"] += 1
                 text = discord.utils.escape_markdown(re.sub(r"\s+", " ", p["text"]))[:220]
@@ -662,8 +708,62 @@ async def bluesky_pass(guild):
                                    f"> {text}\n<{link}>\n-# If it's a real call, log it with `/procall`.")
         except Exception:
             log.exception("Couldn't act on Bluesky post %s", link)
-    if safe:
-        await post_safe_seats(guild, safe)
+
+
+async def nyt_pass(guild):
+    """Act on seats whose winner is new since the last read. A winner that NYT changes or takes back goes to a person,
+    because the bot doesn't undo a call on its own. Nothing counts until the state's polls have closed, so test data in
+    the file can't make a call."""
+    try:
+        found = await NYT.fetch()
+    except Exception as exc:
+        _nyt.update(failures=_nyt["failures"] + 1, error=str(exc)[:200])
+        log.warning("Couldn't read NYT's House results: %s", exc)
+        if _nyt["failures"] >= 10 and not _nyt["warned"]:
+            _nyt["warned"] = True
+            await post(guild, "board_channel", content=f"⚠️ I haven't been able to read NYT's House results for about 5 "
+                                                       f"minutes ({_nyt['error']}). Log House calls by hand with `/procall` "
+                                                       "until it's back.")
+        return
+    _nyt.update(failures=0, warned=False, error=None, checked=time.time())
+    seen = store.setting("nyt_seen", {})
+    check = []
+    for rid in [rid for rid in seen if rid not in found]:
+        check.append(f"{label(rid)}: it no longer lists a winner ({seen.pop(rid)} before)")
+    for rid, got in found.items():
+        mark = got.get("party", "?")
+        if seen.get(rid) == mark or now() < N.first_close(R.RACES[rid]["state"]):
+            continue
+        before = seen.get(rid)
+        seen[rid] = mark
+        store.set_setting("nyt_seen", seen)    # first, so a seat that fails here can't be called twice
+        try:
+            if before:
+                check.append(f"{label(rid)}: it changed from {before} to {mark}")
+            elif got.get("call"):
+                _nyt["calls"] += 1
+                await take_auto_call(guild, rid, got["party"], NYT.OUTLET, "Read from NYT's results data (the AP's call).")
+            else:
+                check.append(f"{label(rid)}: {got['review']}")
+        except Exception:
+            log.exception("Couldn't act on NYT's call in %s", rid)
+    store.set_setting("nyt_seen", seen)
+    if check:
+        _nyt["reviews"] += len(check)
+        text = "\n".join(f"- {c}" for c in check)[:1700]
+        await post(guild, "board_channel", content=f"👀 **NYT**'s House results need a person to check:\n{text}\n"
+                                                   "-# If it's a real call, log it with `/procall`. To take one back, use `/uncall`.")
+
+
+@tasks.loop(seconds=30)
+async def nyt_loop():
+    # same rule as bluesky_loop: nothing may escape
+    try:
+        guild = main_guild()
+        if guild and store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
+            await nyt_pass(guild)
+    except Exception:
+        log.exception("NYT pass failed")
 
 
 @tasks.loop(seconds=30)
@@ -677,7 +777,7 @@ async def bluesky_loop():
         log.exception("Bluesky pass failed")
 
 
-@tree.command(name="autocalls", description="Admin: turn House calls read from Bluesky on or off, or see how they're doing.")
+@tree.command(name="autocalls", description="Admin: turn House calls read from Bluesky and NYT on or off, or see how they're doing.")
 @app_commands.guild_only()
 @app_commands.choices(turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
 async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Choice[str] | None = None):
@@ -686,14 +786,20 @@ async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Cho
     if turn:
         store.set_setting("autocalls", turn.value == "on")
     on = store.setting("autocalls", True)
-    lines = [f"Bluesky House calls are **{'on' if on else 'off'}**. Sources: {', '.join(BSKY.SOURCES.values())}."]
+    lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: {', '.join(BSKY.SOURCES.values())} on "
+             f"Bluesky, and {NYT.OUTLET}'s results data."]
     if datetime.now(N.ET) < BSKY.SINCE:
         lines.append("They start reading at 5 PM ET on Nov 3.")
     if _bsky["checked"]:
-        lines.append(f"Last read {S.minutes_text((time.time() - _bsky['checked']) / 60)} ago. Since the last restart: "
+        lines.append(f"Bluesky last read {S.minutes_text((time.time() - _bsky['checked']) / 60)} ago. Since the last restart: "
                      f"{_bsky['calls']} calls, {_bsky['reviews']} posts sent to a person.")
+    if _nyt["checked"]:
+        lines.append(f"{NYT.OUTLET} last read {S.minutes_text((time.time() - _nyt['checked']) / 60)} ago. Since the last restart: "
+                     f"{_nyt['calls']} calls, {_nyt['reviews']} seats sent to a person.")
     if _bsky["error"]:
-        lines.append(f"⚠️ Last error: {_bsky['error']}")
+        lines.append(f"⚠️ Last Bluesky error: {_bsky['error']}")
+    if _nyt["error"]:
+        lines.append(f"⚠️ Last {NYT.OUTLET} error: {_nyt['error']}")
     if turn and not on:
         lines.append("Anything posted while they're off is picked up when you turn them back on.")
     await interaction.response.send_message("\n".join(lines), ephemeral=True)
@@ -2364,6 +2470,10 @@ async def on_ready():
         field_loop.start()
     if not bluesky_loop.is_running():
         bluesky_loop.start()
+    if not nyt_loop.is_running():
+        nyt_loop.start()
+    if not safe_batch_loop.is_running():
+        safe_batch_loop.start()
 
 
 def main():

@@ -67,6 +67,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "feeds `/scoreboard`. **House seats:** a call from AP, Decision Desk HQ, NYT or Wasserman makes the seat "
             "official in the desk's name, unless another of those four called it the other way. Every other race, "
             "and every other outlet, never changes the desk's own map. Logging the same outlet again updates it.\n\n"
+            "**Safe House seats** don't get a card. Any call on one goes in a text roll-up every few minutes. Only "
+            "Likely, Lean, Tilt and Toss-up seats get the full card.\n\n"
             "-# The bot replies to you privately (🔒) and makes the public posts itself."),
         "watch": (
             "Following the night",
@@ -121,8 +123,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "**Feeds (if numbers stop arriving)**\n"
             "**`/countyrefresh`** 🔧 Pulls every county feed and early vote now, rebuilds the workbook, and lists "
             "any feed errors.\n"
-            "**`/autocalls [on|off]`** 🔧 Decision Desk HQ's and Wasserman's House calls are read from Bluesky and "
-            "become official by themselves. Turn that off here, or see how it's doing.\n"
+            "**`/autocalls [on|off]`** 🔧 House calls from Decision Desk HQ and Wasserman (on Bluesky) and from NYT's "
+            "results data become official by themselves. Turn that off here, or see how it's doing.\n"
             "**`/excellink`** 🔧 Posts a card in this channel with the read-only link to the live workbook.\n"
             "**`/countyfeed state link`** 🔧 Points SC or IA (Clarity sites) at tonight's results link. Use `clear` "
             "to undo it.\n"
