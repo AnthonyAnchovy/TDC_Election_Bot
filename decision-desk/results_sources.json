@@ -5,6 +5,7 @@
     "FL": {
       "format": "fl_txt",
       "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20261103_ElecResultsFL.txt",
+      "skip_cache": true,
       "test_url": "https://flelectionfiles.floridados.gov/enightfilespublic/20241105_ElecResultsFL.txt",
       "page": "https://results.elections.myflorida.com/",
       "source": "Florida Division of Elections"

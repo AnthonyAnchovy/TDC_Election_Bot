@@ -249,10 +249,11 @@ PARSERS = {"fl_txt": parse_fl, "nc_zip": parse_nc, "va_json": parse_va, "ev_data
 
 
 # ------------------------------------------------------------------ fetching
-async def _download(url: str) -> bytes:
+async def _download(url: str, skip_cache: bool = False) -> bytes:
+    """skip_cache adds a changing query string, for sites whose CDN serves hours-old copies of the plain URL (Florida's)."""
     timeout = aiohttp.ClientTimeout(total=45)
     async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": UA}) as s:
-        async with s.get(url) as r:
+        async with s.get(f"{url}?t={int(time.time())}" if skip_cache else url) as r:
             if r.status != 200:
                 raise RuntimeError(f"HTTP {r.status} from {url}")
             return await r.read()
@@ -273,7 +274,7 @@ async def fetch_state(state: str, *, test: bool = False, force: bool = False) ->
         hit = _cache.get(key)
         if hit and not force and time.time() - hit[0] < ttl:
             return hit[1]
-        raw = await _download(url)
+        raw = await _download(url, skip_cache=bool(cfg.get("skip_cache")))
         parsed = await asyncio.to_thread(PARSERS[cfg["format"]], raw)
         result = {"races": parsed, "fetched_at": time.time(), "url": url, "bytes": len(raw)}
         _cache[key] = (result["fetched_at"], result)

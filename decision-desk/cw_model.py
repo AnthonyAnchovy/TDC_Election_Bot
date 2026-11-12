@@ -5,13 +5,13 @@ All margins are two-party: (D - R) / (D + R). "D" means the Democratic side of e
 (Dan Osborn, an independent, in Nebraska).
 
 The projection, in plain terms:
-  1. A county counts as complete when all its precincts have reported (or someone marks it done in the workbook).
+  1. A county counts as complete when all its precincts have reported and it has most of its expected vote (feeds can
+     show every precinct in with only early votes counted), or when someone marks it done in the workbook.
   2. In complete counties, swing = 2026 margin minus 2024 presidential margin.
   3. Swings are averaged (weighted by votes) within each county type in that state: big metro cores,
      college suburbs, Black Belt, Hispanic, working/mid-size metros, small towns and rural.
-  4. Every county not yet complete is projected as its 2024 margin plus its type's swing (or the state's
-     average swing if no county of that type is in yet), applied to all its expected votes. Its partial
-     count is ignored for the margin, because early returns are usually one vote method and lean one way.
+  4. Every county not yet complete keeps the votes already counted, and the votes it still expects are projected at
+     its 2024 margin plus its type's swing (or the state's average swing if no county of that type is in yet).
   5. Expected votes per county = 2022 midterm turnout x a turnout pace. Before results, the pace is the state's
      turnout factor (default 1.0). Once counties finish, each type's pace comes from its complete counties
      (shrunk toward the state's pace when only a few are in).
@@ -35,6 +35,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 CW_DIR = HERE / "countywatch"
+AK_TOTAL_22 = 261_705   # Alaska's 2022 Senate votes, first choices
 
 STATES = {"AK": "Alaska", "GA": "Georgia", "IA": "Iowa", "KS": "Kansas", "ME": "Maine", "MI": "Michigan",
           "MN": "Minnesota", "MS": "Mississippi", "NC": "North Carolina", "NE": "Nebraska", "NH": "New Hampshire",
@@ -131,6 +132,11 @@ def load() -> dict[str, list[dict]]:
                 c["d24"], c["r24"], c["t24"] = ne24[r["fips"]]
             c["m24"], c["m20"], c["m22"] = m2(c["d24"], c["r24"]), m2(c["d20"], c["r20"]), m2(c["d22"], c["r22"])
             out.setdefault(st, []).append(c)
+    # Alaska's 2022 column in baseline.csv is only 163,641 votes, all filed as Election Day, against the 261,705 cast.
+    # Its 2024 district shares, scaled to that total, are the better turnout pattern.
+    t24_ak = sum(c["t24"] for c in out.get("AK", []))
+    for c in out.get("AK", []):
+        c["t22"] = round(c["t24"] * AK_TOTAL_22 / t24_ak)
     for st, rows in out.items():
         for c in rows:
             c["w"] = c["t22"] * (c["d24"] + c["r24"]) / c["t24"]     # two-party votes at 2022 turnout
@@ -206,10 +212,15 @@ def need_txt(needed: float, d_label: str = "D") -> str:
 PACE_K = 3     # shrink a type's turnout pace toward the state's: weight n/(n+3) for n complete counties
 SWING_K = 0.03  # shrink a type's swing toward the state's: weight v/(v + 3% of the state's expected vote)
 DONE_SHARE = 0.97   # without a precinct count, a county is complete once it has 97% of its expected vote
+FINISH_SHARE = 0.85  # with every precinct in, a county still needs this share of its 2022-pattern vote x turnout factor
 # Projection range. Uncertainty comes from the vote still out: how much finished counties' swings disagree (spread,
 # shrinking with more counties) plus a fixed allowance for counties still out behaving differently from those in
 # (TAU). Judgment calls, not fitted: TAU 3 pts, spread 5 pts until 5 counties are in, 2 pts minimum after.
 RANGE_Z, RANGE_TAU, RANGE_FLOOR, SPREAD_DEFAULT, SPREAD_MIN = 1.645, 0.03, 0.005, 0.05, 0.02
+# Alaska, projected by vote type (cw_alaska): how far the votes still out could miss, in margin points. Much wider than
+# TAU because they're mostly absentees that no finished district has shown yet. Also a judgment call. Confidence there
+# goes by the share counted: low under 50%, high from 85%.
+RANGE_TAU_BY_TYPE, CONF_BY_TYPE = 0.10, (0.50, 0.85)
 SURE_MIN = 3    # counties known to be complete (precincts all in, or marked Y) before their turnout sets expectations
 LEAN = 0.10    # counties whose break-even is beyond +/-10 pts count as D-leaning / R-leaning for the turnout read
 
@@ -219,11 +230,13 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
     rows = load()[st]
 
     def sure(c):
-        """Complete for certain: marked done, or every precinct in. Doesn't depend on the expected vote."""
+        """Complete for certain: marked done, or every precinct in with most of the vote. Uses the turnout factor, not
+        the night's pace, because the pace comes from these counties."""
         lv = live.get(c["fips"]) or {}
         v = int(lv.get("D") or 0) + int(lv.get("R") or 0)
         pct = lv.get("pct_in")
-        return v > 0 and (bool(lv.get("complete")) or (pct is not None and pct >= 0.999)), v
+        return v > 0 and (bool(lv.get("complete")) or (pct is not None and pct >= 0.999
+                                                       and v >= FINISH_SHARE * c["w"] * turnout_factor)), v
     # Expected votes follow the night's real turnout: the pace in counties known to be complete, once there are a
     # few, else the turnout factor. (Not the full projection pace, which would make completeness circular.)
     sure_rows = [(c, v) for c in rows for ok, v in [sure(c)] if ok]
@@ -233,11 +246,12 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
     for c in rows:
         lv = live.get(c["fips"]) or {}
         D, R = int(lv.get("D") or 0), int(lv.get("R") or 0)
-        exp2 = c["w"] * exp_pace                         # used to judge completeness and % in
+        rest = lv.get("rest")                            # Alaska: [votes still expected, their margin], from cw_alaska
+        exp2 = D + R + rest[0] if rest else c["w"] * exp_pace   # used to judge completeness and % in
         pct = lv.get("pct_in")
         complete = sure(c)[0] or (pct is None and D + R > 0 and D + R >= DONE_SHARE * exp2)
         lm = m2(D, R)
-        out_rows.append({**c, "D": D, "R": R, "O": int(lv.get("O") or 0), "pct_in": pct, "exp2": exp2,
+        out_rows.append({**c, "D": D, "R": R, "O": int(lv.get("O") or 0), "pct_in": pct, "exp2": exp2, "rest": rest,
                          "complete": complete, "live_m": lm, "swing": (lm - c["m24"]) if complete and lm is not None else None,
                          "est_in": 1.0 if complete else min((D + R) / exp2, 0.99) if exp2 else 0})
 
@@ -274,20 +288,33 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
         if r["complete"]:
             r["proj_m"] = r["live_m"]
             pd, pr = r["D"], r["R"]
+        elif r["rest"]:
+            left, r["proj_m"] = r["rest"]
+            pd, pr = r["D"] + left * (1 + r["proj_m"]) / 2, r["R"] + left * (1 - r["proj_m"]) / 2
         else:
-            # Partial counts are usually one vote method (early first, or Election Day first), so their margin
-            # is biased. Project the county's whole expected vote from its 2024 margin plus its type's swing.
+            # The votes counted stay as they are. The votes still expected come from the 2024 margin plus the type's
+            # swing, not the partial count's margin, which is usually one vote method (early first, or Election Day first).
             s = type_used.get(r["type"], state_swing if state_swing is not None else 0.0)
             r["proj_m"] = max(-1.0, min(1.0, r["m24"] + s))
             v = max(r["w"] * type_pace.get(r["type"], pace_state), r["D"] + r["R"])
-            pd, pr = v * (1 + r["proj_m"]) / 2, v * (1 - r["proj_m"]) / 2
+            rest = v - r["D"] - r["R"]
+            pd, pr = r["D"] + rest * (1 + r["proj_m"]) / 2, r["R"] + rest * (1 - r["proj_m"]) / 2
         r["proj_D"], r["proj_R"] = pd, pr
         PD, PR = PD + pd, PR + pr
     W = sum(r["w"] for r in out_rows)
     P = (PD + PR) / W if W else 1.0                    # projected statewide pace
     out_share = (sum(r["proj_D"] + r["proj_R"] for r in out_rows if not r["complete"]) / (PD + PR)) if PD + PR else 1.0
     rng90 = None
-    if done:
+    by_type = any(r["rest"] and not r["complete"] for r in out_rows)     # Alaska: projected by vote type, see cw_alaska
+    if by_type:
+        # No district finishes until the absentees do, so the swing is the whole projection against the 2024 baseline
+        state_swing = m2(PD, PR) - base_m(rows)
+        type_used = {t: state_swing for t in {r["type"] for r in out_rows}}
+        out_share = (PD + PR - sum(r["D"] + r["R"] for r in out_rows)) / (PD + PR) if PD + PR else 1.0
+        sd = out_share * RANGE_TAU_BY_TYPE + RANGE_FLOOR
+        pm_ = m2(PD, PR)
+        rng90 = (max(-1.0, pm_ - RANGE_Z * sd), min(1.0, pm_ + RANGE_Z * sd))
+    elif done:
         dv = sum(r["D"] + r["R"] for r in done)
         spread = (sum((r["D"] + r["R"]) * (r["swing"] - state_swing) ** 2 for r in done) / dv) ** 0.5 if dv else 0
         spread = max(spread, SPREAD_MIN) if len(done) >= 5 else SPREAD_DEFAULT
@@ -317,18 +344,21 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
     share_done = done_exp / exp_total if exp_total else 0
     confidence = "none" if not done else "low" if share_done < 0.10 or len(done) < 5 else \
         "medium" if share_done < 0.40 else "high"
+    if by_type:
+        in_ = counted / exp_total if exp_total else 0
+        confidence = "low" if in_ < CONF_BY_TYPE[0] else "medium" if in_ < CONF_BY_TYPE[1] else "high"
 
     def lean_index(sign):
         g = [r for r in done if r["t_index"] is not None and sign * r["breakeven"] >= LEAN]
         v, t = sum(r["D"] + r["R"] for r in g), sum(r["par_votes"] for r in g)
         return (v / t if t else None), len(g)
     bm = base_m(rows)
-    return {"state": st, "rows": out_rows, "proj_m": m2(PD, PR) if done else None, "raw_m": m2(
+    return {"state": st, "rows": out_rows, "by_type": by_type, "proj_m": m2(PD, PR) if done or by_type else None, "est_m": m2(PD, PR), "raw_m": m2(
         sum(r["D"] for r in out_rows), sum(r["R"] for r in out_rows)),
             "counted": counted, "counted_share": counted / exp_total if exp_total else 0,
             "done": len(done), "done_share": share_done, "confidence": confidence,
             "state_swing": state_swing, "type_swing": type_swing, "type_swing_used": type_used, "type_n": type_n,
-            "exp_pace": exp_pace, "out_share": out_share, "range90": rng90, **_catch_up(out_rows, PD, PR, bool(done)),
+            "exp_pace": exp_pace, "out_share": out_share, "range90": rng90, **_catch_up(out_rows, PD, PR, bool(done) or by_type),
             "m24": state_m24(rows), "base_m": bm, "needed_swing": -bm,
             "pace": P, "pace_obs": pace_obs, "type_pace": type_pace,
             "d_index": lean_index(1), "r_index": lean_index(-1), "eff_margin": eff_m, "eff_turnout": eff_t,
@@ -373,7 +403,7 @@ def type_bench(st: str, p: dict | None = None) -> list[dict]:
         idx = v / par if par else None
         sw = p["type_swing"].get(t)
         used = p.get("type_swing_used", {}).get(t)
-        proj = m + (used if used is not None else (p["state_swing"] or 0.0)) if p["done"] else None
+        proj = m + (used if used is not None else (p["state_swing"] or 0.0)) if p["done"] or p.get("by_type") else None
         out.append({"type": t, "counties": len(g), "complete": len(d), "share": w / W, "m24": m, "breakeven": be,
                     "scen": {x: m + x - p["base_m"] for x in (-0.05, -0.01, 0.0, 0.01, 0.05)},
                     "swing": sw, "proj_m": proj, "t_index": idx, "be_at_turnout": (be / idx) if idx else None,
@@ -436,8 +466,9 @@ def read_lines(st: str, p: dict, d_name: str = "D", r_name: str = "R", max_key: 
     if p["proj_m"] is not None:
         rg = p.get("range90")
         rtxt = f", 90% range {fmt(rg[0], dl, rl)} to {fmt(rg[1], dl, rl)}" if rg else ""
-        lines.append(f"**Projection: {fmt(p['proj_m'], dl, rl)}**{rtxt} (confidence {p['confidence']}: {p['done']} complete "
-                     f"{'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote)")
+        lines.append(f"**Projection: {fmt(p['proj_m'], dl, rl)}**{rtxt} (confidence {p['confidence']}: " + (
+            f"{p['counted_share']:.0%} of the expected vote counted, the rest projected by vote type)" if p.get("by_type") else
+            f"{p['done']} complete {'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote)"))
         if p.get("trailer"):
             who = dl if p["trailer"] == "D" else rl
             need = p["need_share"]
@@ -451,7 +482,7 @@ def read_lines(st: str, p: dict, d_name: str = "D", r_name: str = "R", max_key: 
     if p["state_swing"] is not None:
         need = p["needed_swing"]
         ahead = p["state_swing"] - need
-        lines.append(f"Swing vs 2024 in complete counties: {swing_txt(p['state_swing'])}. "
+        lines.append(f"{'Projected swing vs 2024' if p.get('by_type') else 'Swing vs 2024 in complete counties'}: {swing_txt(p['state_swing'])}. "
                      f"{dl} {need_txt(need)} to win, so "
                      f"{'running ahead of' if ahead > 0 else 'running behind'} that pace by {abs(ahead) * 100:.1f} pts.")
     if p["type_swing"]:
@@ -499,7 +530,9 @@ def take(st: str, p: dict, d_name: str = "D", r_name: str = "R") -> list[str]:
     if p["proj_m"] is not None:
         rg = p.get("range90")
         story.append(f"Projection: {fmt(p['proj_m'], dl, rl)}" + (f". 90% range: {fmt(rg[0], dl, rl)} to {fmt(rg[1], dl, rl)}." if rg else "."))
-        story.append(f"Confidence {p['confidence']}: {p['done']} finished {'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote.")
+        story.append(f"Confidence {p['confidence']}: " + (
+            f"{p['counted_share']:.0%} of the expected vote counted, the rest projected by vote type. Most absentees come later." if p.get("by_type") else
+            f"{p['done']} finished {'county' if p['done'] == 1 else 'counties'}, {p['done_share']:.0%} of the expected vote."))
         if p.get("trailer"):
             who = dl if p["trailer"] == "D" else rl
             need = p["need_share"]
@@ -515,7 +548,7 @@ def take(st: str, p: dict, d_name: str = "D", r_name: str = "R") -> list[str]:
     if p["state_swing"] is not None:
         need, ahead = p["needed_swing"], p["state_swing"] - p["needed_swing"]
         sg = lambda s: f"{abs(s) * 100:.1f} {'D' if s >= 0 else 'R'}"
-        swing.append(f"Swing in finished counties: {sg(p['state_swing'])}. {dl} " + (f"needs {sg(need)}" if need > 0 else f"can lose {abs(need) * 100:.1f}")
+        swing.append(f"{'Projected swing' if p.get('by_type') else 'Swing in finished counties'}: {sg(p['state_swing'])}. {dl} " + (f"needs {sg(need)}" if need > 0 else f"can lose {abs(need) * 100:.1f}")
                      + f", so {abs(ahead) * 100:.1f} {'ahead' if ahead > 0 else 'behind'}.")
         for t, s in sorted(p["type_swing"].items(), key=lambda kv: -kv[1]):
             swing.append(f"   {t}: {sg(s)} ({p['type_n'][t]} in)")
@@ -569,6 +602,35 @@ def national(projs: dict) -> dict:
     return {"counties": len(rows), "states": len(by_state), "swing": wavg([(r["swing"], r["D"] + r["R"]) for r in rows]),
             "by_type": by_type, "n_type": n_type, "turnout_type": turn_type, "by_state": by_state,
             "turnout": (sum(r["D"] + r["R"] + r["O"] for r in rows) / t22) if t22 else None}
+
+
+POOL_MIN = 20   # finished counties in other states before their swing is used for a state with none of its own
+
+
+def pooled_est(st: str, projs: dict) -> float:
+    """A margin for a state with votes counted but no finished county: the votes counted, plus the votes still expected
+    at each county's 2024 margin and the swing of similar counties that have finished in other states. Nebraska is left
+    out both ways, because its baseline is Osborn's own 2024 race, not the presidential margin."""
+    p = projs[st]
+    done = [(s, r) for s, q in projs.items() if s not in (st, "NE") for r in q["rows"] if r["complete"] and r["swing"] is not None]
+    if st == "NE" or len(done) < POOL_MIN:
+        return p["est_m"]
+
+    def wavg(items):
+        w = sum(r["D"] + r["R"] for _, r in items)
+        return sum(r["swing"] * (r["D"] + r["R"]) for _, r in items) / w if w else 0.0
+    everyone, by_group = wavg(done), {}
+    PD = PR = 0.0
+    for r in p["rows"]:
+        g = pool_group(st, r["type"])
+        if g not in by_group:
+            same = [x for x in done if pool_group(x[0], x[1]["type"]) == g]
+            by_group[g] = wavg(same) if same else everyone
+        m = max(-1.0, min(1.0, r["m24"] + by_group[g]))
+        rest = max(r["proj_D"] + r["proj_R"] - r["D"] - r["R"], 0.0)
+        PD += r["D"] + rest * (1 + m) / 2
+        PR += r["R"] + rest * (1 - m) / 2
+    return m2(PD, PR)
 
 
 def national_lines(n: dict) -> list[str]:

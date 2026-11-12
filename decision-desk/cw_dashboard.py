@@ -28,13 +28,13 @@ TURN_FILLS = ["7A4FA3", "CBB6E0", "EDEDED", "F9D9A8", "D98A1F"]    # turnout: no
 TURN_FONT = ["FFFFFF", "1F1F1F", "1F1F1F", "1F1F1F", "FFFFFF"]
 
 NOTES = {
-    "call": "A colored label for the projected margin: Great for (5+), on track (1 to 5), Toss-up (within 1). It describes the margin and ignores confidence.",
+    "call": "Before any county finishes, how much of the expected vote is in. After that, a colored label for the projected margin: Great for (5+), on track (1 to 5), Toss-up (within 1). It describes the margin and ignores confidence.",
     "proj": "Finished counties as counted, plus every other county's 2024 margin moved by its type's swing, across its expected votes.",
     "raw": "The margin of every vote counted so far, with half-counted counties included. Early votes and untyped counties can distort it, so a gap from the projection isn't a contradiction.",
     "rangetxt": "Where the final result should land 9 times in 10, by a judgment-based formula. It widens with the vote still out and with how much finished counties disagree. It can't see a home-region bounce or a county type that hasn't reported.",
     "conf": "Set only by how much of the vote is from finished counties. Low: under 5 counties, or under 10% of the expected vote. Medium: under 40%. High: 40% or more. It says nothing about how close the race is.",
     "doneshare": "The share of the state's expected vote sitting in fully counted counties. This is the number confidence is built on.",
-    "done": "Counties fully counted: every precinct in, marked Y, or at 97% of expected votes with no precinct count. Under 5 forces confidence to low.",
+    "done": "Counties fully counted: every precinct in with 85% of the 2022-pattern vote, marked Y, or at 97% of expected votes with no precinct count. Under 5 forces confidence to low.",
     "left": "Projected final two-party votes minus votes counted.",
     "needs": "The share of remaining two-party votes the projected loser needs to tie. Over 100% is impossible. Under 50% means that candidate is ahead in the raw count.",
     "pace": "The share of remaining votes the projection expects that candidate to get.",
@@ -147,7 +147,7 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads, rowmap):
         done1 = "," + rng("done") + ",1"
         dn, rn = names[st]
         sd, sr = W._surname(dn), W._surname(rn)
-        none = f"{c('done')}=0"
+        none = f"{c('done')}=0" if st != "AK" else f"AND({c('done')}=0,{S('frv')}=0)"
         ty = lambda h, tr: f"Types!${TL[h]}${tr}"
         forms = {
             "st": st,
@@ -169,7 +169,7 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads, rowmap):
             "raw": f"=IF({c('counted')}>0,({S('dc')}-{S('rc')})/{c('counted')},\"\")",
             "proj": f"=IF({c('done')}>0,({S('pd')}-{S('pr')})/({S('pd')}+{S('pr')}),\"\")",
             "leader": f"=IF({c('proj')}=\"\",\"\",IF({c('proj')}>=0,{c('dem')},{c('rep')})&\" +\"&TEXT(ABS({c('proj')})*100,\"0.0\"))",
-            "call": f'=IF({none},"No results yet",' + W._call_formula(c("proj"), c("dem"), c("rep"))[1:] + ")",
+            "call": f'=IF({none},IF({c("counted")}>0,"Counting: "&IF({c("pct")}<0.01,"under 1%",TEXT({c("pct")},"0%"))&" of vote in","No results yet"),' + W._call_formula(c("proj"), c("dem"), c("rep"))[1:] + ")",
             "conf": f"=IF({c('done')}=0,\"none\",IF(OR({c('doneshare')}<0.1,{c('done')}<5),\"low\",IF({c('doneshare')}<0.4,\"medium\",\"high\")))",
             "why": (f'=IF({none},"No county finished yet. Medium takes 5 counties and 10% of the vote. High takes 40%.",'
                     f'IF({c("conf")}="low",{c("done")}&IF({c("done")}=1," county, "," counties, ")&TEXT({c("doneshare")},"0%")&" of the vote. Medium takes 5 counties and 10%.",'
@@ -211,6 +211,22 @@ def dashboard_sheet(ws, data, names, rng, trow, keep, reads, rowmap):
             "h_lo": f'=IF({none},"",MAX(-15,MIN(15,{c("lo")}*100)))',
             "h_hi": f'=IF({none},"",MAX(-15,MIN(15,{c("hi")}*100)))',
         }
+        if st == "AK":
+            # Projected by vote type (cw_alaska) whenever there are votes still expected: no district finishes until the
+            # absentees do, so nothing here can wait for finished counties. Same numbers as cw_model.project.
+            on = f"{S('frv')}>0"
+            lo_hi = f"{M.RANGE_Z}*({c('out')}*{M.RANGE_TAU_BY_TYPE}+{M.RANGE_FLOOR})"
+            low, high = M.CONF_BY_TYPE
+            forms.update({
+                "proj": f'=IF({none},"",({S("pd")}-{S("pr")})/({S("pd")}+{S("pr")}))',
+                "swing": f'=IF({on},{c("proj")}+{c("need")},{forms["swing"][1:]})',
+                "out": f'=IF({on},({S("pv")}-{c("counted")})/{S("pv")},{forms["out"][1:]})',
+                "conf": f'=IF({on},IF({c("pct")}<{low},"low",IF({c("pct")}<{high},"medium","high")),{forms["conf"][1:]})',
+                "why": f'=IF({on},TEXT({c("pct")},"0%")&" of the expected vote counted, the rest projected by vote type. Medium takes {low:.0%}. High takes {high:.0%}.",{forms["why"][1:]})',
+                "spread": f'=IF({on},"",{forms["spread"][1:]})',
+                "lo": f'=IF({on},MAX(-1,{c("proj")}-{lo_hi}),{forms["lo"][1:]})',
+                "hi": f'=IF({on},MIN(1,{c("proj")}+{lo_hi}),{forms["hi"][1:]})',
+            })
         tslots = W.TYPE_SLOTS if st != "AK" else [("Alaska district", W.TYPE_SLOTS[0][1])]
         for i, (tname, _) in enumerate(tslots):
             tr = trow.get((st, tname))

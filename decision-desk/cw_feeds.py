@@ -12,7 +12,7 @@ Verified against real files (Nov 2024 or the live 2026 setup) on Oct 29, 2026:
   IA  Clarity detailxml.zip (electionresults.iowa.gov)      county; Nov 2024 file matched exactly
   OH  liveresults.ohiosos.gov API (2026 contest is set up)  county, one request
   TX  results.texas-election.com County.json                county by FIPS; Nov 2024 file matched exactly
-  AK  ENRbyPrecinct.csv (elections.alaska.gov)              precinct -> state House district
+  AK  GA_ENR_Precinct_State_of_Alaska.csv (elections.alaska.gov)              precinct -> state House district
   KS  ent.sos.ks.gov county pages                           only through the County Watch grab button
   MI, ME, MS, NH, KY, KS  New York Times results data        county or town; Nov 2024 files read fine, 2026 unconfirmed
   OH, TX also fall back on that data when their own sites block the bot or have no votes
@@ -323,23 +323,47 @@ def parse_tx(raw: bytes, cfg: dict) -> dict:
     return out
 
 
-def parse_ak(raw: bytes, cfg: dict) -> dict:
-    """Alaska ENRbyPrecinct.csv: one row per precinct x candidate. Precincts are named '01-600 Ketchikan No. 1' or
-    'District 1 - Absentee'; the number is the state House district, which is what the baseline uses."""
-    text = raw.decode("utf-8-sig", errors="replace")
-    rows = csv.DictReader(io.StringIO(text))
-    match = cfg.get("contest", "U.S. Senator").lower()
-    out: dict = {}
+def ak_tally(raw: bytes, contest: str, cfg: dict) -> tuple[dict, dict, dict]:
+    """Alaska's precinct results CSV: one row per precinct x candidate. Precincts are named '01-600 Ketchikan No. 1' or
+    'District 1 - Absentee'; the number is the state House district, which is what the baseline uses. Returns the
+    district rows, Election Day [D, R] by precinct id, and {"early"/"abs"/"q": {district: [D, R]}}."""
+    rows = csv.DictReader(io.StringIO(raw.decode("utf-8-sig", errors="replace")))
+    out, ed, modes = {}, {}, {"early": {}, "abs": {}, "q": {}}
     for r in rows:
-        if match not in (r.get("Contest_title") or "").lower():
+        if contest.lower() not in (r.get("Contest_title") or "").lower():
             continue
         name = r.get("Precinct_name") or ""
         m = re.match(r"^(\d\d)-", name) or re.match(r"^District (\d+)\b", name)
         if not m:
             continue
-        f = f"02{int(m.group(1)):03d}"
-        row = out.setdefault(f, _blank())
-        row[side("AK", r.get("Party_Code"), r.get("candidate_name"), cfg)] += int(float(r.get("total_votes") or 0))
+        s = side("AK", r.get("Party_Code"), r.get("candidate_name"), cfg)
+        row = out.setdefault(f"02{int(m.group(1)):03d}", _blank())
+        row[s] += int(float(r.get("total_votes") or 0))
+        i = {"D": 0, "R": 1}.get(s)
+        pct = re.match(r"^\d\d-\d+", name)
+        if pct:
+            x = ed.setdefault(pct.group(0), [0, 0])
+            if i is not None:
+                x[i] += int(float(r.get("Election Day_votes") or 0))
+        for kind, col in (("early", "Early Voting_votes"), ("abs", "Absentee_votes"), ("q", "Question_votes")):
+            x = modes[kind].setdefault(str(int(m.group(1))), [0, 0])
+            if i is not None:
+                x[i] += int(float(r.get(col) or 0))
+    return out, ed, modes
+
+
+def parse_ak(raw: bytes, cfg: dict) -> dict:
+    """Each district's count, and once enough is in, the votes it still expects by vote type (cw_alaska): "rest" is
+    [votes, their margin] and pct_in is the share of the district's expected vote that's been counted."""
+    import cw_alaska as AK
+    out, ed, modes = ak_tally(raw, cfg.get("contest", "U.S. Senator"), cfg)
+    left = AK.still_out(ed, modes)
+    if left:
+        for f, row in out.items():
+            votes, net = left.get(str(int(f[2:])), (0.0, 0.0))
+            row["rest"] = [round(votes), round(net / votes, 4) if votes else 0.0]
+            counted = row["D"] + row["R"]
+            row["pct_in"] = round(counted / (counted + row["rest"][0]), 4) if counted + row["rest"][0] else None
     return out
 
 
@@ -381,6 +405,7 @@ def parse_nyt(raw: bytes, cfg: dict) -> dict:
             n[i] += int(u.get(key) or 0)
     for f, row in out.items():
         reporting, total, votes, expected = counts[f]
+        row["prec_out"], row["prec_total"] = max(0, total - reporting), total    # for the /watchstate alerts' read
         precincts = reporting / total if total and (reporting or not votes) else None
         counted = votes / expected if expected else None
         short = counted is not None and counted < NYT_FULL_SHARE
@@ -482,8 +507,9 @@ def _is_challenge(status: int, headers, body: bytes) -> bool:
         (status == 200 and "text/html" in ctype and b"challenge-platform" in head and b"just a moment" in head)
 
 
-async def _get(session, url: str, conditional: bool = False) -> bytes:
-    """GET with If-None-Match / If-Modified-Since, so unchanged files cost almost nothing to re-check."""
+async def _get(session, url: str, conditional: bool = False, skip_cache: bool = False) -> bytes:
+    """GET with If-None-Match / If-Modified-Since, so unchanged files cost almost nothing to re-check. skip_cache adds
+    a changing query string, for sites whose CDN serves hours-old copies of the plain URL (Florida's)."""
     headers = {}
     if conditional and url in _COND:
         etag, lm, _ = _COND[url]
@@ -491,7 +517,7 @@ async def _get(session, url: str, conditional: bool = False) -> bytes:
             headers["If-None-Match"] = etag
         if lm:
             headers["If-Modified-Since"] = lm
-    async with session.get(url, headers=headers) as r:
+    async with session.get(f"{url}?t={int(time.time())}" if skip_cache else url, headers=headers) as r:
         if r.status == 304:
             raise NotModified()
         body = await r.read()
@@ -626,7 +652,7 @@ async def _pull(cfg: dict, test: bool, session) -> dict:
         else:
             url = cfg["url"]
         try:
-            raw = await _get(session, url, conditional=not test)
+            raw = await _get(session, url, conditional=not test, skip_cache=bool(cfg.get("skip_cache")))
         except NotModified:
             return {"counties": _COND[url][2], "url": url, "changed": False}
     finally:

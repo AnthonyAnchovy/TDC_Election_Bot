@@ -52,7 +52,7 @@ THEMES = {
 
 
 def palette(card_theme: str) -> str:
-    return "paper" if card_theme == "editorial" else "dark"
+    return "dark"       # the field stays dark in every card theme
 
 
 def _candidates() -> dict:
@@ -108,18 +108,20 @@ def snapshot(kind: str, calls: dict, *, live: dict | None = None, cw_cache: dict
         import cw_model as M
         cache = cw_cache or CWR.live_cache()
         man, fac = CWR.manual(), CWR.factors()
+        projs = {st: CWR.projection(st, cache, man, fac) for st in M.STATES}
         for rid in race_ids("senate"):
             st = R.RACES[rid]["state"]
             safe = CMP.SAFE.get(rid)
             m, v, state = safe_m(rid, safe) if safe else 0.0, 0, "wait"
             if st in M.STATES:
-                p = CWR.projection(st, cache, man, fac)
+                p = projs[st]
                 v = int(p["counted"])
                 if p["proj_m"] is not None:
                     m, state = 100 * p["proj_m"], "proj"
+                elif v:         # no county finished here yet: the votes counted, plus the rest swung like similar counties elsewhere
+                    m, state = 100 * M.pooled_est(st, projs), "count"
                 else:
                     m = m if safe else 100 * p["base_m"]
-                    state = "count" if v else "wait"
             out[rid] = [round(m, 2), v, state, calls.get(rid), _side(rid, cands)]
     else:
         for rid, rating, _ in CMP.RATINGS:
@@ -367,7 +369,7 @@ def _frame(a: dict, b: dict, t: float, theme: str, ys: dict, demo: bool) -> Imag
         fnt = label_font[key]
         d.text((s(x), s(y)), text, font=fnt, fill=tc, anchor="mm")
 
-    foot = ("Position: projected margin from counted counties (2024 margin until then) · Size: votes counted · "
+    foot = ("Position: projected margin from votes counted and similar counties tonight (2024 margin until votes) · Size: votes counted · "
             "Called races move to the end zones" if kind == "senate" else
             "Position: ratings average, pulled toward the live margin in FL, NC and VA · Size: votes counted · "
             "Called seats move to the end zones")

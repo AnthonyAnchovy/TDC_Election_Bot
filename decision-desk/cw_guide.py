@@ -64,7 +64,7 @@ GUIDE = [
 
     ("h", "How the projection is built, step by step"),
     ("b", "1. Wait for finished counties.|A county counts as finished when the state says every precinct has "
-          "reported, when one of the people helping on the night marks it complete, or when its count reaches 97% of "
+          "reported and most of the votes we expected are in, when one of the people helping on the night marks it complete, or when its count reaches 97% of "
           "the votes we expected from it. Until a state has at least one finished county, there's no projection, only the poll."),
     ("b", "2. Measure the swing.|For each finished county, we compare tonight's margin with its 2024 presidential "
           "margin. If Cobb County went for Harris by 15 and tonight goes for the Democrat by 19, that's a 4-point "

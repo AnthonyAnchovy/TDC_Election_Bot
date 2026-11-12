@@ -71,6 +71,8 @@ CCOLS = [
     ("Sure complete (helper)", "sure", 8, "formula"),
     ("Pool group (implied by other states)", "pool", 22, "data"),
     ("Swing spread (helper)", "dev", 8, "formula"),
+    # Alaska only (cw_alaska): the votes each district still expects by vote type, and their margin. Last, so nothing moves.
+    ("Feed: votes still expected", "frv", 10, "feed"), ("Feed: margin of those votes", "frm", 9, "feed"),
 ]
 CL = {k: get_column_letter(i + 1) for i, (_, k, _, _) in enumerate(CCOLS)}
 DASH_ROW0 = 6          # first state row on Dashboard
@@ -190,6 +192,12 @@ def county_order(data: dict | None = None) -> list[dict]:
     return [c for st in M.STATES for c in sorted(data[st], key=lambda c: c["name"])]
 
 
+def _rest_cells(row: dict) -> dict:
+    """The two Alaska feed cells for a row: blank unless it has a vote-type estimate."""
+    rest = row.get("rest")
+    return {"frv": rest[0], "frm": rest[1]} if rest else {"frv": None, "frm": None}
+
+
 def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf: dict | None = None,
           nc: dict | None = None, reads: dict | None = None):
     """keep: manual inputs carried over {fips: {md, mr, mo, mc}} and {'factor': {st: x}}.
@@ -237,6 +245,7 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
                 "race22": c["race22"], "d22": c["d22"] or None, "r22": c["r22"] or None, "t22": c["t22"],
                 "black": c["black"] or None, "hisp": c["hisp"] or None, "ba": c["ba"] or None, "pop": c["pop"] or None,
                 "pool": M.pool_group(c["state"], c["type"])}
+        by_type = f"AND(ISNUMBER({L['frv']}),NOT(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']}))))"   # Alaska's vote-type estimate
         forms = {
             "m24": f"=IFERROR(({L['d24']}-{L['r24']})/({L['d24']}+{L['r24']}),\"\")",
             "m20": f"=IFERROR(({L['d20']}-{L['r20']})/({L['d20']}+{L['r20']}),\"\")",
@@ -246,20 +255,20 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             "be": f"={L['m24']}+{_dash(D_NEED, f'$A{r}')}",
             "exp": f"={L['w']}*{_dash(D_EXP_PACE, f'$A{r}')}",
             "sure": (f"=IF({L['tc']}<=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND(NOT(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']}))),"
-                     f"ISNUMBER({L['fp']})),IF({L['fp']}>=0.999,1,0),0)))"),
+                     f"ISNUMBER({L['fp']})),IF(AND({L['fp']}>=0.999,{L['tc']}>={M.FINISH_SHARE}*{L['w']}*{_dash(D_FACTOR, f'$A{r}')}),1,0),0)))"),
             # Manual numbers count only once both D and R are typed in (a half-typed row falls back to the feed)
             "dc": f"=IF(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']})),{L['md']},N({L['fd']}))",
             "rc": f"=IF(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']})),{L['mr']},N({L['fr']}))",
             "tc": f"={L['dc']}+{L['rc']}",
             "done": (f"=IF({L['tc']}<=0,0,IF(UPPER({L['mc']})=\"Y\",1,IF(AND(NOT(AND(ISNUMBER({L['md']}),ISNUMBER({L['mr']}))),ISNUMBER({L['fp']})),"
-                     f"IF({L['fp']}>=0.999,1,0),IF({L['tc']}>={M.DONE_SHARE}*{L['exp']},1,0))))"),
+                     f"IF(AND({L['fp']}>=0.999,{L['tc']}>={M.FINISH_SHARE}*{L['w']}*{_dash(D_FACTOR, f'$A{r}')}),1,0),IF({L['tc']}>={M.DONE_SHARE}*{L['exp']},1,0))))"),
             "lm": f"=IF({L['tc']}>0,({L['dc']}-{L['rc']})/{L['tc']},\"\")",
             "sw": f"=IF({L['done']}=1,{L['lm']}-{L['m24']},\"\")",
             "pm": (f"=IF({L['done']}=1,{L['lm']},MAX(-1,MIN(1,{L['m24']}+INDEX(Types!$H:$H,"
                    f"MATCH($A{r}&\"|\"&$D{r},Types!$A:$A,0)))))"),
             "pv": f"=IF({L['done']}=1,{L['tc']},MAX({L['w']}*{L['pace']},{L['tc']}))",
-            "pd": f"=IF({L['done']}=1,{L['dc']},{L['pv']}*(1+{L['pm']})/2)",
-            "pr": f"=IF({L['done']}=1,{L['rc']},{L['pv']}*(1-{L['pm']})/2)",
+            "pd": f"=IF({L['done']}=1,{L['dc']},{L['dc']}+({L['pv']}-{L['tc']})*(1+{L['pm']})/2)",
+            "pr": f"=IF({L['done']}=1,{L['rc']},{L['rc']}+({L['pv']}-{L['tc']})*(1-{L['pm']})/2)",
             "vbe": f"=IF({L['lm']}=\"\",\"\",{L['lm']}-{L['be']})",
             "ein": f"=IF({L['done']}=1,1,IF({L['exp']}>0,MIN({L['tc']}/{L['exp']},0.99),0))",
             "swv": f"=IF({L['done']}=1,{L['sw']}*{L['tc']},0)",
@@ -279,8 +288,12 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
             "tv": f"=IF({L['ti']}=\"\",0,{L['be']}*({L['tc']}-{L['par']}))",
             "dev": f"=IF({L['done']}=1,{L['tc']}*({L['sw']}-{_dash(D_SWING, f'$A{r}')})^2,0)",
         }
+        if c["state"] == "AK":
+            forms["exp"] = f"=IF({by_type},{L['tc']}+{L['frv']},{forms['exp'][1:]})"
+            forms["pm"] = f"=IF(AND({L['done']}<>1,{by_type}),{L['frm']},{forms['pm'][1:]})"
+            forms["pv"] = f"=IF(AND({L['done']}<>1,{by_type}),{L['tc']}+{L['frv']},{forms['pv'][1:]})"
         lv = (live.get(c["state"]) or {}).get(c["fips"]) or {}
-        feed = {"fd": lv.get("D"), "fr": lv.get("R"), "fo": lv.get("O"), "fp": lv.get("pct_in")}
+        feed = {"fd": lv.get("D"), "fr": lv.get("R"), "fo": lv.get("O"), "fp": lv.get("pct_in"), **_rest_cells(lv)}
         man = keep.get(c["fips"], {})
         for i, (_, k, _, kind) in enumerate(CCOLS):
             cell = ws.cell(row=r, column=i + 1)
@@ -305,9 +318,11 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
                 cell.number_format = "0.00"
             elif k in ("sw2024", "sw", "vbe", "teff", "ov"):
                 cell.number_format = SWING
+            elif k == "frm":
+                cell.number_format = "0.0%"
             elif k in ("share", "fp", "ein", "black", "hisp", "ba"):
                 cell.number_format = PCT if k != "share" else "0.0%"
-            elif k in ("d24", "r24", "t24", "d20", "r20", "d22", "r22", "t22", "exp", "fd", "fr", "fo", "md", "mr", "mo",
+            elif k in ("d24", "r24", "t24", "d20", "r20", "d22", "r22", "t22", "exp", "fd", "fr", "fo", "frv", "md", "mr", "mo",
                        "dc", "rc", "tc", "pv", "pd", "pr", "pop", "swv", "w", "mw", "par", "mv", "tv"):
                 cell.number_format = NUM
             if k in ("nvt",):
@@ -369,6 +384,8 @@ def build(path: Path, *, keep: dict | None = None, live: dict | None = None, uf:
     import cw_guide
     cw_guide.guide_sheet(guide)
     _readme(readme)
+    import cw_mississippi as MS
+    MS.local_sheet(wb)
     _protect(wb)
     wb.save(path)
     return path
@@ -383,7 +400,7 @@ def _protect(wb):
     open_ = Protection(locked=False)
     n = len(county_order()) + 1
     cty = wb["Counties"]
-    for k in ("fd", "fr", "fo", "fp", "md", "mr", "mo", "mc"):
+    for k in ("fd", "fr", "fo", "fp", "frv", "frm", "md", "mr", "mo", "mc"):
         for r in range(2, n + 1):
             cty[f"{CL[k]}{r}"].protection = open_
     dash = wb["Dashboard"]
@@ -1065,10 +1082,10 @@ def _readme(ws):
         ("Colors", "h"),
         ("Yellow fill, blue text: inputs you can change. Grey fill: written by the bot. Blue numbers lean D, red lean R.", ""),
         ("How the projection works", "h"),
-        ("1. A county is complete when all precincts report (feed), when you mark it Y, or when its count reaches 97% of the expected vote. Expected votes follow the night's turnout: the Dashboard turnout factor until 3 counties are known to be complete, then those counties' actual pace.", ""),
+        ("1. A county is complete when all precincts report and it has 85% of its 2022-pattern vote (feeds can show every precinct in with only early votes counted), when you mark it Y, or, with no precinct count, when its count reaches 97% of the expected vote. Expected votes follow the night's turnout: the Dashboard turnout factor until 3 counties are known to be complete, then those counties' actual pace.", ""),
         ("2. Swing = its 2026 margin minus its 2024 presidential margin.", ""),
         ("3. Each county type's swing is the vote-weighted average over its complete counties in that state, pulled toward the state's overall swing until the type has a real share of the vote counted (weight = its counted votes / (those votes + 3% of the state's expected vote)). One small finished county can't set the swing for its whole type.", ""),
-        ("4. Unfinished counties are projected at 2024 margin + their type's swing, across their whole expected vote. Partial counts are ignored for the margin, because they're usually one vote method.", ""),
+        ("4. Unfinished counties keep the votes already counted. The votes they still expect are projected at 2024 margin + their type's swing, not the partial count's margin, which is usually one vote method.", ""),
         ("5. Votes for unfinished counties = 2022 turnout x a turnout pace: the Dashboard turnout factor before results, then each type's pace from its finished counties (shrunk toward the state's pace when only a few are in).", ""),
         ("Turnout", "h"),
         ("Benchmarks use 2022's turnout pattern (a midterm) with 2024's county margins. In Georgia that baseline is R+1.1 rather than the actual 2024 R+2.2, because the midterm electorate was relatively heavier in metro Atlanta.", ""),
@@ -1154,6 +1171,9 @@ def push_open(path: Path, live: dict, reads: dict, stamp: str) -> bool:
                 break
         block.append([row.get("D"), row.get("R"), row.get("O"), row.get("pct_in")] if row else [None] * 4)
     sh.range(f"{CL['fd']}2").value = block
+    if sh.range(f"{CL['frv']}1").value == CCOLS[len(CL) - 2][0]:     # a workbook from before these columns has no use for them
+        rests = [_rest_cells(next((rows[str(f)] for rows in live.values() if str(f) in rows), {})) for f in fips_col]
+        sh.range(f"{CL['frv']}2").value = [[x["frv"], x["frm"]] for x in rests]
     d = book.sheets["Dashboard"]
     for st, secs in reads.items():
         for a, text in zip(take_cells(st), secs):

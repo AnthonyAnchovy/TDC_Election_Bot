@@ -1,5 +1,5 @@
 {
-  "_note": "Live county-level feeds for the Senate race. Every feed is re-checked every refresh_seconds; unchanged files cost almost nothing (the bot asks 'changed since last time?'). The workbook is rebuilt at most every workbook_seconds. 'test' overrides point at the Nov 2024 files for /countytest. post_alerts posts key-county and projection changes to the board channel. States not listed here are typed in by hand. Sites marked bot_check sit behind Cloudflare: if they answer the bot with a challenge page, the bot stops trying for 15 minutes and you use the County Watch grab button instead (it saves countywatch-XX.json to Downloads, which the bot loads). /countyfeed sets a Clarity election link (SC, IA) if the site doesn't list the election by date.",
+  "_note": "Live county-level feeds for the Senate race. Every feed is re-checked every refresh_seconds; unchanged files cost almost nothing (the bot asks 'changed since last time?'). The workbook is rebuilt at most every workbook_seconds. 'test' overrides point at the Nov 2024 files for /countytest. post_alerts posts key-county finishes and the national read to the board channel, and projection changes too if post_projection_alerts is true. States not listed here are typed in by hand. Sites marked bot_check sit behind Cloudflare: if they answer the bot with a challenge page, the bot stops trying for 15 minutes and you use the County Watch grab button instead (it saves countywatch-XX.json to Downloads, which the bot loads). /countyfeed sets a Clarity election link (SC, IA) if the site doesn't list the election by date.",
   "refresh_seconds": 30,
   "states": {
     "GA": {
@@ -42,11 +42,22 @@
     "FL": {
       "format": "fl_txt",
       "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20261103_ElecResultsFL.txt",
+      "skip_cache": true,
       "contest": "United States Senator",
       "source": "Florida Division of Elections",
       "test": {
         "url": "https://flelectionfiles.floridados.gov/enightfilespublic/20241105_ElecResultsFL.txt",
         "contest": "President"
+      },
+      "fallback": {
+        "format": "nyt_json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-florida-us-senate-special.json",
+        "contest": "U.S. Senate",
+        "source": "New York Times (unofficial; covers Florida until the state posts at 8 PM ET)",
+        "test": {
+          "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-florida-president.json",
+          "contest": "President"
+        }
       }
     },
     "VA": {
@@ -66,6 +77,16 @@
       "base": "https://electionresults.iowa.gov/IA",
       "election_date": "11/3/2026",
       "source": "Iowa Secretary of State (electionresults.iowa.gov)",
+      "fallback": {
+        "format": "nyt_json",
+        "url": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-iowa-us-senate.json",
+        "contest": "U.S. Senate",
+        "source": "New York Times (unofficial; covers Iowa while the state's site returns a 404)",
+        "test": {
+          "url": "https://static01.nyt.com/elections-assets/pages/data/2024-11-05/results-iowa-president.json",
+          "contest": "President"
+        }
+      },
       "test": {
         "eid": "122322",
         "contest_re": "^President",
@@ -136,7 +157,7 @@
     },
     "AK": {
       "format": "ak_csv",
-      "url": "https://www.elections.alaska.gov/results/26GENR/ENRbyPrecinct.csv",
+      "url": "https://www.elections.alaska.gov/enr/26GENR/results/GA_ENR_Precinct_State_of_Alaska.csv",
       "contest": "U.S. Senator",
       "source": "Alaska Division of Elections",
       "test": {
@@ -226,5 +247,10 @@
   },
   "workbook_seconds": 120,
   "post_alerts": true,
+  "post_projection_alerts": false,
+  "extended_feeds": {
+    "MS": {"until": "2026-12-05T12:00:00-05:00", "refresh_seconds": 120},
+    "AK": {"until": "2026-11-25T12:00:00-05:00", "refresh_seconds": 300}
+  },
   "watch_downloads": true
 }

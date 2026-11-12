@@ -12,6 +12,7 @@ One-time setup (README, "Shared live workbook"): register an app, put MS_CLIENT_
     python cw_cloud.py share      print an edit link to hand out (or share it from OneDrive yourself)
     python cw_cloud.py share --view   print a read-only link for people who should watch, not type
     python cw_cloud.py check      confirm the bot can read and write the shared copy
+    python cw_cloud.py patch-alaska   give an existing shared copy the Alaska vote-type projection
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ load_dotenv(HERE / ".env")
 TOKEN_FILE = HERE / "countywatch" / "ms_token.json"
 STATE_FILE = HERE / "countywatch" / "cloud_state.json"
 GRAPH = "https://graph.microsoft.com/v1.0"
+ALASKA_HEADER = "Feed: votes still expected"
 SCOPES = ["Files.ReadWrite.All"]       # .All so a share link to someone else's file works too
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 log = logging.getLogger("countywatch")
@@ -49,6 +51,7 @@ _item: dict = {}       # the workbook's drive item, resolved once
 _sent: dict = {}       # last payload written per region, so unchanged blocks aren't rewritten
 _resume_at = 0.0       # when Microsoft said the bot may call again, after it asked for a long wait
 LONGEST_NAP = 30       # seconds worth waiting in place; for longer, give up until a later sync
+problems: list[str] = []   # the parts of the last sync that failed while the rest went through
 
 
 class CloudError(Exception):
@@ -213,7 +216,20 @@ def _early_block(uf, nc):
 
 def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | None, entries: dict) -> dict:
     """Push the bot's cells to the shared workbook and read people's inputs back.
-    entries: /countyset entries {fips: {md, mr, mo, mc}}. Returns inputs shaped like cw_workbook.read_inputs()."""
+    entries: /countyset entries {fips: {md, mr, mo, mc}}. Returns inputs shaped like cw_workbook.read_inputs().
+    The reads at the top must work or nothing is written. After that each part is written on its own: one Microsoft
+    refuses (a locked cell, say) is logged and listed in `problems`, and the parts after it still go out."""
+    problems.clear()
+
+    def part(name: str, fn):
+        try:
+            fn()
+        except CloudError as exc:
+            if "asked the bot to wait" in str(exc):
+                raise          # throttled: everything after this would fail too
+            log.warning("shared workbook: %s wasn't updated (%s)", name, exc)
+            problems.append(f"{name}: {exc}"[:200])
+
     with _lock:
         n = len(W.county_order())
         CL, last = W.CL, n + 1
@@ -229,10 +245,18 @@ def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | Non
         by_fips = {str(f): row for rows in live.values() for f, row in rows.items()}
         feed = [[by_fips[f].get(k) for k in ("D", "R", "O", "pct_in")] if f in by_fips else [""] * 4 for f in fips]
         feed = [["" if v is None else v for v in row] for row in feed]
-        write("Counties", f"{CL['fd']}2:{CL['fp']}{last}", "feed", values=feed)
+        part("Counties feed columns", lambda: write("Counties", f"{CL['fd']}2:{CL['fp']}{last}", "feed", values=feed))
+
+        def rest():
+            if read("Counties", f"{CL['frv']}1")[0][0] == ALASKA_HEADER:      # only once patch-alaska has added them
+                rests = [W._rest_cells(by_fips.get(f) or {}) for f in fips]
+                write("Counties", f"{CL['frv']}2:{CL['frm']}{last}", "feed-rest",
+                      values=[["" if x[k] is None else x[k] for k in ("frv", "frm")] for x in rests])
+        part("Counties Alaska columns", rest)
 
         # /countyset entries go into the Manual columns when they change. A cleared entry is blanked only if the
-        # cells still hold what the bot put there, so a number someone typed over it stays.
+        # cells still hold what the bot put there, so a number someone typed over it stays. A row that fails is
+        # tried again next time.
         state = _load_state()
         pushed = state.setdefault("pushed", {})
         row_of = {f: i for i, f in enumerate(fips)}
@@ -240,31 +264,42 @@ def sync(*, live: dict, reads: dict, stamp: str, uf: dict | None, nc: dict | Non
             vals = [m.get(k) if m.get(k) is not None else "" for k in ("md", "mr", "mo", "mc")]
             if f in row_of and pushed.get(f) != vals:
                 r = row_of[f] + 2
-                write("Counties", f"{CL['md']}{r}:{CL['mc']}{r}", values=[vals])
-                manual[row_of[f]] = vals
-                pushed[f] = vals
+
+                def put(r=r, f=f, vals=vals):
+                    write("Counties", f"{CL['md']}{r}:{CL['mc']}{r}", values=[vals])
+                    manual[row_of[f]] = vals
+                    pushed[f] = vals
+                part(f"/countyset entry for {f}", put)
         for f in [f for f in pushed if f not in entries]:
             if f in row_of and all(_same(a, b) for a, b in zip(manual[row_of[f]], pushed[f])):
                 r = row_of[f] + 2
-                write("Counties", f"{CL['md']}{r}:{CL['mc']}{r}", values=[[""] * 4])
-                manual[row_of[f]] = [""] * 4
-            pushed.pop(f)
+
+                def clear(r=r, f=f):
+                    write("Counties", f"{CL['md']}{r}:{CL['mc']}{r}", values=[[""] * 4])
+                    manual[row_of[f]] = [""] * 4
+                    pushed.pop(f)
+                part(f"clearing /countyset entry for {f}", clear)
+            else:
+                pushed.pop(f)
         STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
 
         # Dashboard: each state's read (None leaves a state without one alone), and the stamp
         if W.OLD_READ_HEADER in head:
             letter = get_column_letter(head.index(W.OLD_READ_HEADER) + 1)
             col = [["\n".join(s for s in reads[row[0]] if s) if row[0] in reads else None] for row in dash]
-            write("Dashboard", f"{letter}{W.DASH_ROW0}:{letter}{W.DASH_ROW0 + len(M.STATES) - 1}", "reads", values=col)
+            part("Dashboard reads", lambda: write("Dashboard", f"{letter}{W.DASH_ROW0}:{letter}{W.DASH_ROW0 + len(M.STATES) - 1}",
+                                                  "reads", values=col))
         else:
             for st, secs in reads.items():
-                for j, (a, text) in enumerate(zip(W.take_cells(st), secs)):
-                    write("Dashboard", a, f"take-{st}-{j}", values=[[text]])
-        write("Dashboard", "A3", values=[[f"Last bot update: {stamp}"]])
+                def takes(st=st, secs=secs):
+                    for j, (a, text) in enumerate(zip(W.take_cells(st), secs)):
+                        write("Dashboard", a, f"take-{st}-{j}", values=[[text]])
+                part(f"Dashboard read for {st}", takes)
+        part("Dashboard stamp", lambda: write("Dashboard", "A3", values=[[f"Last bot update: {stamp}"]]))
 
         # Early Vote: rewritten only when the numbers behind it change
         address, forms, fmts = _early_block(uf, nc)
-        write("Early Vote", address, "early", formulas=forms, numberFormat=fmts)
+        part("Early Vote tab", lambda: write("Early Vote", address, "early", formulas=forms, numberFormat=fmts))
 
     keep: dict = {"factor": {}}
     for f, row in zip(fips, manual):
@@ -314,6 +349,54 @@ def share(view: bool = False):
     raise last
 
 
+def patch_alaska():
+    """Give the shared copy the Alaska vote-type projection without replacing it: writes only Alaska's cells in
+    Counties and its row on the Dashboard, plus two new columns at the far right of Counties. What people typed stays.
+    The formulas come from a throwaway build of the current code."""
+    import tempfile
+    from openpyxl import load_workbook
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "alaska.xlsx"
+        W.build(path)
+        book = load_workbook(path)
+    cty, dash = book["Counties"], book["Dashboard"]
+    CL, last = W.CL, len(W.county_order()) + 1
+    # Stop before writing anything if the shared copy's columns aren't where the formulas expect them
+    shared = read("Counties", f"A1:{CL['dev']}1")[0]
+    local = [cty.cell(row=1, column=i + 1).value for i in range(len(shared))]
+    end = get_column_letter(len(W.DCOLS))
+    h = W.DASH_ROW0 - 1
+    if shared != local or read("Dashboard", f"A{h}:{end}{h}")[0] != [dash.cell(row=h, column=i + 1).value or "" for i in range(len(W.DCOLS))]:
+        raise CloudError("The shared workbook's columns differ from this build, so nothing was changed.")
+    fips = [_fips(r[0]) for r in read("Counties", f"{CL['fips']}2:{CL['fips']}{last}")]
+    here = {str(cty[f"{CL['fips']}{r}"].value): r for r in range(2, last + 1)}
+    rows = [(i + 2, here[f]) for i, f in enumerate(fips) if f.startswith("02")]
+    d_row = W.dash_row("AK")
+    if read("Dashboard", f"A{d_row}")[0][0] != "AK" or len(rows) != len(M.load()["AK"]):
+        raise CloudError("Couldn't find Alaska's rows in the shared workbook, so nothing was changed.")
+    prot = {"allowAutoFilter": True, "allowFormatColumns": True, "allowFormatRows": True}
+    for sheet in ("Counties", "Dashboard"):
+        _call("POST", f"{item()['base']}/workbook/worksheets/{quote(sheet)}/protection/unprotect", json={})
+    try:
+        write("Counties", f"{CL['frv']}1:{CL['frm']}1", values=[[cty[f"{CL['frv']}1"].value, cty[f"{CL['frm']}1"].value]])
+        # New cells on a protected tab are locked, and every sync writes these columns, so unlock them. Graph applies
+        # an unlock only to the first cell of a multi-column range, so it goes one column at a time in 200-row pieces.
+        for col in (CL["frv"], CL["frm"]):
+            for a in range(2, last + 1, 200):
+                _call("PATCH", _range("Counties", f"{col}{a}:{col}{min(a + 199, last)}") + "/format/protection",
+                      json={"locked": False})
+        for mine, local_row in rows:
+            for k in ("t22", "exp", "pm", "pv"):
+                write("Counties", f"{CL[k]}{mine}", formulas=[[cty[f"{CL[k]}{local_row}"].value]])
+        for k in ("proj", "swing", "out", "conf", "why", "spread", "lo", "hi", "call", "rangetxt", "loser", "h_m", "h_lo", "h_hi"):
+            a = f"{W.DC[k]}{d_row}"
+            write("Dashboard", a, formulas=[[dash[a].value]])
+    finally:
+        for sheet in ("Counties", "Dashboard"):
+            _call("POST", f"{item()['base']}/workbook/worksheets/{quote(sheet)}/protection/protect", json={"options": prot})
+    print(f"Patched Alaska's {len(rows)} district rows and its Dashboard row. The next workbook update fills the new columns.")
+
+
 def check():
     it = item()
     print(f"Found {it['name']}: {it['url']}")
@@ -333,6 +416,8 @@ def main(argv):
     try:
         if what == "login":
             login()
+        elif what == "patch-alaska":
+            patch_alaska()
         elif what == "upload":
             upload(HERE / "County Watch 2026.xlsx", replace="--replace" in argv)
         elif what == "share":

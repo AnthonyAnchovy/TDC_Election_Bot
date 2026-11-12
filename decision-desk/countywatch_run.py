@@ -116,15 +116,30 @@ def _suspect_pull(new: dict, old: dict | None, minutes_since_close: float = 999)
     return None
 
 
-async def refresh_live() -> dict:
-    """Pull every feed state at once. A state's file is ignored until its first polls close, because several
-    states load test numbers into the live file beforehand (Minnesota's did in late October).
+def extended_states(sources: dict, when: datetime) -> dict:
+    """{state: seconds between pulls} for the feeds that keep running after election night, because their late ballots
+    get counted for days (feeds.json's extended_feeds). A bad date leaves that state off rather than stopping anything."""
+    out = {}
+    for st, cfg in (sources.get("extended_feeds") or {}).items():
+        try:
+            if when < datetime.fromisoformat(cfg["until"]):
+                out[st] = cfg.get("refresh_seconds", 120)
+        except (KeyError, TypeError, ValueError):
+            log.warning("extended_feeds: bad entry for %s", st)
+    return out
+
+
+async def refresh_live(only=None) -> dict:
+    """Pull every feed state at once, or just the states in `only`. A state's file is ignored until its first polls
+    close, because several states load test numbers into the live file beforehand (Minnesota's did in late October).
     Sets cache['changed'] to the states whose numbers moved since the last pull."""
     import night as N
     before = live_cache()
     blocked0, throttled0 = before.get("blocked", {}), before.get("throttled", {})
     todo, waiting = [], []
     for st in FD.feed_states():
+        if only is not None and st not in only:
+            continue
         if now_et() < N.first_close(st):
             waiting.append(st)
         elif time.time() - blocked0.get(st, 0) < BLOCK_RETRY and not FD.has_fallback(st):
@@ -220,6 +235,7 @@ def _alerts(cache: dict, states, man, fac) -> list[str]:
     seen = _load("alerts.json", {})
     nm = names()
     rank = {"none": 0, "low": 1, "medium": 2, "high": 3}
+    post_projections = FD.load_sources().get("post_projection_alerts", True)
     out = []
     for st in states or list(M.STATES):
         p = projection(st, cache, man, fac)
@@ -235,12 +251,13 @@ def _alerts(cache: dict, states, man, fac) -> list[str]:
             if last is None or leader_flip or conf_up or moved:
                 was = f" (was {M.fmt(last, dl, rl)})" if last is not None else ""
                 tagb = " (bellwether: watch the swing, not the winner)" if st in M.BELLWETHER else ""
-                parts.append(f"📈 **{M.STATES[st]} projection: {M.fmt(pm, dl, rl)}**{was}{tagb}."
-                             + (" **Leader change.**" if leader_flip else "")
-                             + f" Confidence {p['confidence']}: {p['done']} {'county' if p['done'] == 1 else 'counties'} fully counted, "
-                             f"{p['done_share']:.0%} of the expected vote. Swing vs 2024 {M.swing_txt(p['state_swing'])}; "
-                             f"{dl} {M.need_txt(p['needed_swing'])}."
-                             + _turnout_tag(p, dl, rl))
+                if post_projections:
+                    parts.append(f"📈 **{M.STATES[st]} projection: {M.fmt(pm, dl, rl)}**{was}{tagb}."
+                                 + (" **Leader change.**" if leader_flip else "")
+                                 + f" Confidence {p['confidence']}: {p['done']} {'county' if p['done'] == 1 else 'counties'} fully counted, "
+                                 f"{p['done_share']:.0%} of the expected vote. Swing vs 2024 {M.swing_txt(p['state_swing'])}; "
+                                 f"{dl} {M.need_txt(p['needed_swing'])}."
+                                 + _turnout_tag(p, dl, rl))
                 mem.update(proj=pm, conf=p["confidence"], at=time.time())
         finished = []
         for r in M.key_table(st, p):
@@ -502,6 +519,7 @@ def merged_live(st: str, cache: dict | None = None, man: dict | None = None) -> 
         if d is not None and r is not None:      # as the workbook: manual numbers count once both D and R are in
             row["D"], row["R"], row["O"] = d, r, _vote(m.get("mo")) or 0
             row["pct_in"] = None
+            row.pop("rest", None)
         if str(m.get("mc") or "").strip().upper() == "Y":
             row["complete"] = True
     return live
@@ -603,13 +621,18 @@ def nc_summary(nc: dict) -> list[str]:
 
 # ------------------------------------------------------------------ workbook
 WB_WARN = 3         # failed shared workbook updates in a row before the board hears about it
-_WB = {"fails": 0, "error": None, "told": False}
+_WB = {"fails": 0, "error": None, "told": False, "partial": False}
 
 
 def workbook_notices() -> list[str]:
-    """One message once the shared workbook has missed WB_WARN updates in a row, and one when it's updating again."""
+    """One message once the shared workbook has missed WB_WARN updates in a row, and one when it's updating again.
+    Updates that went through except for one part count as missed too, with their own wording."""
     if _WB["fails"] >= WB_WARN and not _WB["told"]:
         _WB["told"] = True
+        if _WB.get("partial"):
+            return [f"⚠️ **Part of the shared workbook has stopped updating.** The last {_WB['fails']} updates skipped it "
+                    f"({_WB['error']}). Everything else is still updating. A 403 usually means a cell the bot writes is "
+                    "locked on a protected tab."]
         return [f"⚠️ **The shared workbook has stopped updating.** The last {_WB['fails']} updates failed ({_WB['error']}). "
                 "Anyone looking at it is seeing old numbers, and what's typed into it isn't reaching the bot. The bot keeps "
                 "trying, and the feeds and board posts aren't affected. If it's the Microsoft sign-in, "
@@ -634,17 +657,429 @@ def write_workbook(cache=None, *, local: bool = False) -> str:
             try:
                 _INPUTS["cloud"] = CC.sync(live=live, reads=rd, stamp=datetime.now().strftime("%b %d %I:%M %p"),
                                            uf=early.get("uf"), nc=nc, entries=extra)
-                _WB.update(fails=0, error=None)
+                if CC.problems:     # the rest went through, but a part that keeps failing still needs someone to look
+                    _WB.update(fails=_WB["fails"] + 1, error="; ".join(CC.problems)[:150], partial=True)
+                else:
+                    _WB.update(fails=0, error=None, partial=False)
+                try:                # its own tab, so trouble here can't touch the rest of the workbook
+                    import cw_mississippi as MS
+                    MS.refresh(CC, cache)
+                except Exception:
+                    log.exception("Mississippi tab update failed")
+                if CC.problems:
+                    return f"updated the shared workbook except: {'; '.join(CC.problems)}"
                 return "updated the shared workbook"
             except Exception as exc:
                 log.exception("shared workbook update failed")
-                _WB.update(fails=_WB["fails"] + 1, error=str(exc)[:150] if isinstance(exc, CC.CloudError) else type(exc).__name__)
+                _WB.update(fails=_WB["fails"] + 1, error=str(exc)[:150] if isinstance(exc, CC.CloudError) else type(exc).__name__,
+                           partial=False)
                 done = W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
                 return f"shared workbook update failed ({exc}), so {done} on this PC instead"
         return W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
     except Exception as exc:
         log.exception("workbook update failed")
         return f"workbook update failed: {exc}"
+
+
+# ------------------------------------------------------------------ private messages about what reached the workbook
+def workbook_wrote(status: str) -> bool:
+    """Whether write_workbook's answer means the numbers really went into the workbook. A failed shared update or a
+    live.csv written instead doesn't count, so those numbers wait for the next update that works."""
+    return status.startswith(("updated the shared workbook", "updated the open workbook", "rebuilt the workbook"))
+
+
+def _snap_row(r: dict) -> list:
+    """[D, R, other, share in, marked complete], then Alaska's votes still expected by vote type where there are any."""
+    return [r.get("D") or 0, r.get("R") or 0, r.get("O") or 0, r.get("pct_in"), bool(r.get("complete"))] + ([r["rest"]] if r.get("rest") else [])
+
+
+def result_snapshot(cache: dict | None = None) -> dict:
+    """{state: {fips: [D, R, other, share of precincts in, marked complete]}}: every county's numbers as the workbook
+    counts them, typed entries included."""
+    cache = cache or live_cache()
+    man = manual()
+    out = {}
+    for st in M.STATES:
+        out[st] = {f: _snap_row(r) for f, r in merged_live(st, cache, man).items()}
+    return out
+
+
+@functools.lru_cache(maxsize=1)
+def _county_districts() -> dict:
+    """{fips: U.S. House districts, biggest share first}, built by tools/make_county_districts.py. Without the file the
+    messages simply leave districts out."""
+    try:
+        return json.loads((CW / "county_districts.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@functools.lru_cache(maxsize=None)
+def _tracked_counties(st: str) -> frozenset:
+    """The FIPS of a state's counties named on Key Counties or First Counties. Those lists can say 'Virginia Beach' where
+    the baseline says 'Virginia Beach city', and an exact match wins, so 'Fairfax' never means Fairfax city."""
+    keys = json.loads((CW / "key_counties.json").read_text(encoding="utf-8")).get(st, [])
+    first = json.loads((CW / "first_counties.json").read_text(encoding="utf-8"))["states"]
+    names = [k[0] for k in keys] + [n for e in first if e["state"] == st for n in e["counties"]]
+    fips = {c["name"]: c["fips"] for c in M.load()[st]}
+    return frozenset(filter(None, (fips.get(n) or fips.get(f"{n} city") for n in names)))
+
+
+def _place_name(st: str, name: str) -> str:
+    """The full name of a place on the map: Alaska reports by state House district, Virginia has independent cities."""
+    if st == "AK":
+        return name.replace("HD District", "State House District")
+    return f"{name[:-5]} City" if name.endswith(" city") else f"{name} County"
+
+
+def _result_block(st: str, c: dict, d_name: str, r_name: str, row: list) -> str:
+    """One place's update, readable without any other message around it."""
+    d, r, other, pct_in, complete = row[:5]
+    total = d + r + other
+    share = lambda v: f" ({100 * v / total:.1f}%)" if total else ""
+    votes = f"{d_name} {d:,}{share(d)}, {r_name} {r:,}{share(r)}"
+    if other:
+        votes += f", other {other:,}{share(other)}"
+    counted = "fully counted" if complete else f"{100 * pct_in:.0f}% in" if pct_in is not None else "% in not reported"
+    districts = ["AK-AL"] if st == "AK" else _county_districts().get(c["fips"], [])
+    where = f"{_place_name(st, c['name'])}, {M.STATES[st]}"
+    return f"**{where}**" + (f" ({', '.join(districts)})" if districts else "") + f" · {counted}\n{votes}"
+
+
+def result_messages(old: dict, new: dict, limit: int = 1900) -> list[str]:
+    """What changed between two snapshots, by state and county, as messages short enough for Discord. Counties with no
+    votes before or after are left out, since the feeds list every county from the moment polls close. Bellwether states
+    aren't races we're following, so only the counties the model names there are sent."""
+    import cw_ingest as I
+    msgs, cur = [], ""
+    for st in sorted(new, key=lambda s: M.STATES[s]):
+        d_name, r_name = I._cands(st)
+        d_name, r_name = (d_name.split() or ["D"])[-1], (r_name.split() or ["R"])[-1]
+        for c in sorted(M.load()[st], key=lambda c: c["name"]):
+            row, before = new[st].get(c["fips"]), (old.get(st) or {}).get(c["fips"])
+            if row is None or row == before or not (sum(row[:3]) or (before and sum(before[:3]))):
+                continue
+            if st in M.BELLWETHER and c["fips"] not in _tracked_counties(st):
+                continue
+            block = _result_block(st, c, d_name, r_name, row)
+            if cur and len(cur) + len(block) + 1 > limit:
+                msgs.append(cur.rstrip())
+                cur = ""
+            cur += block + "\n"
+    return msgs + ([cur.rstrip()] if cur else [])
+
+
+def state_snapshot(st: str, cache: dict | None = None) -> dict:
+    """One state's counties as they stand: {fips: [D, R, other, share of precincts in, marked complete]}."""
+    return {f: _snap_row(r) for f, r in merged_live(st, cache or live_cache(), manual()).items()}
+
+
+def _short_names(st: str) -> tuple[str, str]:
+    import cw_ingest as I
+    d_name, r_name = I._cands(st)
+    return (d_name.split() or ["D"])[-1], (r_name.split() or ["R"])[-1]
+
+
+def _counted(row: list | None) -> tuple:
+    """What counts as a real change to a county: its votes, or someone marking it complete. Its % in doesn't, because NYT
+    revising how many votes it expects moves that with no new votes at all."""
+    return (row[0], row[1], row[2], row[4]) if row else (0, 0, 0, False)
+
+
+def votes_moved(old: dict, new: dict) -> bool:
+    return any(_counted(old.get(f)) != _counted(new.get(f)) for f in set(old) | set(new))
+
+
+def _snap_project(st: str, snap: dict) -> dict:
+    """The projection for a saved snapshot, so two moments can be compared on equal terms."""
+    live = {f: {"D": r[0], "R": r[1], "O": r[2], "pct_in": r[3], "complete": r[4], "rest": r[5] if len(r) > 5 else None} for f, r in snap.items()}
+    return M.project(st, live, factors().get(st, 1.0))
+
+
+def _proj_totals(p: dict) -> tuple[float, float]:
+    return sum(r["proj_D"] for r in p["rows"]), sum(r["proj_R"] for r in p["rows"])
+
+
+def pct_moves(old: dict, new: dict) -> list[tuple]:
+    """(fips, % in before, % in now) for counties whose whole-number % in changed, biggest change first. Counties with no
+    votes yet are left out: their % in means nothing."""
+    out = []
+    for f, row in new.items():
+        before = old.get(f)
+        if not row or not before or row[3] is None or before[3] is None or not sum(row[:3]):
+            continue
+        a, b = round(100 * before[3]), round(100 * row[3])
+        if a != b:
+            out.append((f, a, b))
+    return sorted(out, key=lambda m: -abs(m[2] - m[1]))
+
+
+def _model_left(r: dict) -> float:
+    """Two-party votes the projection still expects in a county. It sizes these from past turnout and tonight's pace."""
+    return max(0.0, r["proj_D"] + r["proj_R"] - r["D"] - r["R"])
+
+
+def _pct_left(r: dict) -> float:
+    """Two-party votes still out if a county's % in is taken at face value. Places projected by vote type (Alaska) or with
+    no % in keep the projection's number, and a finished county has none."""
+    if r["complete"]:
+        return 0.0
+    if r["rest"] or not r["pct_in"]:
+        return _model_left(r)
+    return (r["D"] + r["R"]) * (1 / r["pct_in"] - 1)
+
+
+MODEL_STALE = 6 * 3600    # seconds: NYT's model older than this is labeled old in the alerts
+
+
+def _nyt_model(st: str) -> dict | None:
+    """NYT's own estimate of the votes left, by county. Only Mississippi reads it so far. None if it can't be read."""
+    if st != "MS":
+        return None
+    import cw_mississippi as MS
+    return MS.fetch_nyt()
+
+
+def pct_messages(st: str, old: dict, new: dict, moves: list[tuple], show: int = 8, limit: int = 1950) -> list[str]:
+    """The update for when only % in moved: the votes still expected in each county by candidate, on the projection's
+    numbers, on % in's and on NYT's model where we have it, and what the move did to the statewide projection."""
+    d_name, r_name = _short_names(st)
+    a, b = _snap_project(st, old), _snap_project(st, new)
+    nyt = _nyt_model(st)
+    asof, stale = "", False
+    if nyt and nyt.get("model_at"):
+        import cw_mississippi as MS
+        asof = MS._clock(nyt["model_at"])
+        try:
+            age = datetime.now().astimezone() - datetime.fromisoformat(nyt["model_at"].replace("Z", "+00:00"))
+            stale = age.total_seconds() > MODEL_STALE
+        except ValueError:
+            pass
+    was, now = {r["fips"]: r for r in a["rows"]}, {r["fips"]: r for r in b["rows"]}
+    moves = [m for m in moves if m[0] in now and m[0] in was]
+    if not moves:
+        return []
+    who = lambda v: d_name if v > 0 else r_name
+    net_txt = lambda v: f"{who(v)} +{abs(v):,}" if v else "even"
+    by = lambda v: f"{who(v)} by {abs(v):,.0f} vote{'' if round(abs(v)) == 1 else 's'}" if round(v) else "Tied"
+
+    def split(left: float, r: dict) -> tuple[int, int]:
+        """(votes for D, votes for R) in what's left, at the margin the model gives this county's remaining votes."""
+        total = round(left)
+        d = round(left * (1 + r["proj_m"]) / 2)
+        return d, total - d
+
+    def net_of(left: float, r: dict) -> int:
+        d, rr = split(left, r)
+        return d - rr
+
+    def line(label: str, left: float, left0: float, r: dict, r0: dict) -> str:
+        n, n0 = net_of(left, r), net_of(left0, r0)
+        if not round(left) and not round(left0):
+            return f"   {label}: none left, no change"
+        d, rr = split(left, r)
+        votes = f"{left:,.0f} left. {d_name} {d:,}, {r_name} {rr:,}. Net {net_txt(n)}" if round(left) else "none left"
+        if round(left) == round(left0) and n == n0:
+            return f"   {label}: {votes}. No change"
+        return f"   {label}: {votes}. Was {left0:,.0f} left, net {net_txt(n0)}"
+
+    effect = {}
+    for f, _, _ in moves:
+        r, o = now[f], was[f]
+        effect[f] = max(abs((r["proj_D"] - r["proj_R"]) - (o["proj_D"] - o["proj_R"])),
+                        abs(net_of(_pct_left(r), r) - net_of(_pct_left(o), o)))
+    moves = sorted(moves, key=lambda m: -effect[m[0]])
+
+    # ---- the count, the projection, and which counties moved it
+    cd, cr = sum(r["D"] for r in b["rows"]), sum(r["R"] for r in b["rows"])
+    lead = f"{who(cd - cr)} ahead by {abs(cd - cr):,} vote{'' if abs(cd - cr) == 1 else 's'}" if cd != cr else "Tied"
+    ad, ar = _proj_totals(a)
+    pd, pr = _proj_totals(b)
+    shift = (pd - pr) - (ad - ar)
+    lines = [f"📊 **{M.STATES[st]} % in moved. No new votes.**", f"**Count:** {lead} ({d_name} {cd:,}, {r_name} {cr:,})"]
+    if abs(shift) >= 1:
+        lines.append(f"**Projected:** {by(pd - pr)}. Was {by(ad - ar)}. Moved {abs(shift):,.0f} to {who(shift)}")
+        moved = {f for f, _, _ in moves}
+        here = sum((now[f]["proj_D"] - now[f]["proj_R"]) - (was[f]["proj_D"] - was[f]["proj_R"]) for f in moved)
+        elsewhere = shift - here
+        if abs(here) >= 1:
+            lines.append(f"• These {len(moved)} counties: {abs(here):,.0f} to {who(here)}" if len(moved) > 1 else f"• This county: {abs(here):,.0f} to {who(here)}")
+        if abs(elsewhere) >= 1:
+            why = f". Finished counties went {a['done']} → {b['done']}, which resets swing and turnout" if a["done"] != b["done"] else ""
+            lines.append(f"• Other counties: {abs(elsewhere):,.0f} to {who(elsewhere)}{why}")
+    else:
+        lines.append(f"**Projected:** {by(pd - pr)}. No change")
+
+    # ---- county by county
+    lines += ["", "**Votes still expected**"]
+    for f, x, y in moves[:show]:
+        r, o = now[f], was[f]
+        pm, pm0, im, im0 = _model_left(r), _model_left(o), _pct_left(r), _pct_left(o)
+        at = f". Late votes at {M.fmt(r['proj_m'], d_name, r_name)} pts" if round(pm) or round(im) else ""
+        block = [f"• **{r['name']}** {x}→{y}%{at}", line("Projection", pm, pm0, r, o)]
+        if not r["rest"]:
+            block.append(line("% in implies", im, im0, r, o))
+        ny = ((nyt or {}).get("counties") or {}).get(f)
+        if ny:
+            block.append(f"   NYT's model{' (old)' if stale else ''}: {ny['left']:,.0f} left. {d_name} {ny['d']:,.0f}, {r_name} {ny['r']:,.0f}. Net {net_txt(round(ny['net']))}")
+        lines.append("\n".join(block))          # one item, so a county never splits across two messages
+    if len(moves) > show:
+        rest = moves[show:]
+        pn = sum(net_of(_model_left(now[m[0]]), now[m[0]]) - net_of(_model_left(was[m[0]]), was[m[0]]) for m in rest)
+        inn = sum(net_of(_pct_left(now[m[0]]), now[m[0]]) - net_of(_pct_left(was[m[0]]), was[m[0]]) for m in rest)
+        moved_txt = lambda v: f"{abs(v):,} to {who(v)}" if v else "no change"
+        lines.append(f"• {len(rest)} more counties. Net moved: projection {moved_txt(pn)}, % in implies {moved_txt(inn)}")
+
+    # ---- how to weigh those
+    if nyt:
+        when = f" as of {asof} ET" if asof else ""
+        lines += ["", f"**NYT's model statewide{when}:** {nyt['left']:,.0f} left, net {net_txt(round(nyt['net']))}. Final {by(nyt['final'])}"]
+        if stale:
+            lines.append("NYT's model has stopped updating, so its numbers are older than the count")
+    if not b["by_type"]:       # Alaska's projection works from vote types instead
+        lines += ["", "The projection only uses % in when a county reaches or drops below 100%. \"% in implies\" scales up the votes counted, and isn't in the projection"]
+    msgs, cur = [], ""
+    for ln in lines:
+        if cur and len(cur) + len(ln) + 1 > limit:
+            msgs.append(cur.rstrip())
+            cur = ""
+        cur += ln + "\n"
+    return msgs + ([cur.rstrip()] if cur.strip() else [])
+
+
+def state_watch_messages(st: str, old: dict, new: dict, limit: int = 1900, prec: dict | None = None) -> list[str]:
+    """A state's alert in short labeled lines: the count, new votes, the projection and why it moved, how to read it, and
+    what to watch. old == new gives the same without the parts about a change."""
+    d_name, r_name = _short_names(st)
+    if prec is None:
+        prec = {f: (r["prec_out"], r.get("prec_total") or 0) for f, r in feed_view(live_cache()).get(st, {}).items() if "prec_out" in r}
+    p = _snap_project(st, new)
+    rows = p["rows"]
+    pd, pr = _proj_totals(p)
+    cd, cr, co = sum(r["D"] for r in rows), sum(r["R"] for r in rows), sum(r["O"] for r in rows)
+    total = cd + cr + co
+    who = lambda v: d_name if v > 0 else r_name
+    side = lambda v: f"{who(v)} +{abs(v):,.0f}" if round(v) else "Tied"
+    margin = lambda v: M.fmt(v, d_name, r_name)
+    pct = lambda v: f" ({100 * v / total:.1f}%)" if total else ""
+    left = lambda r: max(0.0, r["proj_D"] + r["proj_R"] - r["D"] - r["R"])
+    left_net = lambda r: (r["proj_D"] - r["proj_R"]) - (r["D"] - r["R"])
+    net = lambda r: r["proj_D"] - r["proj_R"]
+    changed = votes_moved(old, new)
+
+    head = [f"🔔 **{M.STATES[st]} Senate: {side(cd - cr)}**",
+            f"{d_name} {cd:,}{pct(cd)} · {r_name} {cr:,}{pct(cr)}" + (f" · other {co:,}{pct(co)}" if co else "")]
+
+    # ---- new votes, one line each
+    fresh = []
+    for c in sorted(M.load()[st], key=lambda c: c["name"]):
+        row, before = new.get(c["fips"]), old.get(c["fips"])
+        if row is None or _counted(row) == _counted(before):
+            continue
+        was = before or [0, 0, 0]
+        counted = "fully counted" if row[4] else f"{100 * row[3]:.0f}% in" if row[3] is not None else "% in unknown"
+        fresh.append(f"• {c['name']}: {sum(row[:3]) - sum(was[:3]):+,}. {d_name} {row[0] - was[0]:+,}, {r_name} {row[1] - was[1]:+,}. Now {counted}")
+
+    # ---- the projection and why it moved
+    proj = [f"**Projected:** {side(pd - pr)}"]
+    why = []
+    if changed:
+        a = _snap_project(st, old)
+        ad, ar = _proj_totals(a)
+        proj[0] += f" (was {side(ad - ar)})"
+        shift = (pd - pr) - (ad - ar)
+        if abs(shift) >= 1:
+            proj[0] += f". Moved {abs(shift):,.0f} to {who(shift)}"
+        proj.append(f"{d_name} {ad:,.0f} → {pd:,.0f} · {r_name} {ar:,.0f} → {pr:,.0f}")
+        was = {r["fips"]: r for r in a["rows"]}
+        items = []
+        for r in rows:
+            o = was[r["fips"]]
+            v0, v1 = o["proj_D"] + o["proj_R"], r["proj_D"] + r["proj_R"]
+            items.append((net(r) - net(o), r, (net(o) / v0 if v0 else 0.0), (net(r) / v1 if v1 else 0.0), v0, v1))
+        reported = sorted((x for x in items if _counted(new.get(x[1]["fips"])) != _counted(old.get(x[1]["fips"])) and abs(x[0]) >= 1), key=lambda x: -abs(x[0]))
+        for diff, r, m0, m1, v0, v1 in reported[:3]:
+            still = "" if r["complete"] else " (still counting)"
+            why.append(f"• {r['name']}{still}: {abs(diff):,.0f} to {who(diff)}. {margin(m1)}, expected {margin(m0)}. {v1:,.0f} votes, expected {v0:,.0f}")
+        if len(reported) > 3:
+            more = sum(x[0] for x in reported[3:])
+            why.append(f"• {len(reported) - 3} smaller counties: {abs(more):,.0f} to {who(more)}")
+        quiet = sum(x[0] for x in items if _counted(new.get(x[1]["fips"])) == _counted(old.get(x[1]["fips"])))
+        if abs(quiet) >= 1:
+            why.append(f"• Counties with no new votes: {abs(quiet):,.0f} to {who(quiet)}. Estimates updated")
+
+    # ---- how to read it
+    read = []
+    if cd == cr or (cd > cr) != (pd > pr):
+        read.append(f"• Count: {who(cd - cr) if cd != cr else 'tied'}. Projection: {who(pd - pr)}. They disagree")
+    else:
+        read.append(f"• Count and projection both say {who(pd - pr)}")
+    if p.get("need_share") is not None and p.get("remaining"):
+        trailer = d_name if p["trailer"] == "D" else r_name
+        need, pace = round(100 * p["need_share"], 1), round(100 * p["pace_share"], 1)
+        gap = need - pace
+        call = "Can't catch up on these estimates" if need > 100 else "Still live" if gap < 5 else "Uphill" if gap <= 15 else "Nearly out of reach"
+        read.append(f"• {trailer} needs {need:.1f}% of what's left. On pace for {pace:.1f}%. {call}")
+    out = {r["fips"]: prec[r["fips"]][0] for r in rows if prec.get(r["fips"], (0, 0))[0]}
+    remaining = sum(left(r) for r in rows)
+    hard = [r for r in rows if r["fips"] in out]
+
+    def normal_size(r):
+        n_out, n_total = prec[r["fips"]]
+        return (r["D"] + r["R"]) / (n_total - n_out) * n_out if n_total > n_out else left(r)
+    if prec and remaining >= 1:
+        if out:
+            soft = remaining - sum(left(r) for r in hard)
+            read.append(f"• About {remaining:,.0f} votes left. {soft:,.0f} of those may not exist (every precinct in)")
+            high = (cd - cr) + sum(left_net(r) for r in hard)
+            low = (cd - cr) + sum(left_net(r) * min(1.0, normal_size(r) / left(r)) for r in hard if left(r))
+            a, b = sorted((abs(low), abs(high)))
+            ends = (side(high) if round(abs(high - low)) < 50 else f"{who(high)} +{a:,.0f} to +{b:,.0f}" if (high > 0) == (low > 0)
+                    else f"{side(low)} to {side(high)}")
+            read.append(f"• Missing precincts alone: {ends}")
+        else:
+            read.append(f"• Every precinct is in. The {remaining:,.0f} left is only an estimate")
+    if changed and why:
+        top = reported[0] if reported else None
+        if top:
+            r = top[1]
+            alike = sum(left(x) for x in rows if x["type"] == r["type"] and x["fips"] != r["fips"])
+            if alike >= 100:
+                read.append(f"• Watch if other {r['type']} counties do the same: about {alike:,.0f} votes left")
+
+    # ---- what to watch
+    watch = []
+    for r in sorted(hard, key=lambda r: -left(r))[:3]:
+        n = prec[r["fips"]][0]
+        watch.append(f"• {r['name']}: {n} precinct{'s' if n > 1 else ''}, about {min(left(r), normal_size(r)) if left(r) else normal_size(r):,.0f} votes, leans {who(net(r))}")
+    if not watch:
+        for r in sorted((r for r in rows if left(r) >= 100), key=lambda r: -left(r))[:3]:
+            watch.append(f"• {r['name']}: about {left(r):,.0f} votes, leans {who(left_net(r))}")
+    empty = sorted(c["name"] for c in M.load()[st] if not sum((new.get(c["fips"]) or [0, 0, 0])[:3]))
+
+    lines = list(head)
+    trailing = []
+    if fresh:
+        if len(fresh) <= 6:
+            lines += ["", "**New votes**"] + fresh
+        else:
+            lines += ["", f"**New votes in {len(fresh)} counties** (listed below)"]
+            trailing = fresh
+    lines += [""] + proj
+    if why:
+        lines += ["**Why**"] + why
+    lines += ["", "**Read**"] + read
+    if watch:
+        lines += ["", "**Next**"] + watch
+    if empty:
+        lines.append(f"**Nothing in yet:** {', '.join(empty[:15])}" + (f" and {len(empty) - 15} more" if len(empty) > 15 else ""))
+    msgs, cur = [], ""
+    for line in lines + trailing:
+        if cur and len(cur) + len(line) + 1 > limit:
+            msgs.append(cur.rstrip())
+            cur = ""
+        cur += line + "\n"
+    return msgs + ([cur.rstrip()] if cur.strip() else [])
 
 
 async def main(argv):

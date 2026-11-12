@@ -36,6 +36,7 @@ import countywatch_run as CWR
 import cw_early as CE
 import cw_feeds as CF
 import cw_model as CM
+import ddhq_grab as DG
 import desk_help as H
 import field as F
 import graphics as G
@@ -175,6 +176,12 @@ def junkie_ids(guild) -> set[int]:
     return {m.id for m in guild.members if not m.bot and CFG["junkie_role"] in _roles(m)}
 
 
+def counted_voters(guild) -> set[int]:
+    """Everyone whose vote counts: the same people is_junkie lets vote, so admins without the role too. The number of
+    votes needed still comes from the role alone (votes_needed)."""
+    return {m.id for m in guild.members if not m.bot and is_junkie(m)}
+
+
 def votes_needed(guild) -> int:
     n = max(len(junkie_ids(guild)), 1)
     thr = CFG.get("threshold", "majority")
@@ -214,17 +221,13 @@ def channel_note(guild, key: str) -> str:
 
 # =========================================================================== official calls
 async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File:
-    """The chamber map. Senate and governor maps follow the card theme (classic keeps the original tile map) and
-    ring `highlight`, the race just called; the House chart is the same in every theme. Calls are read here, and
-    the drawing runs in a worker thread."""
+    """The chamber map: the dark tile map for Senate and governors and the House chart, in every card theme. Calls are
+    read here, and the drawing runs in a worker thread."""
     calls = dict(store.all() if calls is None else calls)
-    theme = card_theme()
     if kind in ("house", "control"):
         render = functools.partial(G.house_chart, calls)
-    elif theme == "classic":
-        render = functools.partial(G.tile_map, kind, calls)
     else:
-        render = functools.partial(G.chamber_map, theme, kind, calls, highlight=highlight, when=now())
+        render = functools.partial(G.tile_map, kind, calls)
     buf = await asyncio.to_thread(render)
     return discord.File(buf, filename=f"{kind}_map.png")
 
@@ -248,7 +251,8 @@ async def card_file(rid: str, party: str | None, how: str, *, retracted: bool = 
     counts = S.chamber_counts("house" if kind in ("house", "control") else kind, store.all())
     buf = await asyncio.to_thread(
         G.call_card, rid, party, candidate=load_candidates().get(rid, {}).get(party) if party else None, tally=how,
-        when=now(), retracted=retracted, counts=counts, theme=theme or card_theme())
+        when=now(), retracted=retracted, counts=counts, theme=theme or card_theme(),
+        use_custom=not theme and store.setting("card_art", True))
     return discord.File(buf, filename=f"{rid}_{'retracted' if retracted else party}.{G.image_ext(buf.getvalue())}")
 
 
@@ -401,32 +405,65 @@ async def outlet_autocomplete(_interaction: discord.Interaction, current: str):
 @app_commands.autocomplete(race=race_autocomplete)
 @app_commands.choices(winner=PARTY_CHOICES)
 async def call_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str]):
-    guild, user = interaction.guild, interaction.user
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    await cast_call_vote(interaction, rid, winner.value)
+
+
+async def _drop_button(interaction: discord.Interaction):
+    """Take the Also call button off the post it was clicked on, once it has no more use. A failure here doesn't matter."""
+    if interaction.message:
+        try:
+            await interaction.message.edit(view=None)
+        except discord.HTTPException:
+            log.info("Couldn't remove a call button from its post")
+
+
+class AlsoCall(discord.ui.DynamicItem[discord.ui.Button], template=r"alsocall:(?P<rid>[A-Z0-9-]+):(?P<party>[A-Z])"):
+    """The button on a call vote's post: one click casts the same vote as /call. Its ID holds the race and winner, so
+    buttons on older posts keep working after a restart."""
+
+    def __init__(self, rid: str, party: str):
+        self.rid, self.party = rid, party
+        style = {"D": discord.ButtonStyle.primary, "R": discord.ButtonStyle.danger}.get(party, discord.ButtonStyle.secondary)
+        super().__init__(discord.ui.Button(label=f"Also call for {cand(rid, party)}"[:80], style=style,
+                                           custom_id=f"alsocall:{rid}:{party}"))
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
+        return cls(match["rid"], match["party"])
+
+    async def callback(self, interaction: discord.Interaction):
+        await cast_call_vote(interaction, self.rid, self.party)
+
+
+async def cast_call_vote(interaction: discord.Interaction, rid: str, party: str):
+    """One Election Junkie's vote to call a race, from /call or the Also call button."""
+    guild, user = interaction.guild, interaction.user
     if not is_junkie(user):
         return await interaction.response.send_message(
             f"You need the **{CFG['junkie_role']}** role to vote on calls.", ephemeral=True)
-    party = winner.value
     official = store.get(rid)
     if official:
         msg = (f"{label(rid)} is already called for {cand(rid, official['party'])}."
                if official["party"] == party else
                f"{label(rid)} is already called for {cand(rid, official['party'])}. "
                f"Use `/uncall` if you think the desk got it wrong.")
-        return await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.response.send_message(msg, ephemeral=True)
+        return await _drop_button(interaction)
     prev = store.active_vote(user.id, rid, "call")
     if prev and prev["party"] == party:
         return await interaction.response.send_message("You've already voted for that call.", ephemeral=True)
 
     store.cast(user.id, rid, "call", party)
     ids = junkie_ids(guild)
-    support = [u for u, p in store.active_votes(rid, "call").items() if p == party and u in ids]
+    counted = counted_voters(guild)
+    support = [u for u, p in store.active_votes(rid, "call").items() if p == party and u in counted]
     need = votes_needed(guild)
     await interaction.response.send_message(
-        f"Vote recorded: {label(rid)} → {cand(rid, party)}. Posted in {channel_note(guild, 'board_channel')}.",
-        ephemeral=True)
+        f"Vote recorded: {label(rid)} → {cand(rid, party)}. Posted in {channel_note(guild, 'board_channel')}. "
+        f"`/unvote` takes it back.", ephemeral=True)
 
     switched = f" (switched from {S.EMOJI[prev['party']]})" if prev else ""
     how = f"Called by {len(support)} of {len(ids)} Election Junkies"
@@ -438,7 +475,12 @@ async def call_cmd(interaction: discord.Interaction, race: str, winner: app_comm
         text += f"\n✅ That's a majority. {official_note(guild, rid)}"
     elif store.get(rid):  # another vote completed the majority while this one was being recorded
         text += "\n-# The desk had just called it."
-    await post(guild, "board_channel", interaction.channel, content=text)
+    extra = {}
+    if not store.get(rid):      # still open, so the next person can join in with one click
+        extra["view"] = discord.ui.View(timeout=None).add_item(AlsoCall(rid, party))
+    await post(guild, "board_channel", interaction.channel, content=text, **extra)
+    if store.get(rid):
+        await _drop_button(interaction)
     if reached:
         await make_official(guild, rid, party, how, interaction.channel)
 
@@ -472,7 +514,8 @@ async def uncall_cmd(interaction: discord.Interaction, race: str):
         return await interaction.response.send_message("You've already voted to retract it.", ephemeral=True)
     store.cast(user.id, rid, "uncall", official["party"])
     ids = junkie_ids(guild)
-    support = [u for u in store.active_votes(rid, "uncall") if u in ids]
+    counted = counted_voters(guild)
+    support = [u for u in store.active_votes(rid, "uncall") if u in counted]
     need = votes_needed(guild)
     await interaction.response.send_message("Retraction vote recorded.", ephemeral=True)
     text = (f"🧯 **{user.display_name}** has voted to retract the call in {race_phrase(rid)} "
@@ -635,12 +678,15 @@ async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int
 # =========================================================================== House calls read automatically
 _bsky = {"failures": 0, "warned": False, "checked": None, "error": None, "calls": 0, "reviews": 0}
 _nyt = {"failures": 0, "warned": False, "checked": None, "error": None, "calls": 0, "reviews": 0}
+_ddhq = {"checked": None, "calls": 0, "reviews": 0, "loaded": False}
 
 
 async def take_auto_call(guild, rid: str, party: str, outlet: str, source: str):
     """A rated seat gets the full projection, and so does any call that disagrees with another. Otherwise it's a Safe
     seat: it joins the next roll-up, and a later outlet agreeing with it is logged without a post. Hundreds of them can
     come in right after polls close, and a post for each would bury the seats people are watching."""
+    if any(p["outlet"] == outlet and p["party"] == party for p in store.procalls(rid)):
+        return      # already logged from this outlet, by hand or from another of its sources
     official = store.get(rid)
     if not is_safe_seat(rid) or rival_house_caller(rid, party) or (official and official["party"] != party):
         return await log_outlet_call(guild, rid, party, outlet, 0, source=source)
@@ -766,6 +812,62 @@ async def nyt_pass(guild):
                                                    "-# If it's a real call, log it with `/procall`. To take one back, use `/uncall`.")
 
 
+async def take_ddhq_file(guild, res: dict):
+    """Act on one file from the DDHQ grab button. As with NYT, only seats new since the last file count; a winner that
+    changes or goes away goes to a person, because the bot doesn't undo a call on its own."""
+    if res.get("error"):
+        return await post(guild, "board_channel", content=f"⚠️ Didn't use the DDHQ grab `{res.get('file')}`: {res['error']}.")
+    _ddhq["checked"] = time.time()
+    if not store.setting("autocalls", True):
+        return await post(guild, "board_channel", content="DDHQ grab ignored, because `/autocalls` is off.")
+    found, seen, check, new = res["found"], store.setting("ddhq_seen", {}), [], 0
+    for rid in [rid for rid in seen if rid not in found]:
+        check.append(f"{label(rid)}: it no longer lists a winner ({seen.pop(rid)} before)")
+    for seat, got in found.items():
+        rid, mark = got.get("rid"), got.get("party", "?")
+        if not rid:
+            check.append(f"{seat}: {got['review']}")
+            continue
+        if seen.get(rid) == mark or now() < N.first_close(R.RACES[rid]["state"]):
+            continue
+        before = seen.get(rid)
+        seen[rid] = mark
+        store.set_setting("ddhq_seen", seen)    # first, so a seat that fails here can't be called twice
+        try:
+            if before:
+                check.append(f"{label(rid)}: it changed from {before} to {mark}")
+            elif got.get("call"):
+                new += 1
+                await take_auto_call(guild, rid, got["party"], DG.OUTLET, "Read from DDHQ's results page with the grab button.")
+            else:
+                check.append(f"{label(rid)}: {got['review']}")
+        except Exception:
+            log.exception("Couldn't act on DDHQ's call in %s", rid)
+    store.set_setting("ddhq_seen", seen)
+    _ddhq["calls"] += new
+    if not _ddhq["loaded"]:
+        _ddhq["loaded"] = True
+        await post(guild, "board_channel", content=f"📥 Loaded DDHQ's House calls with the grab button: D {res['tally'].get('D')}, "
+                                                   f"R {res['tally'].get('R')}, {new} new here. Later grabs load quietly.")
+    if check:
+        _ddhq["reviews"] += len(check)
+        text = "\n".join(f"- {c}" for c in check)[:1700]
+        await post(guild, "board_channel", content=f"👀 **DDHQ**'s page needs a person to check:\n{text}\n"
+                                                   "-# If it's a real call, log it with `/procall`. To take one back, use `/uncall`.")
+
+
+@tasks.loop(seconds=10)
+async def ddhq_loop():
+    # same rule as bluesky_loop: nothing may escape
+    try:
+        guild = main_guild()
+        if guild:
+            for res in await asyncio.to_thread(DG.scan):
+                await take_ddhq_file(guild, res)
+    except Exception:
+        log.exception("DDHQ grab pass failed")
+
+
 @tasks.loop(seconds=30)
 async def nyt_loop():
     # same rule as bluesky_loop: nothing may escape
@@ -788,6 +890,58 @@ async def bluesky_loop():
         log.exception("Bluesky pass failed")
 
 
+async def call_nyt_winners(guild, user_id: int, fallback=None) -> dict:
+    """Make official every race NYT lists a winner for. A race already called the same way is only logged. One called
+    the other way, by the desk or another trusted outlet, goes to a person. Nothing counts until the state's polls close."""
+    found, problems = await NYT.fetch_all()
+    out = {"called": [], "already": 0, "check": [], "problems": problems}
+    for rid, got in found.items():
+        try:
+            if got.get("review"):
+                out["check"].append(f"{label(rid)}: {got['review']}")
+                continue
+            party, official = got["party"], store.get(rid)
+            if now() < N.first_close(R.RACES[rid]["state"]):
+                continue
+            if official and official["party"] != party:
+                out["check"].append(f"{label(rid)}: NYT says {party}, the desk called it {official['party']}")
+            elif official:
+                if not any(p["outlet"] == NYT.OUTLET for p in store.procalls(rid)):
+                    store.procall(rid, NYT.OUTLET, party, user_id)
+                out["already"] += 1
+            elif rival_house_caller(rid, party):
+                out["check"].append(f"{label(rid)}: NYT says {party}, {rival_house_caller(rid, party)} called it the other way")
+            elif R.RACES[rid]["type"] == "house":
+                await take_auto_call(guild, rid, party, NYT.OUTLET, "Read from NYT's results data (the AP's call).")
+                out["called"].append(rid)
+            else:
+                how = f"Projected by {NYT.OUTLET}"
+                store.procall(rid, NYT.OUTLET, party, user_id)
+                if claim_official(rid, party, how, outlet=NYT.OUTLET):
+                    await make_official(guild, rid, party, how, fallback, outlet=NYT.OUTLET)
+                    out["called"].append(rid)
+        except Exception:
+            log.exception("Couldn't act on NYT's call in %s", rid)
+            out["check"].append(f"{label(rid)}: something went wrong, so check it by hand")
+    return out
+
+
+@tree.command(name="callnyt", description="Admin: make official every House, Senate and governor race NYT has called.")
+@app_commands.guild_only()
+async def callnyt_cmd(interaction: discord.Interaction):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    res = await call_nyt_winners(interaction.guild, interaction.user.id, interaction.channel)
+    lines = [f"**Called {len(res['called'])}**" + (f": {', '.join(res['called'])}" if res["called"] else "") +
+             f"\nAlready called the same way: {res['already']}."]
+    if res["check"]:
+        lines.append("**Left alone, for a person to check:**\n" + "\n".join(f"- {c}" for c in res["check"]))
+    if res["problems"]:
+        lines.append("**Couldn't read:**\n" + "\n".join(f"- {p}" for p in res["problems"]))
+    await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
+
+
 @tree.command(name="autocalls", description="Admin: turn House calls read from Bluesky and NYT on or off, or see how they're doing.")
 @app_commands.guild_only()
 @app_commands.choices(turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
@@ -807,6 +961,9 @@ async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Cho
     if _nyt["checked"]:
         lines.append(f"{NYT.OUTLET} last read {S.minutes_text((time.time() - _nyt['checked']) / 60)} ago. Since the last restart: "
                      f"{_nyt['calls']} calls, {_nyt['reviews']} seats sent to a person.")
+    if _ddhq["checked"]:
+        lines.append(f"DDHQ grab button last loaded {S.minutes_text((time.time() - _ddhq['checked']) / 60)} ago. Since the last "
+                     f"restart: {_ddhq['calls']} calls, {_ddhq['reviews']} seats sent to a person.")
     if _bsky["error"]:
         lines.append(f"⚠️ Last Bluesky error: {_bsky['error']}")
     if _nyt["error"]:
@@ -1880,16 +2037,17 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
 
 @tree.command(name="cardtheme", description="Admin: change the look of official call cards.")
 @app_commands.guild_only()
-@app_commands.describe(theme="Leave blank to go back to the config.json default")
+@app_commands.describe(theme="Replaces the saved art in assets/calls. Leave blank to bring that art back")
 @app_commands.choices(theme=THEME_CHOICES)
 async def cardtheme_cmd(interaction: discord.Interaction, theme: app_commands.Choice[str] | None = None):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     store.set_setting("card_theme", theme.value if theme else None)
+    store.set_setting("card_art", not theme)        # picking a theme means that look, not the saved art
     await interaction.response.defer(ephemeral=True)
-    sample = await card_file("OH-SEN", "D", "Sample card", theme=card_theme())
+    sample = await card_file("OH-SEN", "D", "Sample card")
     note = (f"Call cards now use **{card_theme()}**." if theme else
-            f"Back to the config.json default: **{card_theme()}**.")
+            f"Back to the saved art in assets/calls, and **{card_theme()}** for races without any.")
     await interaction.followup.send(f"{note} Here's a sample (OH-SEN, a flip):", file=sample, ephemeral=True)
 
 
@@ -2080,6 +2238,7 @@ async def county_loop():
             cache = await CWR.refresh_live()
             for m in CWR.blocked_notices(cache):
                 await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
+            _start_state_watch(cache)
             if cache.get("changed"):
                 _cw["dirty"] = True
                 if src.get("post_alerts", True):
@@ -2087,6 +2246,16 @@ async def county_loop():
                     g = main_guild()
                     for m in msgs:
                         await post(g, "board_channel", content=m, allowed_mentions=NO_PINGS)
+        elif now() > N.ELECTION_DAY.replace(day=4, hour=8):
+            # After the night, states with late ballots keep updating the workbook and the private /watchstate DMs. Nothing
+            # goes to the board: the night's public alerts are over.
+            extended = CWR.extended_states(src, now())
+            if extended and time.time() - _cw["live_at"] >= min(extended.values()):
+                _cw["live_at"] = time.time()
+                cache = await CWR.refresh_live(only=set(extended))
+                _start_state_watch(cache)
+                if cache.get("changed"):
+                    _cw["dirty"] = True
         loaded = await asyncio.to_thread(CWR.scan_inbox)
         for res in loaded:
             await _announce_file(main_guild(), res, "the grab button" if res.get("grab") else "the inbox folder")
@@ -2099,11 +2268,148 @@ async def county_loop():
             _cw["dirty"], _cw["wb_at"] = False, time.time()
 
             async def _write():
-                _cw["status"] = await asyncio.to_thread(CWR.write_workbook)
+                cache = await asyncio.to_thread(CWR.live_cache)
+                _cw["status"] = await asyncio.to_thread(CWR.write_workbook, cache)
                 log.info("County Watch: %s", _cw["status"])
+                dms = _cw.get("dm_task")
+                # one at a time: if sending is still going, the next update's message covers these numbers too
+                if store.setting("results_dm_users") and CWR.workbook_wrote(_cw["status"]) and (not dms or dms.done()):
+                    _cw["dm_task"] = asyncio.create_task(_send_results_dms(cache))
             _cw["wb_task"] = asyncio.create_task(_write())   # runs alongside, never delays the next feed check
     except Exception:
         log.exception("County Watch loop failed")
+
+
+async def _send_results_dms(cache: dict):
+    """DM everyone who turned on /resultsdm each county whose numbers just reached the workbook. Runs on its own, so
+    trouble here can't touch the workbook or the feeds. Only ever goes to people's DMs, never a channel."""
+    try:
+        new = await asyncio.to_thread(CWR.result_snapshot, cache)
+        old = store.setting("results_dm_last")
+        store.set_setting("results_dm_last", new)
+        msgs = CWR.result_messages(old, new) if old is not None else []
+        for uid in store.setting("results_dm_users", []) if msgs else []:
+            try:
+                user = client.get_user(uid) or await client.fetch_user(uid)
+                for m in msgs:
+                    await user.send(m, allowed_mentions=NO_PINGS)
+                _cw.pop("dm_error", None)
+            except discord.DiscordException as exc:
+                _cw["dm_error"] = f"{datetime.now():%I:%M %p}: {exc}"[:200]
+                log.warning("Results DM to %s failed: %s", uid, exc)
+    except Exception:
+        log.exception("Results DMs failed")
+
+
+def _start_state_watch(cache: dict):
+    watch = _cw.get("watch_task")
+    if store.setting("state_watch") and (not watch or watch.done()):
+        _cw["watch_task"] = asyncio.create_task(_send_state_watch(cache))
+
+
+async def _send_state_watch(cache: dict):
+    """DM whoever is watching a state: the full alert when its votes change, a county-by-county update when only % in moves. Runs on its
+    own, so trouble here can't touch the feeds. Each DM compares against the last one sent. Only ever goes to DMs."""
+    try:
+        watch, last = store.setting("state_watch", {}), store.setting("state_watch_last", {})
+        for st, users in watch.items():
+            new = await asyncio.to_thread(CWR.state_snapshot, st, cache)
+            old = last.get(st)
+            if old is None:         # nothing to compare with yet: start from here, quietly
+                last[st] = new
+                store.set_setting("state_watch_last", last)
+                continue
+            if not users:
+                continue
+            if CWR.votes_moved(old, new):
+                msgs = await asyncio.to_thread(CWR.state_watch_messages, st, old, new)
+            else:
+                moves = CWR.pct_moves(old, new)
+                if not moves:
+                    continue
+                msgs = await asyncio.to_thread(CWR.pct_messages, st, old, new, moves)
+            last[st] = new
+            store.set_setting("state_watch_last", last)
+            for uid in users:
+                try:
+                    user = client.get_user(uid) or await client.fetch_user(uid)
+                    for m in msgs:
+                        await user.send(m, allowed_mentions=NO_PINGS)
+                    _cw.pop("watch_error", None)
+                except discord.DiscordException as exc:
+                    _cw["watch_error"] = f"{datetime.now():%I:%M %p}: {exc}"[:200]
+                    log.warning("State watch DM to %s failed: %s", uid, exc)
+    except Exception:
+        log.exception("State watch DMs failed")
+
+
+@tree.command(name="watchstate", description="Admin: DM you (and only you) when a state's Senate votes or % in change.")
+@app_commands.guild_only()
+@app_commands.choices(state=CW_STATE_CHOICES, turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
+async def watchstate_cmd(interaction: discord.Interaction, state: app_commands.Choice[str], turn: app_commands.Choice[str] | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    uid, st, watch = interaction.user.id, state.value, store.setting("state_watch", {})
+    users = watch.get(st, [])
+    if turn and turn.value == "off":
+        watch[st] = [u for u in users if u != uid]
+        store.set_setting("state_watch", {s: u for s, u in watch.items() if u})
+        return await interaction.response.send_message(f"Alerts for **{state.name}** are **off** for you.", ephemeral=True)
+    if turn:
+        await interaction.response.defer(ephemeral=True)
+        cache = await asyncio.to_thread(CWR.live_cache)
+        now_in = await asyncio.to_thread(CWR.state_snapshot, st, cache)
+        try:
+            for m in await asyncio.to_thread(CWR.state_watch_messages, st, now_in, now_in):
+                await interaction.user.send(m, allowed_mentions=NO_PINGS)
+        except discord.DiscordException:
+            return await interaction.followup.send(
+                "I couldn't DM you, so these alerts are still off. Turn on direct messages from this server's members "
+                "(server name → Privacy Settings), then run this again.", ephemeral=True)
+        if uid not in users:
+            watch[st] = users + [uid]
+            store.set_setting("state_watch", watch)
+        return await interaction.followup.send(f"Alerts for **{state.name}** are **on** for you. Nobody else sees them.", ephemeral=True)
+    text = f"Alerts for **{state.name}** are **{'on' if uid in users else 'off'}** for you."
+    if _cw.get("watch_error"):
+        text += f"\n⚠️ Last send failed at {_cw['watch_error']}"
+    await interaction.response.send_message(text, ephemeral=True)
+
+
+@tree.command(name="resultsdm", description="Admin: DM you (and only you) each county's results as they reach the workbook.")
+@app_commands.guild_only()
+@app_commands.choices(turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
+async def resultsdm_cmd(interaction: discord.Interaction, turn: app_commands.Choice[str] | None = None):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    uid, users = interaction.user.id, store.setting("results_dm_users", [])
+    if turn and turn.value == "off":
+        users = [u for u in users if u != uid]
+        store.set_setting("results_dm_users", users)
+        if not users:
+            store.set_setting("results_dm_last", None)
+        return await interaction.response.send_message("Results DMs are **off** for you.", ephemeral=True)
+    if turn:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.user.send("🔔 Results DMs are on. Each time the workbook updates, you'll get the state, "
+                                        "county, % in and results for every county that changed. `/resultsdm off` stops them.",
+                                        allowed_mentions=NO_PINGS)
+        except discord.DiscordException:
+            return await interaction.followup.send(
+                "I couldn't DM you, so results DMs are still off. Turn on direct messages from this server's members "
+                "(server name → Privacy Settings), then run this again.", ephemeral=True)
+        if not users:       # start from what's there now, rather than sending every county counted so far
+            store.set_setting("results_dm_last", await asyncio.to_thread(CWR.result_snapshot))
+        if uid not in users:
+            store.set_setting("results_dm_users", users + [uid])
+        return await interaction.followup.send(
+            "Results DMs are **on** for you. Nobody else sees them, and counties already counted aren't sent again until "
+            "their numbers change.", ephemeral=True)
+    text = f"Results DMs are **{'on' if uid in users else 'off'}** for you."
+    if _cw.get("dm_error"):
+        text += f"\n⚠️ Last send failed at {_cw['dm_error']}"
+    await interaction.response.send_message(text, ephemeral=True)
 
 
 async def _announce_file(guild, res: dict, how: str):
@@ -2480,6 +2786,7 @@ async def on_app_error(interaction: discord.Interaction, error: app_commands.App
 
 @client.event
 async def setup_hook():
+    client.add_dynamic_items(AlsoCall)
     gid = os.getenv("GUILD_ID")
     if gid:
         guild = discord.Object(id=int(gid))
@@ -2515,6 +2822,8 @@ async def on_ready():
         bluesky_loop.start()
     if not nyt_loop.is_running():
         nyt_loop.start()
+    if not ddhq_loop.is_running():
+        ddhq_loop.start()
     if not safe_batch_loop.is_running():
         safe_batch_loop.start()
 
