@@ -1186,7 +1186,7 @@ def build_pages() -> list[dict]:
         for i, part in enumerate(parts):
             pages.append({"title": name + (f" {i + 1}/{len(parts)}" if len(parts) > 1 else "")
                           + ("" if sec.get("required") else " (bonus)"), "races": part,
-                          "map": kind if kind in ("senate", "governor") else None, "kind": kind,
+                          "map": kind if kind in G.MAP_KINDS else None, "kind": kind,
                           "required": bool(sec.get("required"))})
     return pages
 
@@ -1275,25 +1275,36 @@ class HouseButton(discord.ui.Button):
         await view.refresh(interaction)
 
 
+def tiebreak() -> dict:
+    """The pack's tiebreaker question, with the wording Discord has room for: {"label", "name", "min", "max"}. A
+    box's label can be 45 characters, so a longer question becomes "Guess <what it's called>"."""
+    tb = dict(S.GAME.get("tiebreaker") or {})
+    name = tb.get("name") or "the tiebreaker"
+    label = tb.get("label") or f"Guess {name}"
+    return {"name": name, "label": label if len(label) <= 45 else f"Guess {name}"[:45],
+            "min": int(tb.get("min", 0)), "max": int(tb.get("max", 435)), "hint": tb.get("hint", "")}
+
+
 class TiebreakModal(discord.ui.Modal, title="Tiebreaker"):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return await _enter_server(interaction)
 
-    seats = discord.ui.TextInput(label="How many House seats will Democrats win?",
-                                 placeholder="0 to 435", max_length=3)
-
     def __init__(self, view: "PredictView"):
         super().__init__()
-        self.pv = view
+        self.pv, self.tb = view, tiebreak()
+        self.seats = discord.ui.TextInput(label=self.tb["label"], placeholder=f"{self.tb['min']} to {self.tb['max']}",
+                                          max_length=len(str(self.tb["max"])))
         if view.house_seats is not None:
             self.seats.default = str(view.house_seats)
+        self.add_item(self.seats)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             n = int(str(self.seats.value).strip())
-            assert 0 <= n <= 435
+            assert self.tb["min"] <= n <= self.tb["max"]
         except (ValueError, AssertionError):
-            return await interaction.response.send_message("Enter a whole number from 0 to 435.", ephemeral=True)
+            return await interaction.response.send_message(
+                f"Enter a whole number from {self.tb['min']} to {self.tb['max']}.", ephemeral=True)
         self.pv.house_seats = n
         self.pv.note = None
         await self.pv.refresh(interaction)
@@ -1423,7 +1434,8 @@ class PredictView(ScopedView):
         if R.races_of("senate"):
             so_far[0:0] = [f"**Senate adds up to:** {senate_summary(self.picks)}"]
         if S.GAME.get("tiebreaker"):
-            so_far.append("**Tiebreaker:** " + (str(self.house_seats) if self.house_seats is not None else "not entered"))
+            so_far.append(f"**Tiebreaker** ({tiebreak()['name']}): "
+                          + (str(self.house_seats) if self.house_seats is not None else "not entered"))
         e.add_field(name="Your picks so far", inline=False, value="\n".join(so_far)[:1024])
         closes = deadline() if predictions_open() else datetime.fromtimestamp(unlocked_until(self.user.id), TZ)
         e.set_footer(text="Nothing is saved until you press Save all · "
@@ -1541,7 +1553,7 @@ async def predictions_cmd(interaction: discord.Interaction, member: discord.Memb
     control = {True: " ✅", False: " ❌"}.get(g["marks"].get("US-SENATE"), "")
     e.add_field(name="Senate", value=f"{senate_summary(picks)}{control}\n{grade_text(g['cats']['senate'])}", inline=False)
     e.add_field(name="House", value=(f"{S.EMOJI[house]} {R.PARTY_NAMES[house]}{mark}" if house else "not picked")
-                + (f"\nTiebreaker: D {meta['house_dem_seats']}" if meta.get("house_dem_seats") is not None else ""))
+                + (f"\nTiebreaker ({tiebreak()['name']}): {meta['house_dem_seats']}" if meta.get("house_dem_seats") is not None else ""))
     e.add_field(name="Governors (bonus)", value=grade_text(g["cats"]["governor"]))
     e.add_field(name="Battlegrounds (bonus)", value=grade_text(g["cats"]["battleground"]))
     card = prediction_card_file(target.display_name, picks, meta.get("house_dem_seats"), marks=g["marks"])
@@ -1623,13 +1635,18 @@ async def leaderboard_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=e)
 
 
-@tree.command(name="finalhouse", description="Admin: set the final number of Democratic House seats (tiebreaker).")
+@tree.command(name="finalhouse", description="Admin: set the final number the tiebreaker is settled against.")
 @app_commands.guild_only()
-async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_commands.Range[int, 0, 435]):
+@app_commands.describe(dem_seats="The real number: Democratic House seats in 2026, or whatever this election's tiebreaker asks")
+async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_commands.Range[int, 0, 1000]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
+    tb = tiebreak()
+    if not tb["min"] <= dem_seats <= tb["max"]:
+        return await interaction.response.send_message(
+            f"The tiebreaker is {tb['name']}, from {tb['min']} to {tb['max']}.", ephemeral=True)
     store.set_setting("final_house_dem", dem_seats)
-    await interaction.response.send_message(f"Final Democratic House seats set to {dem_seats}.")
+    await interaction.response.send_message(f"The tiebreaker's answer ({tb['name']}) is set to {dem_seats}.")
 
 
 @tree.command(name="unlockpicks", description="Admin: let one person use /predict after the deadline, for a set time.")
@@ -1663,7 +1680,7 @@ def closeout_embed(guild) -> discord.Embed:
                         value=_trim(", ".join(f"`{rid}`" for rid in left[key]), 1024))
     todo = []
     if left["house_seats"]:
-        todo.append("The final House seat count isn't in: `/finalhouse` settles the tiebreaker.")
+        todo.append(f"The tiebreaker's answer ({tiebreak()['name']}) isn't in: `/finalhouse` settles it.")
     if left["no_tiebreak"]:
         todo.append(f"No tiebreaker guess from: {', '.join(name_of(guild, u) for u in left['no_tiebreak'])}.")
     if todo:

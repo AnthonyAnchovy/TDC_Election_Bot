@@ -266,8 +266,9 @@ def _classic_card(race_id: str, party: str, *, candidate: str | None = None,
     """Transparent PNG: a floating glass card with knockout lettering and the state's silhouette."""
     from PIL import ImageFilter
 
+    import colors
     race = R.RACES[race_id]
-    key = "X" if retracted else party
+    key = "X" if retracted else colors.style(race_id, party)
     W, H = 1480, 900
     px0, py0, px1, py1 = 50, 70, W - 130, H - 60         # the glass panel
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -420,8 +421,10 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
              width: int | None = None, brand: bool = True) -> io.BytesIO:
     """calls: race -> party. marks: race -> True (pick right) / False (pick wrong), drawn as badges.
     width: downscale the PNG (used for the fast-updating prediction picker)."""
-    assert kind in ("senate", "governor")
+    assert kind in MAP_KINDS
     marks = marks or {}
+    if kind == "president":
+        return _weighted_map(kind, calls, title, marks, pending_word, width, brand)
     holders = R.SENATE if kind == "senate" else R.GOVERNOR
     suffix = "SEN" if kind == "senate" else "GOV"
 
@@ -494,6 +497,94 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
     cx = 52 + bw / 2
     d.line([cx, bar_y - 8, cx, bar_y + bar_h + 8], fill=WHITE, width=3)
     d.text((cx, bar_y + bar_h + 26), f"{control} for {'control' if kind == 'senate' else 'a majority'}  ·  {base_note}",
+           font=font(22, False), fill=MUTED, anchor="mm")
+    if width:
+        img = img.resize((width, round(H * width / W)), Image.LANCZOS)
+    return to_png(img)
+
+
+MAP_KINDS = ("senate", "governor", "president")
+EXTRA_TILES = {"DC": (9, 5)}        # drawn only on a map whose races include it
+
+
+def _weighted_map(kind: str, calls: dict[str, str], title, marks: dict, pending_word: str, width, brand: bool) -> io.BytesIO:
+    """The tile map for races that count for more than one each: a president's, where a state is its electoral
+    votes. Every state is still one tile, with its votes written under its name, and the bar adds the votes up.
+    Districts that vote on their own (Maine's and Nebraska's) have no tile: they're listed under the map."""
+    races = {rid: r for rid, r in R.RACES.items() if r["type"] == kind}
+    body = R.BODIES.get(next((r["body"] for r in races.values() if r.get("body")), ""), {})
+    total = body.get("seats") or sum(r["weight"] for r in races.values())
+    need = body.get("majority") or total // 2 + 1
+    tiles = {**TILES, **EXTRA_TILES}
+    by_tile = {rid.split("-")[0]: rid for rid in races if rid.split("-")[0] in tiles}
+    off_map = [rid for rid in races if rid.split("-")[0] not in tiles]
+
+    W, H = 1200, 1030 + (44 if off_map else 0)
+    img = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(img)
+    title = (title or f"{__import__('packs').active().election_day().year} {body.get('name') or kind}").upper()
+    d.text((52, 56), title, font=fit(d, title, W - 400, 48), fill=WHITE, anchor="lm")
+    if brand:
+        d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
+    tile, gap = 84, 8
+    x0, y0 = 52, 112
+    flips = 0
+    for st, (c, r) in tiles.items():
+        rid = by_tile.get(st)
+        if not rid and st in EXTRA_TILES:
+            continue
+        x, y = x0 + c * (tile + gap), y0 + r * (tile + gap)
+        got = calls.get(rid) if rid else None
+        fill, txt = (NO_RACE, (78, 83, 94)) if not rid else (PARTY[got], WHITE) if got else (PENDING, WHITE)
+        d.rounded_rectangle([x, y, x + tile, y + tile], radius=8, fill=fill)
+        if rid and not got:
+            d.rounded_rectangle([x, y, x + tile, y + tile], radius=8, outline=(130, 136, 150), width=2)
+        if got and races[rid].get("holder") and got != races[rid]["holder"]:
+            flips += 1
+            d.polygon([(x + tile - 30, y), (x + tile - 8, y), (x + tile, y + 8), (x + tile, y + 30)], fill=WHITE)
+        d.text((x + tile / 2, y + tile / 2 - (9 if rid else 0)), st, font=font(26), fill=txt, anchor="mm")
+        if rid:
+            d.text((x + tile / 2, y + tile / 2 + 20), str(races[rid]["weight"]), font=font(18, False), fill=txt, anchor="mm")
+        if rid in marks:
+            ok = marks[rid]
+            bx, by_ = x + 4, y + tile - 30
+            d.ellipse([bx, by_, bx + 26, by_ + 26], fill=(52, 199, 89) if ok else (20, 20, 20), outline=WHITE, width=2)
+            d.text((bx + 13, by_ + 13), "\u2713" if ok else "\u2717", font=font(18), fill=WHITE, anchor="mm")
+
+    votes = {}
+    for rid, r in races.items():
+        if rid in calls:
+            votes[calls[rid]] = votes.get(calls[rid], 0) + r["weight"]
+    dem, rep = votes.get("D", 0), votes.get("R", 0)
+    other = sum(v for k, v in votes.items() if k not in ("D", "R"))
+    unc = total - dem - rep - other
+    by = y0 + 8 * (tile + gap) + 30
+    if off_map:
+        x = 52
+        d.text((x, by), "DISTRICTS", font=font(20), fill=MUTED, anchor="lm")
+        x += 130
+        for rid in off_map:
+            got = calls.get(rid)
+            text = f"{rid.split('-')[0]} · {races[rid]['weight']}"
+            w = d.textlength(text, font=font(20)) + 24
+            d.rounded_rectangle([x, by - 17, x + w, by + 17], radius=6, fill=PARTY[got] if got else PENDING)
+            d.text((x + w / 2, by), text, font=font(20), fill=WHITE, anchor="mm")
+            x += w + 8
+        by += 44
+    d.text((52, by), f"DEM {dem}", font=font(40), fill=PARTY["D"], anchor="lt")
+    d.text((W - 52, by), f"REP {rep}", font=font(40), fill=PARTY["R"], anchor="rt")
+    mid = f"{unc} {pending_word}" + (f"  ·  OTHER {other}" if other else "") + (f"  ·  {flips} flip{'s' * (flips != 1)}" if flips else "")
+    d.text((W / 2, by + 20), mid, font=font(26, False), fill=MUTED, anchor="mm")
+    bar_y, bar_h, bw = by + 62, 34, W - 104
+    bx = 52
+    for p, n in (("D", dem), ("I", other), ("U", unc), ("R", rep)):
+        w = bw * n / total
+        if w > 0:
+            d.rectangle([bx, bar_y, bx + w, bar_y + bar_h], fill=PENDING if p == "U" else PARTY[p])
+        bx += w
+    cx = 52 + bw / 2
+    d.line([cx, bar_y - 8, cx, bar_y + bar_h + 8], fill=WHITE, width=3)
+    d.text((cx, bar_y + bar_h + 26), f"{need} of {total} to win  ·  the number on a state is its votes",
            font=font(22, False), fill=MUTED, anchor="mm")
     if width:
         img = img.resize((width, round(H * width / W)), Image.LANCZOS)
@@ -615,13 +706,11 @@ def prediction_card(name: str, picks: dict[str, str], house_seats: int | None = 
     return to_png(img)
 
 
-class _AnyOption(dict):
-    """A table keyed by party that also answers for an option that isn't one (a candidate in a nonpartisan race):
-    the neutral entry if the table has one, else the independent's."""
+def _tables():
+    """The party tables also answer for an option that isn't a party, in its pack's colour (colors.py)."""
+    import colors
+    for name, tone in (("PARTY", "base"), ("BG_GRAD", "gradient"), ("PANEL_FILL", "panel"), ("GLASS", "gradient")):
+        globals()[name] = colors.Table(globals()[name], tone)
 
-    def __missing__(self, key):
-        return self["X"] if "X" in self else self["I"]
 
-
-for _name in ("PARTY", "BG_GRAD", "PANEL_FILL", "GLASS"):
-    globals()[_name] = _AnyOption(globals()[_name])
+_tables()

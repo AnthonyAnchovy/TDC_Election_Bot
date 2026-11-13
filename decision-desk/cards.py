@@ -16,6 +16,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
+import colors as COL
 import competitive as CMP
 import graphics as G
 import night as N
@@ -102,7 +103,9 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
     when = when or datetime.now(N.ET)
     if when.tzinfo is None:
         when = when.replace(tzinfo=N.ET)
-    return {"rid": race_id, "party": party, "kind": kind, "chamber": R.chamber(race_id),
+    # "party" is what the themes look colours and party words up by: the party letter, or the option's own colour
+    # for a candidate who isn't a party's (colors.py). "key" stays the option as the pack names it.
+    return {"rid": race_id, "party": COL.style(race_id, party), "key": party, "kind": kind, "chamber": R.chamber(race_id),
             # the state's outline is only drawn for a state: a city or any other place gets the card without one
             "state": st if st in packs.STATE_NAMES else None,
             "state_name": R.STATE_NAMES.get(st, f"U.S. {R.chamber_name(race_id)}"), "office": office,
@@ -324,7 +327,7 @@ def wire(c: dict) -> Image.Image:
     elif c["name"]:
         word, sub = surname(c["name"]).upper(), given(c["name"]).upper()
     else:
-        word, sub = PARTY_NOUN[c["party"]].upper(), "PROJECTED WINNER"
+        word, sub = PARTY_NOUN.get(c["party"], "Winner").upper(), "PROJECTED WINNER"
     big = fit(d, word, 1180, ANTON, 300, 140)
     shadow = Image.new("L", (W, H), 0)
     ImageDraw.Draw(shadow).text((x - 4, 548), word, font=big, fill=255, anchor="ls")
@@ -336,7 +339,7 @@ def wire(c: dict) -> Image.Image:
 
     # flip tag
     if c["flip"]:
-        tag = _flip_tag(d, c["holder"], c["party"], "TAKEOVER" if c["kind"] == "control" else "PICKUP")
+        tag = _flip_tag(d, c["holder"], c["key"], "TAKEOVER" if c["kind"] == "control" else "PICKUP")
         sh = Image.new("L", (W, H), 0)
         sh.paste(255, (W - tag.width - 64, 104, W - 64, 104 + tag.height))
         img.alpha_composite(solid(sh.filter(ImageFilter.GaussianBlur(14)), (0, 0, 0), 0.5))
@@ -799,13 +802,8 @@ def editorial_map(m: dict) -> Image.Image:
 MAPS = {"wire": wire_map, "editorial": editorial_map}
 
 
-class _AnyOption(dict):
-    """A table keyed by party that also answers for an option that isn't one (a candidate in a nonpartisan race):
-    the neutral entry if the table has one, else the independent's."""
-
-    def __missing__(self, key):
-        return self["X"] if "X" in self else self["I"]
-
-
-for _name in ("WIRE_FIELD", "WIRE_DOT", "WIRE_SEAT", "ED_COL", "ED_SEAT"):
-    globals()[_name] = _AnyOption(globals()[_name])
+# The tables above are keyed by party. As colors.Table they also answer for an option that isn't one, in the
+# colour its pack gives it, toned the way that table is: the wire field dark, its dots light.
+for _name, _tone in (("WIRE_FIELD", "field"), ("WIRE_DOT", "dot"), ("WIRE_SEAT", "base"), ("ED_COL", "base"),
+                     ("ED_SEAT", "base")):
+    globals()[_name] = COL.Table(globals()[_name], _tone)

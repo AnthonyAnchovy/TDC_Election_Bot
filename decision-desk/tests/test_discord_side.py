@@ -161,3 +161,79 @@ def test_the_newer_commands_are_registered(bot):
     assert bot.BOT_OUTLET == "The Bot" and not bot.is_house_caller(bot.BOT_OUTLET)      # it can never make a seat official
     assert bot.card_theme() in ("editorial", "wire", "classic") and bot.CFG["card_theme"] == "editorial"
     assert bot.reaction_files() == {}                                                   # none shipped: people add their own
+
+
+# ------------------------------------------------------------------ an option's own colour
+def _dominant(buf) -> tuple:
+    img = Image.open(io.BytesIO(buf.getvalue())).convert("RGB").resize((64, 64))
+    return max(img.getcolors(64 * 64), key=lambda c: c[0])[1]
+
+
+def test_a_candidate_is_drawn_in_their_own_colour():
+    import cards as C
+    import colors as COL
+    packs.activate("2027-chicago-mayor")
+    try:
+        own = {o["key"]: o["color"] for o in __import__("races").RACES["CHI-MAYOR"]["options"]}
+        assert len(set(own.values())) == 4 and COL.style("CHI-MAYOR", "B") == own["B"]
+        # "Candidate D" is not the Democrat: neither the party's colour nor its words
+        assert COL.style("CHI-MAYOR", "D") == own["D"] and not COL.is_party("CHI-MAYOR", "D")
+        facts = C.race_facts("CHI-MAYOR", "D", "Candidate D", "", None, False, None)
+        assert facts["key"] == "D" and facts["party"] == own["D"] and C.status_text(facts) == "WIN"
+        assert C.ED_COL[own["D"]] == COL.rgb(own["D"]) != C.ED_COL["D"]
+        assert C.WIRE_FIELD[own["B"]] == COL.dark(COL.rgb(own["B"]), 0.30)          # each table in its own tone
+        assert C.WIRE_DOT[own["B"]] == COL.light(COL.rgb(own["B"]), 0.45)
+        assert G.GLASS[own["B"]] == (COL.dark(COL.rgb(own["B"]), 0.50), COL.rgb(own["B"]))
+        b, d = (_dominant(G.call_card("CHI-MAYOR", k, candidate=f"Candidate {k}", theme="wire", use_custom=False)) for k in "BD")
+        assert b != d                                                               # two candidates, two cards
+        gone = G.call_card("CHI-MAYOR", "B", candidate="Candidate B", theme="wire", retracted=True, use_custom=False)
+        assert _dominant(gone) not in (b, d)                                        # a retraction is nobody's colour
+    finally:
+        packs.activate(packs.DEFAULT)
+
+
+def test_party_colours_are_what_they_were():
+    import cards as C
+    import colors as COL
+    assert COL.style("GA-SEN", "D") == "D" and COL.style("NE-SEN", "I") == "I" and COL.is_party("GA-SEN", "R")
+    assert C.ED_COL["D"] == (33, 92, 189) and C.WIRE_FIELD["R"] == (186, 24, 32) and G.PARTY["I"] == (154, 92, 214)
+    assert C.ED_COL["X"] == (110, 112, 118) == C.ED_COL["nobody"] == C.ED_COL["#nonsense"]      # unknown: the neutral
+    assert G.PARTY["nobody"] == G.PARTY["I"]                                        # a table with no neutral entry
+    facts = C.race_facts("GA-SEN", "R", "Mike Collins", "", None, False, None)
+    assert facts["party"] == facts["key"] == "R" and C.status_text(facts) == "REPUBLICAN PICKUP"
+
+
+def test_a_packs_fourth_party_gets_its_colour(monkeypatch):
+    import cards as C
+    monkeypatch.setitem(packs.active().options, "G", {"name": "Green", "color": "#2e7d32"})
+    assert C.ED_COL["G"] == (46, 125, 50) and G.PANEL_FILL["G"] == (14, 38, 15)
+
+
+# ------------------------------------------------------------------ the picker's map, for a president
+def test_the_presidential_page_has_a_map():
+    packs.activate("2028-general")
+    try:
+        import races as RR
+        pres = {rid: r for rid, r in RR.RACES.items() if r["type"] == "president"}
+        assert sum(r["weight"] for r in pres.values()) == 538 and "DC-PRES" in pres
+        blank = Image.open(io.BytesIO(G.tile_map("president", {}).getvalue()))
+        full = Image.open(io.BytesIO(G.tile_map("president", {rid: r["holder"] for rid, r in pres.items()},
+                                                title="Someone's picks", pending_word="unpicked", width=760).getvalue()))
+        assert blank.size == (1200, 1074) and full.width == 760                    # taller: a row for the districts
+        assert blank.tobytes() != Image.open(io.BytesIO(G.tile_map("senate", {}).getvalue())).resize(blank.size).tobytes()
+    finally:
+        packs.activate(packs.DEFAULT)
+    assert Image.open(io.BytesIO(G.tile_map("senate", {"GA-SEN": "D"}).getvalue())).size == (1200, 1030)     # 2026's is unchanged
+    maps = json.loads(boot("2028-general", "print(json.dumps([[p['title'], p['map']] for p in bot.PAGES][:4]))"))
+    assert maps[:3] == [["President 1/3", "president"], ["President 2/3", "president"], ["President 3/3", "president"]]
+
+
+# ------------------------------------------------------------------ the tiebreaker, in the pack's words
+def test_the_tiebreaker_asks_the_packs_question(bot):
+    tb = bot.tiebreak()
+    assert (tb["label"], tb["min"], tb["max"], tb["name"]) == ("How many seats do Democrats win?", 0, 435, "Democratic House seats")
+    city = json.loads(boot("2027-chicago-mayor", "print(json.dumps(bot.tiebreak()))"))
+    assert city["label"] == "Guess the leader's share" and (city["min"], city["max"]) == (0, 100)      # the question is too long for the box
+    pres = json.loads(boot("2028-general", "print(json.dumps(bot.tiebreak()))"))
+    assert pres["label"] == "How many electoral votes does the winner get?" and (pres["min"], pres["max"]) == (270, 538)
+    assert all(len(t["label"]) <= 45 for t in (tb, city, pres))                     # Discord's limit for a box's label

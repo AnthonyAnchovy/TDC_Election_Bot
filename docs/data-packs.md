@@ -191,11 +191,10 @@ loads every pack in `packs/`.
 
 ## What is not general yet
 
-- **Call cards use a neutral grey for a candidate who isn't a party's.** They draw in every theme, but don't yet
-  pick up the colour the pack gives each option.
-- **The `/predict` map image** is only drawn for Senate and governor pages. A presidential page has its buttons but
-  no map in Discord; the website has the map.
-- **The tiebreaker box in Discord** still describes itself as House seats. The website uses the pack's wording.
+- **A city or other place has no outline of its own on a card.** A state's card draws the state; a card for
+  anywhere else falls back to the national map.
+- **`/map`** posts the Senate, governor and House maps. A presidential pack has the map in `/predict` and on the
+  website, but no `/map` choice yet.
 - **County Watch's model is still built around a two-party state race.** The states, the race it follows and every
   file it reads now come from the pack, but only 2026 ships baselines. A 2028 pack needs its own `baseline.csv`
   and `feeds.json`, and three pieces are still written for 2026's races: the Mississippi and Alaska special
