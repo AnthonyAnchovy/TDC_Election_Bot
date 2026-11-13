@@ -283,6 +283,9 @@ Things the code can't check for you. Do them on the PC that will run the bot:
 5. **The PC:** plugged in, sleep and automatic updates off until Nov 4, and a second person who knows how to restart `python bot.py` if the window closes.
 
 ## Rehearse
+For a first run, or after big changes, use a private test server with a bot of its own: `docs/live-test.md` is the
+checklist, and `python preflight.py` checks the setup without connecting.
+
 Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
 
 ## The desk's own bot, charts and extras

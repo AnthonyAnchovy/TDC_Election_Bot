@@ -65,6 +65,10 @@ TZ = ZoneInfo(CFG.get("timezone", "America/Chicago"))
 log = logging.getLogger("desk")
 NO_PINGS = discord.AllowedMentions.none()
 
+# Whether a server reads outlets' calls before anyone has said so with /autocalls. DESK_AUTOCALLS=off in .env starts
+# every server quiet, which is what a test server wants: nothing is called by itself until an admin turns it on.
+AUTOCALLS_DEFAULT = os.getenv("DESK_AUTOCALLS", "on").strip().lower() not in ("off", "0", "false", "no")
+
 intents = discord.Intents.default()
 intents.members = True  # needed to know who holds the Election Junkie role
 client = discord.Client(intents=intents)
@@ -963,7 +967,7 @@ async def take_ddhq_file(guild, res: dict):
     if res.get("error"):
         return await post(guild, "board_channel", content=f"⚠️ Didn't use the DDHQ grab `{res.get('file')}`: {res['error']}.")
     _ddhq["checked"] = time.time()
-    if not store.setting("autocalls", True):
+    if not store.setting("autocalls", AUTOCALLS_DEFAULT):
         return await post(guild, "board_channel", content="DDHQ grab ignored, because `/autocalls` is off.")
     found, seen, check, new = res["found"], store.setting("ddhq_seen", {}), [], 0
     for rid in [rid for rid in seen if rid not in found]:
@@ -1018,7 +1022,7 @@ def listening() -> list:
     out = []
     for guild in list(client.guilds):
         with TEN.scope(guild.id):
-            if store.setting("autocalls", True):
+            if store.setting("autocalls", AUTOCALLS_DEFAULT):
                 out.append(guild)
     return out
 
@@ -1139,7 +1143,7 @@ async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Cho
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     if turn:
         store.set_setting("autocalls", turn.value == "on")
-    on = store.setting("autocalls", True)
+    on = store.setting("autocalls", AUTOCALLS_DEFAULT)
     sources = ([f"{', '.join(BSKY.SOURCES.values())} on Bluesky"] if BSKY.SOURCES else []) + \
               ([f"{NYT.OUTLET}'s results data"] if NYT.urls().get("house") else [])
     lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: "
@@ -3405,12 +3409,61 @@ async def setup_hook():
     client.add_dynamic_items(AlsoCall)
     gid = os.getenv("GUILD_ID")
     if gid:
-        guild = discord.Object(id=int(gid))
-        tree.copy_global_to(guild=guild)
-        synced = await tree.sync(guild=guild)
+        await sync_commands(discord.Object(id=int(gid)))
     else:
         synced = await tree.sync()
-    log.info("Synced %d commands", len(synced))
+        log.info("Synced %d commands everywhere (Discord can take up to an hour to show them)", len(synced))
+
+
+_synced: set[int] = set()
+
+
+async def sync_commands(guild) -> int:
+    """Give one server the commands, which shows them there at once. With GUILD_ID set, every server the bot is in
+    gets them this way: the home server at startup, the others as the bot finds itself in them."""
+    if guild.id in _synced:
+        return 0
+    _synced.add(guild.id)
+    try:
+        tree.copy_global_to(guild=guild)
+        synced = await tree.sync(guild=guild)
+    except discord.HTTPException as exc:
+        _synced.discard(guild.id)
+        log.warning("Couldn't give the commands to server %s: %s", guild.id, exc)
+        return 0
+    log.info("Synced %d commands to server %s", len(synced), getattr(guild, "name", guild.id))
+    return len(synced)
+
+
+def server_report(guild) -> list[str]:
+    """What this server still needs before the desk can work in it, in words. Empty when it's ready."""
+    out = []
+    me = guild.me
+    for key in ("board_channel", "desk_channel"):
+        ch = find_channel(guild, key)
+        if not ch:
+            out.append(f"no #{CFG.get(key)} channel (create it, or set {key} in config.json)")
+            continue
+        perms = ch.permissions_for(me) if me else None
+        lacking = [name for name, ok in (("View Channel", perms.view_channel), ("Send Messages", perms.send_messages),
+                                         ("Embed Links", perms.embed_links), ("Attach Files", perms.attach_files))
+                   if not ok] if perms else []
+        if lacking:
+            out.append(f"in #{ch.name} the bot can't: {', '.join(lacking)}")
+    role = discord.utils.get(guild.roles, name=CFG["junkie_role"])
+    if not role:
+        out.append(f'no "{CFG["junkie_role"]}" role (only admins can vote on calls until there is one)')
+    elif not role.members:
+        out.append(f'nobody has the "{CFG["junkie_role"]}" role yet')
+    return out
+
+
+@client.event
+async def on_guild_join(guild):
+    if os.getenv("GUILD_ID"):
+        await sync_commands(guild)
+    for line in server_report(guild):
+        log.warning("%s: %s", guild.name, line)
 
 
 @client.event
@@ -3425,9 +3478,15 @@ async def on_ready():
         real = datetime.now(N.ET)
         if N.ELECTION_DAY.replace(hour=0) <= real <= N.morning_after(12) and g:
             await post(g, "board_channel", content=msg)
-    for key in ("board_channel", "desk_channel"):
-        if g and not find_channel(g, key):
-            log.warning("Channel #%s not found: create it or fix config.json", CFG.get(key))
+    log.info("Running %s. Records: %s. Automatic calls start %s.", packs.active().name, packs.data_root(),
+             "on" if AUTOCALLS_DEFAULT else "off (DESK_AUTOCALLS=off)")
+    for guild in client.guilds:
+        if os.getenv("GUILD_ID"):
+            await sync_commands(guild)
+        problems = server_report(guild)
+        log.info("Server %s (%s): %s", guild.name, guild.id, "ready" if not problems else f"{len(problems)} thing(s) to fix")
+        for line in problems:
+            log.warning("%s: %s", guild.name, line)
     if not alert_loop.is_running():
         alert_loop.start()
     if not county_loop.is_running():

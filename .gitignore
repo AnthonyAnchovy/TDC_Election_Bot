@@ -19,6 +19,7 @@ decision-desk/desk.db-journal
 
 # each data pack's records, per Discord server, and which pack the bot starts on
 decision-desk/data/
+decision-desk/data-test/
 decision-desk/packs/ACTIVE
 
 # what the bot saw and did on a night (feed payloads, and a command log with Discord user IDs)
