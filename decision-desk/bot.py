@@ -3429,7 +3429,12 @@ async def sync_commands(guild) -> int:
         synced = await tree.sync(guild=guild)
     except discord.HTTPException as exc:
         _synced.discard(guild.id)
-        log.warning("Couldn't give the commands to server %s: %s", guild.id, exc)
+        if getattr(exc, "code", None) == 50001:
+            log.warning("Discord won't let the bot add commands to server %s. Either the bot isn't in that server, "
+                        "GUILD_ID is another server's ID, or it was invited without the applications.commands "
+                        "scope: invite it again with both `bot` and `applications.commands` ticked.", guild.id)
+        else:
+            log.warning("Couldn't give the commands to server %s: %s", guild.id, exc)
         return 0
     log.info("Synced %d commands to server %s", len(synced), getattr(guild, "name", guild.id))
     return len(synced)
@@ -3508,7 +3513,15 @@ def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise SystemExit("DISCORD_TOKEN is missing. Copy .env.example to .env and fill it in.")
-    client.run(token, log_handler=None)
+    try:
+        client.run(token, log_handler=None)
+    except discord.PrivilegedIntentsRequired:
+        raise SystemExit("Discord refused the connection: the bot needs the Server Members Intent, to know who holds the "
+                         f"{CFG['junkie_role']} role. On https://discord.com/developers/applications open the bot's "
+                         "application, go to Bot, turn on Server Members Intent, save, and start the bot again.") from None
+    except discord.LoginFailure:
+        raise SystemExit("Discord didn't accept DISCORD_TOKEN. Press Reset Token on the bot's page in the developer "
+                         "portal and paste the new one into .env.") from None
 
 
 if __name__ == "__main__":

@@ -43,6 +43,10 @@ python preflight.py
 
 It lists what's set, what the bot would do if started now, and anything to fix. It never prints the token.
 
+If it doesn't start, the window says why. The two usual causes are both on the developer portal: **Server Members
+Intent** isn't turned on (Bot page), or the bot was invited without the `applications.commands` scope, or to a
+different server than `GUILD_ID` names, in which case Discord refuses to add its commands.
+
 ## 3. Round one: the small pack (10 minutes)
 
 `DESK_PACK=2027-chicago-mayor` is two races and no feeds, so nothing happens unless you do it. Start the bot
