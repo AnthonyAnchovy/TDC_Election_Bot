@@ -613,3 +613,15 @@ def prediction_card(name: str, picks: dict[str, str], house_seats: int | None = 
         label = rid + ((" ✓" if marks[rid] else " ✗") if rid in marks else "")
         d.text((cx + cw / 2, cy + ch / 2), label, font=font(17), fill=WHITE if p else (110, 115, 125), anchor="mm")
     return to_png(img)
+
+
+class _AnyOption(dict):
+    """A table keyed by party that also answers for an option that isn't one (a candidate in a nonpartisan race):
+    the neutral entry if the table has one, else the independent's."""
+
+    def __missing__(self, key):
+        return self["X"] if "X" in self else self["I"]
+
+
+for _name in ("PARTY", "BG_GRAD", "PANEL_FILL", "GLASS"):
+    globals()[_name] = _AnyOption(globals()[_name])

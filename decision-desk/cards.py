@@ -19,6 +19,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 import competitive as CMP
 import graphics as G
 import night as N
+import packs
 import races as R
 
 FONTS = Path(__file__).parent / "assets" / "fonts"
@@ -93,14 +94,18 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
         office = "Governor"
     elif kind == "house":
         office = "At-large district" if race_id.endswith("-AL") else f"{R._ordinal(int(race_id.split('-')[1]))} District"
-    else:
+    elif kind == "control":
         office = "Majority"
+    else:                                   # a pack's own kind of race: "Mayor", "Ballot Measure"
+        office = packs.TYPE_LABEL.get(kind, kind.replace("_", " ").title())
     holder = r.get("holder") or CMP.HOLDER_OF.get(race_id) or CMP.HOLDER.get(race_id)
     when = when or datetime.now(N.ET)
     if when.tzinfo is None:
         when = when.replace(tzinfo=N.ET)
-    return {"rid": race_id, "party": party, "kind": kind, "chamber": "house" if kind in ("house", "control") else kind,
-            "state": st, "state_name": R.STATE_NAMES.get(st, "U.S. House"), "office": office,
+    return {"rid": race_id, "party": party, "kind": kind, "chamber": R.chamber(race_id),
+            # the state's outline is only drawn for a state: a city or any other place gets the card without one
+            "state": st if st in packs.STATE_NAMES else None,
+            "state_name": R.STATE_NAMES.get(st, f"U.S. {R.chamber_name(race_id)}"), "office": office,
             "name": None if kind == "control" else candidate, "holder": holder,
             "flip": bool(holder and party and holder != party and not retracted), "hold": bool(party and holder == party),
             "rating": CMP.RATING_OF.get(race_id), "retracted": retracted, "tally": tally or "",
@@ -110,14 +115,14 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
 def status_text(c: dict) -> str:
     if c["retracted"]:
         return "CALL RETRACTED"
-    word = PARTY_WORD[c["party"]].upper()
+    word = PARTY_WORD.get(c["party"], "").upper()        # nothing, for an option that isn't a party
     if c["kind"] == "control":
-        return f"{word} {'HOLD' if c['hold'] else 'TAKEOVER'}"
-    return f"{word} {'PICKUP' if c['flip'] else 'HOLD' if c['hold'] else 'WIN'}"
+        return f"{word} {'HOLD' if c['hold'] else 'TAKEOVER'}".strip()
+    return f"{word} {'PICKUP' if c['flip'] else 'HOLD' if c['hold'] else 'WIN'}".strip()
 
 
 def kicker(c: dict, sep: str) -> str:
-    return "U.S. House" + sep + "Majority" if c["kind"] == "control" else f"{c['state_name']}{sep}{c['office']}"
+    return c["state_name"] + sep + "Majority" if c["kind"] == "control" else f"{c['state_name']}{sep}{c['office']}"
 
 
 def surname(name: str) -> str:
@@ -315,7 +320,7 @@ def wire(c: dict) -> Image.Image:
     if c["retracted"]:
         word, sub = "UNCALLED", "TOO EARLY TO CALL"
     elif c["kind"] == "control":
-        word, sub = {"D": "DEMOCRATS", "R": "REPUBLICANS", "I": "INDEPENDENTS"}[c["party"]], "HOUSE MAJORITY"
+        word, sub = {"D": "DEMOCRATS", "R": "REPUBLICANS", "I": "INDEPENDENTS"}.get(c["party"], str(c.get("name") or c["party"]).upper()), f"{c['chamber'].upper()} MAJORITY"
     elif c["name"]:
         word, sub = surname(c["name"]).upper(), given(c["name"]).upper()
     else:
@@ -415,9 +420,9 @@ def editorial(c: dict) -> Image.Image:
     if c["retracted"]:
         text = "Too early to call"
     elif c["kind"] == "control":
-        text = PARTY_NOUN[c["party"]] + "s"
+        text = PARTY_NOUN.get(c["party"], c.get("name") or c["party"]) + "s"
     else:
-        text = c["name"] or f"The {PARTY_NOUN[c['party']]}"
+        text = c["name"] or f"The {PARTY_NOUN.get(c['party'], 'winner')}"
     hf = fit(d, text, colw, SERIF, 168, 104)
     lines = [text]
     if d.textlength(text, font=hf) > colw and " " in text:
@@ -490,8 +495,10 @@ def editorial(c: dict) -> Image.Image:
         img.alpha_composite(cut, (int(cx - cut.width / 2), sy))
         d = ImageDraw.Draw(img)
         tracked(d, (cx, sy + cut.height + 54), c["rid"], font(FRANKLIN, 30, 700), INK, 0.12, anchor="ms")
-    else:
-        tracked(d, (cx, 220 + loc.height + 70), "218 FOR MAJORITY", font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
+    elif c["chamber"] in NEEDED:
+        tracked(d, (cx, 220 + loc.height + 70), f"{NEEDED[c['chamber']]} FOR MAJORITY", font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
+    else:                                           # a race somewhere that isn't a state: name the place under the map
+        tracked(d, (cx, 220 + loc.height + 70), str(c["state_name"]).upper()[:28], font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
     return img
 
 
@@ -790,3 +797,15 @@ def editorial_map(m: dict) -> Image.Image:
 
 
 MAPS = {"wire": wire_map, "editorial": editorial_map}
+
+
+class _AnyOption(dict):
+    """A table keyed by party that also answers for an option that isn't one (a candidate in a nonpartisan race):
+    the neutral entry if the table has one, else the independent's."""
+
+    def __missing__(self, key):
+        return self["X"] if "X" in self else self["I"]
+
+
+for _name in ("WIRE_FIELD", "WIRE_DOT", "WIRE_SEAT", "ED_COL", "ED_SEAT"):
+    globals()[_name] = _AnyOption(globals()[_name])

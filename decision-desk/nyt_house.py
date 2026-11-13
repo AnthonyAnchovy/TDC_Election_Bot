@@ -12,8 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-import aiohttp
-
+import net as NET
 import races as R
 import results as LIVE
 
@@ -91,24 +90,18 @@ def read_statewide(data: dict, suffix: str) -> dict[str, dict]:
 async def fetch_all() -> tuple[dict[str, dict], list[str]]:
     """Every House, Senate and governor race with a winner, and what couldn't be read. One file failing doesn't stop the others."""
     found, problems = {}, []
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40), headers={"User-Agent": LIVE.UA}) as s:
-        for name, url, reader in (("House", URL, read),
-                                  ("Senate", SENATE_URL, lambda d: read_statewide(d, "SEN")),
-                                  ("governor", GOVERNOR_URL, lambda d: read_statewide(d, "GOV"))):
-            try:
-                async with s.get(url) as r:
-                    r.raise_for_status()
-                    raw = await r.read()
-                found.update(await asyncio.to_thread(lambda: reader(json.loads(raw))))
-            except Exception as exc:
-                problems.append(f"NYT's {name} file: {str(exc)[:120] or type(exc).__name__}")
+    for name, url, reader in (("House", URL, read),
+                              ("Senate", SENATE_URL, lambda d: read_statewide(d, "SEN")),
+                              ("governor", GOVERNOR_URL, lambda d: read_statewide(d, "GOV"))):
+        try:
+            raw = await NET.fetch(url, source=f"nyt/{name.lower()}", timeout=40)
+            found.update(await asyncio.to_thread(lambda: reader(json.loads(raw))))
+        except Exception as exc:
+            problems.append(f"NYT's {name} file: {str(exc)[:120] or type(exc).__name__}")
     return found, problems
 
 
 async def fetch() -> dict[str, dict]:
     """Every seat with a winner right now, as read() gives them. The file is large, so it's read off the main thread."""
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25), headers={"User-Agent": LIVE.UA}) as s:
-        async with s.get(URL) as r:
-            r.raise_for_status()
-            raw = await r.read()
+    raw = await NET.fetch(URL, source="nyt/house", timeout=25, tries=2)
     return await asyncio.to_thread(lambda: read(json.loads(raw)))

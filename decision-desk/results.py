@@ -20,8 +20,7 @@ import time
 import zipfile
 from pathlib import Path
 
-import aiohttp
-
+import net as NET
 import races as R
 
 HERE = Path(__file__).parent
@@ -249,18 +248,15 @@ PARSERS = {"fl_txt": parse_fl, "nc_zip": parse_nc, "va_json": parse_va, "ev_data
 
 
 # ------------------------------------------------------------------ fetching
-async def _download(url: str, skip_cache: bool = False) -> bytes:
+async def _download(url: str, skip_cache: bool = False, source: str = "results") -> bytes:
     """skip_cache adds a changing query string, for sites whose CDN serves hours-old copies of the plain URL (Florida's)."""
-    timeout = aiohttp.ClientTimeout(total=45)
-    async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": UA}) as s:
-        async with s.get(f"{url}?t={int(time.time())}" if skip_cache else url) as r:
-            if r.status != 200:
-                raise RuntimeError(f"HTTP {r.status} from {url}")
-            return await r.read()
+    return await NET.fetch(url, source=source, bust=skip_cache)
 
 
 async def fetch_state(state: str, *, test: bool = False, force: bool = False) -> dict:
-    """{"races": {...}, "fetched_at": ts, "url": str} or raises. Cached for cache_seconds."""
+    """{"races": {...}, "fetched_at": ts, "url": str} or raises. Cached for cache_seconds. When the site can't be
+    reached but an earlier pull worked, that pull comes back with "stale" set to why, so a count that's a few
+    minutes old still shows, marked as such."""
     cfg = state_cfg(state)
     if not cfg:
         raise LookupError(f"No live feed set up for {state}")
@@ -274,7 +270,13 @@ async def fetch_state(state: str, *, test: bool = False, force: bool = False) ->
         hit = _cache.get(key)
         if hit and not force and time.time() - hit[0] < ttl:
             return hit[1]
-        raw = await _download(url, skip_cache=bool(cfg.get("skip_cache")))
+        try:
+            raw = await _download(url, skip_cache=bool(cfg.get("skip_cache")),
+                                  source=f"results/{state}" + ("/test" if test else ""))
+        except Exception as exc:
+            if not hit:
+                raise
+            return {**hit[1], "stale": str(exc)[:150] or type(exc).__name__}
         parsed = await asyncio.to_thread(PARSERS[cfg["format"]], raw)
         result = {"races": parsed, "fetched_at": time.time(), "url": url, "bytes": len(raw)}
         _cache[key] = (result["fetched_at"], result)
@@ -287,8 +289,8 @@ async def race_result(rid: str, *, force: bool = False) -> dict | None:
         return None
     data = await fetch_state(st, force=force)
     race = data["races"].get(rid)
-    return {**race, "fetched_at": data["fetched_at"], "url": data["url"]} if race else \
-        {"cands": [], "reporting": None, "fetched_at": data["fetched_at"], "url": data["url"]}
+    race = race or {"cands": [], "reporting": None}
+    return {**race, "fetched_at": data["fetched_at"], "url": data["url"], "stale": data.get("stale")}
 
 
 # ------------------------------------------------------------------ summarising

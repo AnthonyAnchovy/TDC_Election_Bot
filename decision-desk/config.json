@@ -13,6 +13,7 @@
   "hide_predictions_until_deadline": false,
   "points": {
     "senate": 1,
+    "senate_control": 5,
     "house_control": 5,
     "governor": 1,
     "battleground": 1,

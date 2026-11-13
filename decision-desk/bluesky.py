@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 
+import capture
 import races as R
 import results as LIVE
 
@@ -153,8 +154,10 @@ async def fetch(did: str, known: set, since: datetime = SINCE, pages: int = 4) -
             if cursor:
                 q["cursor"] = cursor
             async with s.get(API, params=q) as r:
+                raw = await r.read()
+                capture.payload(f"bluesky/{did}", str(r.url), r.status, raw, dict(r.headers))
                 r.raise_for_status()
-                data = await r.json()
+                data = json.loads(raw)
             fresh, older = 0, False
             for item in data.get("feed", []):
                 post, record = item.get("post", {}), item.get("post", {}).get("record", {})

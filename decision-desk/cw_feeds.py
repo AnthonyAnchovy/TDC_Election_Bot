@@ -31,9 +31,12 @@ import time
 import zipfile
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
 
 import aiohttp
+
+import capture
 
 HERE = Path(__file__).parent
 CW_DIR = HERE / "countywatch"
@@ -521,6 +524,7 @@ async def _get(session, url: str, conditional: bool = False, skip_cache: bool = 
         if r.status == 304:
             raise NotModified()
         body = await r.read()
+        capture.payload(f"county/{urlsplit(url).netloc}", url, r.status, body, dict(r.headers))
         if _is_challenge(r.status, r.headers, body):
             raise BotCheck("the site answered with a bot check instead of data, so the bot can't pull it; "
                            "use the County Watch grab button in your browser")

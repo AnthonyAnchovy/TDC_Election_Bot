@@ -2,10 +2,59 @@
 from __future__ import annotations
 
 import competitive as CMP
+import night as N
+import packs
 import races as R
 
-EMOJI = {"D": "🔵", "R": "🔴", "I": "🟣"}
-DEFAULT_POINTS = {"senate": 1, "house_control": 5, "governor": 1, "battleground": 1, "flip_bonus": 1}
+class _Emoji(dict):
+    """The dot shown beside an option. One the pack gives no emoji (a candidate in a nonpartisan race) gets a
+    plain dot rather than an error."""
+
+    def __missing__(self, key):
+        return "⚪"
+
+
+# All four are refilled from the active pack's "options" and "game" blocks (see _fill).
+EMOJI = _Emoji({"D": "🔵", "R": "🔴", "I": "🟣"})
+DEFAULT_POINTS = {"senate": 1, "senate_control": 5, "house_control": 5, "governor": 1, "battleground": 1,
+                  "flip_bonus": 1}
+CATEGORIES = ("senate", "senate_control", "house_control", "governor", "battleground")
+GAME: dict = {}
+PART_NAMES = {"senate": "Senate", "house_control": "House majority", "governor": "governors",
+              "battleground": "House seats", "tiebreak": "tiebreaker"}
+
+
+@packs.on_activate
+def _fill(pack: packs.Pack):
+    global EMOJI, DEFAULT_POINTS, CATEGORIES, GAME, PART_NAMES
+    GAME = pack.game
+    EMOJI = _Emoji({key: o["emoji"] for key, o in pack.options.items() if o.get("emoji")})
+    cats = GAME.get("categories") or []
+    CATEGORIES = tuple(c["key"] for c in cats)
+    DEFAULT_POINTS = {**{c["key"]: c.get("points", 1) for c in cats}, "flip_bonus": GAME.get("flip_bonus", 0)}
+    PART_NAMES = {**{c["key"]: c.get("name", c["key"]) for c in cats},
+                  "tiebreak": (GAME.get("tiebreaker") or {}).get("short", "tiebreaker")}
+
+
+def _in(rule: dict, rid: str) -> bool:
+    """Whether a race falls under a category's "races" rule: {"type": "senate"}, {"ids": [...]}, {"battleground":
+    true} (the pack's bonus seats) or {"rated": true} (anything the pack rates)."""
+    r = R.RACES[rid]
+    if "ids" in rule:
+        return rid in rule["ids"]
+    if rule.get("battleground"):
+        return rid in CMP.RATING
+    if rule.get("rated"):
+        return rid in CMP.RATING_OF
+    if "type" in rule:
+        return r["type"] == rule["type"] and ("body" not in rule or r.get("body") == rule["body"])
+    return False
+
+
+def category_races(key: str) -> list[str]:
+    """Every race in one of the game's categories, in the pack's order."""
+    rule = next((c["races"] for c in GAME.get("categories") or [] if c["key"] == key), None)
+    return [rid for rid in R.RACES if _in(rule, rid)] if rule else []
 
 
 # ------------------------------------------------------------------ race helpers
@@ -14,37 +63,51 @@ def holder(rid: str) -> str | None:
 
 
 def tag(rid: str, party: str) -> str:
-    """'(D HOLD)', '(R PICKUP)', or '(D)' when we don't know who held the seat."""
+    """'(D HOLD)', '(R PICKUP)', or '(D)' when we don't know who held the seat. For an option that isn't a party
+    (a candidate in a nonpartisan race) the key is left out: '(HOLD)', '(PICKUP)', '(WIN)'."""
     h = holder(rid)
-    if not h:
-        return f"({party})"
-    return f"({party} {'HOLD' if h == party else 'PICKUP'})"
+    word = "WIN" if not h else "HOLD" if h == party else "PICKUP"
+    if party not in packs.active().options:
+        return f"({word})"
+    return f"({party} {word})" if h else f"({party})"
 
 
 def category(rid: str) -> str | None:
-    """Which prediction bucket a race belongs to."""
-    kind = R.RACES[rid]["type"]
-    if kind == "senate":
-        return "senate"
-    if kind == "governor":
-        return "governor"
-    if kind == "control":
-        return "house_control"
-    if rid in CMP.RATING:
-        return "battleground"
+    """Which part of the prediction game a race belongs to: the first of the pack's categories whose rule it fits."""
+    for c in GAME.get("categories") or []:
+        if _in(c["races"], rid):
+            return c["key"]
     return None
 
 
 # ------------------------------------------------------------------ results
-def truth(desk_calls: dict[str, str], procalls: list[dict], mode: str = "pros_then_desk") -> dict[str, str]:
-    """What counts as the result of each race. Pro calls (earliest per race) beat desk calls."""
-    out = dict(desk_calls)
+def opens(rid: str) -> float:
+    """When a race can first have a result: its jurisdiction's first poll closing. A race with no jurisdiction
+    (control of a chamber): the first closing anywhere."""
+    st = R.RACES[rid]["state"]
+    return (N.first_close(st) if st else N.first_anywhere()).timestamp()
+
+
+def truth(desk_calls: dict[str, str], procalls: list[dict], mode: str = "pros_then_desk", *,
+          called_at: dict[str, float] | None = None, finals: dict[str, str] | None = None,
+          gate: bool = True) -> dict[str, str]:
+    """What counts as the result of each race: a final result an admin entered, else the earliest pro call, else
+    the desk's call (mode "desk": the desk's call only, after any final).
+
+    With gate on, a call stamped before the race's polls closed doesn't count. That's what a rehearsal call left in
+    the database is, and on Nov 2 2026 one of those scored everyone "1/1 right" a day early. Desk calls are only
+    gated when called_at gives their times."""
+    def live(rid: str, ts: float | None) -> bool:
+        return rid in R.RACES and (not gate or ts is None or ts >= opens(rid))
+
+    out = {rid: p for rid, p in desk_calls.items() if live(rid, (called_at or {}).get(rid))}
     if mode != "desk":
         seen = set()
         for p in sorted(procalls, key=lambda p: p["ts"]):
-            if p["race_id"] not in seen:
+            if p["race_id"] not in seen and live(p["race_id"], p["ts"]):
                 out[p["race_id"]] = p["party"]
                 seen.add(p["race_id"])
+    out.update({rid: p for rid, p in (finals or {}).items() if rid in R.RACES})
     return out
 
 
@@ -55,14 +118,59 @@ def senate_from_picks(picks: dict[str, str]) -> dict[str, int]:
             "I": vals.count("I"), "unpicked": len(R.races_of("senate")) - len(vals)}
 
 
+def body_pick(picks: dict[str, str], body: str) -> str | None:
+    """Who a set of picks says wins a body (the Senate, the Electoral College): what the picked races add up to, by
+    weight, on top of what each side already holds. None until every race in the body is picked, or when nobody
+    reaches the majority (independents holding the balance). The body's "tie_goes_to" side needs one fewer."""
+    b = R.BODIES.get(body) or {}
+    need = b.get("majority")
+    races = {rid: r for rid, r in R.RACES.items() if r["type"] != "control" and (r.get("body") == body or r["type"] == body)}
+    if not need or not races or any(rid not in picks for rid in races):
+        return None
+    tally = dict(b.get("holdover") or {})
+    for rid, r in races.items():
+        tally[picks[rid]] = tally.get(picks[rid], 0) + r.get("weight", 1)
+    tie = b.get("tie_goes_to")
+    for key in sorted(tally, key=lambda k: -tally[k]):
+        if tally[key] >= (need - 1 if key == tie else need):
+            return key
+    return None
+
+
+def senate_control_pick(picks: dict[str, str]) -> str | None:
+    """Who a set of Senate picks says controls the chamber. Nobody picks this separately: it's what their seats add
+    up to, once every seat is picked."""
+    return body_pick(picks, "senate")
+
+
+def implied_picks(picks: dict[str, str]) -> dict[str, str]:
+    """The picks nobody makes directly: for each category marked "implied_by", its control race and who the picks
+    in the body it decides add up to. Left out while that isn't settled."""
+    out = {}
+    for c in GAME.get("categories") or []:
+        if c.get("implied_by"):
+            for rid in category_races(c["key"]):
+                who = body_pick(picks, R.RACES[rid].get("body") or "")
+                if who:
+                    out[rid] = who
+    return out
+
+
+def implied_races() -> set[str]:
+    return {rid for c in GAME.get("categories") or [] if c.get("implied_by") for rid in category_races(c["key"])}
+
+
 def grade(picks: dict[str, str], results: dict[str, str], points: dict | None = None) -> dict:
     pts = {**DEFAULT_POINTS, **(points or {})}
-    cats = {c: {"right": 0, "wrong": 0, "pending": 0, "picked": 0}
-            for c in ("senate", "house_control", "governor", "battleground")}
+    cats = {c: {"right": 0, "wrong": 0, "pending": 0, "picked": 0} for c in CATEGORIES}
     total, flips = 0, 0
     marks: dict[str, bool] = {}
-    for rid, party in picks.items():
-        cat = category(rid)
+    # A category marked "implied_by" isn't picked directly: it's what another category's picks add up to.
+    worked_out = implied_picks(picks)
+    implied = worked_out.get("US-SENATE")
+    scored = {**{rid: p for rid, p in picks.items() if rid not in implied_races()}, **worked_out}
+    for rid, party in scored.items():
+        cat = category(rid) if rid in R.RACES else None
         if not cat:
             continue
         c = cats[cat]
@@ -81,8 +189,63 @@ def grade(picks: dict[str, str], results: dict[str, str], points: dict | None = 
                 total += pts["flip_bonus"]
         else:
             c["wrong"] += 1
-    complete = cats["senate"]["picked"] == len(R.races_of("senate")) and cats["house_control"]["picked"] == 1
-    return {"points": total, "cats": cats, "flips": flips, "marks": marks, "complete": complete}
+    complete = all(cats[c["key"]]["picked"] == len(category_races(c["key"]))
+                   for c in GAME.get("categories") or [] if c.get("required"))
+    return {"points": total, "cats": cats, "flips": flips, "marks": marks, "complete": complete,
+            "senate_control": implied, "implied": worked_out}
+
+
+def completion(picks: dict[str, str], meta: dict | None = None) -> dict:
+    """How much of the game someone has filled in: picked and total per part, the tiebreaker if the pack has one,
+    and an overall share. Parts that are worked out from other picks aren't counted."""
+    out = {}
+    for c in GAME.get("categories") or []:
+        if not c.get("implied_by"):
+            rids = category_races(c["key"])
+            out[c["key"]] = (sum(1 for rid in rids if rid in picks), len(rids))
+    asked = bool(GAME.get("tiebreaker"))
+    tiebreak = bool(meta and meta.get("house_dem_seats") is not None)
+    done = sum(a for a, _ in out.values()) + (tiebreak and asked)
+    total = sum(b for _, b in out.values()) + asked
+    return {"parts": out, "tiebreak": tiebreak, "share": done / total if total else 0.0,
+            "missing": [name for name, (a, b) in out.items() if a < b] + ([] if tiebreak or not asked else ["tiebreak"])}
+
+
+REMINDERS = ((7 * 86400, "a week"), (86400, "a day"), (3 * 3600, "three hours"))
+
+
+def reminder_due(now: float, deadline: float, sent) -> tuple[str, str] | None:
+    """The reminder to post now, as (key, "a day"), or None. Reminders go out a week, a day and three hours before
+    picks close. Only the latest one whose time has come is ever sent, so a bot started late posts one, not three."""
+    if now >= deadline:
+        return None
+    passed = [(lead, text) for lead, text in REMINDERS if now >= deadline - lead]
+    if not passed:
+        return None
+    lead, text = min(passed)
+    key = f"picks-reminder-{lead}"
+    return None if key in sent else (key, text)
+
+
+def open_items(results: dict[str, str], final_house_dem: int | None, entries: dict | None = None) -> dict:
+    """What still has to be settled before the game's result is final: races in the game with no result (control,
+    Senate, governors and rated House seats under their own names, anything else a pack adds under "other"), the
+    tiebreaker's answer, and entries with no tiebreaker guess."""
+    kinds = {"senate": [], "governor": [], "control": [], "battleground": [], "other": []}
+    for rid, r in R.RACES.items():
+        if rid in results:
+            continue
+        if r["type"] in ("senate", "governor", "control"):
+            kinds[r["type"]].append(rid)
+        elif rid in CMP.RATING:
+            kinds["battleground"].append(rid)
+        elif category(rid):
+            kinds["other"].append(rid)
+    asked = bool(GAME.get("tiebreaker"))
+    no_guess = sorted(uid for uid, (_picks, meta) in (entries or {}).items()
+                      if asked and (not meta or meta.get("house_dem_seats") is None))
+    return {**kinds, "house_seats": asked and final_house_dem is None, "no_tiebreak": no_guess,
+            "closed": not any(kinds.values()) and (final_house_dem is not None or not asked)}
 
 
 def leaderboard(entries: dict[int, tuple[dict, dict | None]], results: dict[str, str],
@@ -110,18 +273,37 @@ def differences(a: dict[str, str], b: dict[str, str]) -> list[tuple[str, str | N
 
 # ------------------------------------------------------------------ path to majority
 def chamber_counts(kind: str, calls: dict[str, str]) -> dict:
-    up = R.races_of(kind)
-    got = [calls[r] for r in up if r in calls]
-    if kind == "senate":
-        base = dict(R.SENATE_HOLDOVER)
-    elif kind == "governor":
-        base = {"D": 0, "R": 0}
-        for p in R.GOVERNOR_NOT_UP.values():
-            base[p] += 1
-    else:
-        base = {"D": 0, "R": 0}
-    return {"D": base["D"] + got.count("D"), "R": base["R"] + got.count("R"),
-            "I": got.count("I"), "uncalled": len(up) - len(got)}
+    """Seats (or electoral votes, or whatever a race's weight counts) each side has in a body: what was already
+    theirs going in, plus the races called for them. `uncalled` is the weight still out."""
+    body = R.BODIES.get(kind) or {}
+    up = {rid: r for rid, r in R.RACES.items() if r["type"] != "control" and (r["type"] == kind or r.get("body") == kind)}
+    out = {"D": 0, "R": 0, "I": 0}
+    for key, n in (body.get("holdover") or {}).items():
+        out[key] = out.get(key, 0) + n
+    for key in (body.get("not_up") or {}).values():
+        out[key] = out.get(key, 0) + 1
+    uncalled = 0
+    for rid, r in up.items():
+        if rid in calls:
+            out[calls[rid]] = out.get(calls[rid], 0) + r.get("weight", 1)
+        else:
+            uncalled += r.get("weight", 1)
+    return {**out, "uncalled": uncalled}
+
+
+def clinched(kind: str, calls: dict[str, str]) -> str | None:
+    """Whoever's called seats already make a majority of a body, or None. The Senate's tie rule is the pack's
+    ("tie_goes_to"): that side needs one seat fewer."""
+    body = R.BODIES.get(kind) or {}
+    need = body.get("majority")
+    if not need:
+        return None
+    c = chamber_counts(kind, calls)
+    tie = body.get("tie_goes_to")
+    for key, n in c.items():
+        if key != "uncalled" and n >= (need - 1 if key == tie else need):
+            return key
+    return None
 
 
 def path_text(kind: str, calls: dict[str, str]) -> str:

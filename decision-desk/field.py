@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw
 import cards as C
 import competitive as CMP
 import night as N
+import packs
 import races as R
 import scoring as S
 
@@ -57,7 +58,7 @@ def palette(card_theme: str) -> str:
 
 def _candidates() -> dict:
     try:
-        data = json.loads((HERE / "candidates.json").read_text(encoding="utf-8"))
+        data = json.loads(packs.active().path("candidates.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {k.upper(): v for k, v in data.items() if not k.startswith("_")}

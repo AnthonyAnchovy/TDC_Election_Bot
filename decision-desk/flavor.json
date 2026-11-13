@@ -1,43 +1,118 @@
 {
-  "_note": "Lines the bot picks from at random. Edit freely; changes apply without restarting. {outlet} and {lead} work where shown.",
+  "_note": "Lines posted with calls, flips and retractions. flavor.py picks them: a line isn't used again until every other line in its pool has had a turn. Pools: call, hold (the seat stays put), flip (it changes hands), upset (the ratings favored someone else), control (a chamber), retract, desk_ahead, desk_behind, desk_wrong. A line can name {winner}, {loser}, {place}, {seat}, {rating} and {party}; the desk_ lines can use {outlet} and {lead}. Edit freely; changes apply without restarting.",
   "call": [
     "The desk has seen enough.",
     "Projection confirmed. No further questions.",
     "Counting continues. The desk has stopped waiting.",
-    "The desk has spoken."
+    "The desk has spoken.",
+    "Projection locked. The spreadsheet has spoken.",
+    "The desk is calling it. Nobody touch the map.",
+    "Enough votes, enough waiting. Called.",
+    "The math is done. The desk is moving on.",
+    "Called. The desk will be taking no questions at this time.",
+    "Another one off the board.",
+    "{winner} wins {seat}. The desk has put its pencil down.",
+    "{place} is off the board: {winner}.",
+    "The desk calls {seat} for {winner}, and would like that noted.",
+    "{winner} takes {seat}. Next.",
+    "Enough of {place} is in. It's {winner}."
+  ],
+  "hold": [
+    "{winner} holds {seat}. The furniture stays where it is.",
+    "No change in {place}. {winner} keeps the seat.",
+    "{seat} stays with {winner}. The desk barely looked up.",
+    "{winner} holds on in {place}.",
+    "{place} re-ups. {winner} is going back.",
+    "{winner} keeps {seat}. Somebody had to.",
+    "Hold. {winner} survives {place} for another term.",
+    "{seat}: same as it ever was. {winner} holds."
   ],
   "flip": [
     "Seat changes hands.",
     "That's a pickup. Somebody update the wall map.",
-    "Flip confirmed. Somewhere a consultant is updating their resume."
+    "Flip confirmed. Somewhere a consultant is updating their resume.",
+    "New management. Same district.",
+    "The map just changed color. Act natural.",
+    "That's a flip. Somebody tell the old nameplate.",
+    "Under new ownership.",
+    "The seat switches sides. The desk switches markers.",
+    "Flipped. The losing campaign's group chat has gone quiet.",
+    "{winner} flips {seat}.",
+    "{seat} changes hands. {winner} takes it from {loser}.",
+    "{place} changes its mind: {winner} wins.",
+    "{loser} is out in {place}. {winner} takes the seat.",
+    "Pickup in {place}. {winner} has measured the office and likes it.",
+    "{winner} takes {seat} off the other side's wall map."
+  ],
+  "upset": [
+    "The ratings had {seat} {rating}. {winner} did not read the ratings.",
+    "Upset in {place}: {winner} wins a seat rated {rating}.",
+    "{rating}, they said. {winner} wins {seat} anyway.",
+    "Somebody owes the raters a phone call. {winner} takes {seat}, rated {rating}.",
+    "{winner} wins {seat}. The forecast called it {rating} and the forecast is taking the night off."
+  ],
+  "control": [
+    "{winner} take {seat}.",
+    "It's settled: {seat} goes to {winner}.",
+    "The desk calls {seat} for {winner}. Everything else tonight is detail.",
+    "{winner} have the numbers. {seat} is theirs."
   ],
   "retract": [
     "The desk regrets the error. Mostly.",
     "Back to the counting room.",
-    "This call never happened. Please disregard."
+    "This call never happened. Please disregard.",
+    "The desk got ahead of itself. Stand by.",
+    "Unring the bell. Unring it.",
+    "Call withdrawn. The desk is reviewing the tape.",
+    "Too early after all. Apologies to anyone who already posted about it.",
+    "Retracted. The desk will be sitting in the corner for a bit."
   ],
   "desk_ahead": [
     "The desk beat {outlet} by {lead}.",
-    "{outlet} catches up to the desk, {lead} late."
+    "{outlet} catches up to the desk, {lead} late.",
+    "The desk had this {lead} before {outlet}. Just saying.",
+    "{outlet} confirms what the desk said {lead} ago.",
+    "{lead} ahead of {outlet}. The desk accepts compliments.",
+    "Welcome to the party, {outlet}. We've been here {lead}."
   ],
   "desk_behind": [
     "{outlet} got there first, by {lead}.",
-    "The pros beat us by {lead}. We were being careful."
+    "The pros beat us by {lead}. We were being careful.",
+    "{outlet} was {lead} quicker. The desk was double-checking.",
+    "Beaten by {outlet} by {lead}. The desk prefers to call it thorough.",
+    "{outlet} takes this round by {lead}. Rematch at the next poll closing.",
+    "{lead} behind {outlet}. Speed isn't everything."
   ],
   "desk_wrong": [
-    "⚠️ The desk called this the other way. Awkward."
+    "⚠️ The desk called this the other way. Awkward.",
+    "⚠️ The desk and the pros disagree. Somebody is about to have a long night.",
+    "⚠️ That's the opposite of what the desk said. Checking the math.",
+    "⚠️ The pros went the other way. The desk is sweating."
   ],
-  "_races_note": "Race-specific lines, used instead of the generic call/flip line when that race is called for that party. Each references a real 2026 campaign moment (see the meme file). Add, edit or delete freely; changes apply live.",
+  "_races_note": "Race-specific lines, used instead of the generic call/flip line when that race is called for that party. An optional \"retract\" list is used instead of the generic retract line when that race's call is withdrawn. Each references a real 2026 campaign moment (see the meme file). Add, edit or delete freely; changes apply live.",
   "races": {
     "TX-SEN": {
       "D": [
         "Proof of life: confirmed. James Talarico has been located, and he's headed to the Senate.",
         "The Tala-Freak-Out Tip Line can stop taking calls. He's been found. In the Senate.",
-        "He had the flu. Now he has a Senate seat."
+        "He had the flu. Now he has a Senate seat.",
+        "The Tala-Freak-Out is over. Talarico has been found, behind a desk in the U.S. Senate.",
+        "Tala-Freak-Out Tip Line, final update: check the Senate chamber.",
+        "Talarico wins Texas. The freak-out was premature.",
+        "Paxton reaches for a pen to sign the concession. One is already in his pocket.",
+        "Paxton loses Texas. He's been asked to return the pen on his way out."
       ],
       "R": [
         "The steaks couldn't be higher, and Texas just ordered brisket.",
-        "Paxton holds Texas. The missing posters can come down."
+        "Paxton holds Texas. The missing posters can come down.",
+        "Paxton wins Texas. Senate staff are advised to count the pens.",
+        "Paxton takes the seat. Somebody chain the pens to the desks.",
+        "Paxton is headed to the Senate, along with a pen of uncertain ownership.",
+        "Paxton signs the oath of office. Whose pen he used remains unclear.",
+        "Paxton holds Texas. In hindsight, the Tala-Freak-Out was justified."
+      ],
+      "retract": [
+        "Pause the Tala-Freak-Out."
       ]
     },
     "ME-SEN": {
@@ -301,8 +376,18 @@
       "R": []
     },
     "TX-GOV": {
-      "D": [],
-      "R": []
+      "D": [
+        "Hinojosa flips Texas. The first Democratic governor since Ann Richards. The desk needs a minute.",
+        "Texas elects a Democratic governor. Please check the thermostat; something may have frozen over.",
+        "Hinojosa wins Texas. Abbott's fourth term has been cancelled.",
+        "The voucher fight just got a new referee. Hinojosa takes the Governor's Mansion."
+      ],
+      "R": [
+        "Abbott makes it four. Texas has stopped counting.",
+        "Abbott holds Texas. Everything's bigger here, including incumbency.",
+        "Four more years of Abbott. The buses keep running.",
+        "Abbott wins a fourth term. Same mansion, same view."
+      ]
     },
     "VT-GOV": {
       "D": [],
@@ -597,8 +682,26 @@
       "R": []
     },
     "TX-15": {
-      "D": [],
-      "R": []
+      "D": [
+        "Bobby Pulido flips TX-15. The Valley has requested an encore.",
+        "Desvelado no more. Pulido can finally get some sleep, right after the swearing-in.",
+        "From the Tejano stage to the House floor. Somebody find a spot for the accordion.",
+        "Pulido takes the Valley. The desk would like to note it was a sold-out show.",
+        "And the Tejano Music Award for Best New Congressman goes to Bobby Pulido.",
+        "Pulido flips TX-15. The victory party has a live band, obviously.",
+        "The Valley sang along. Pulido flips TX-15.",
+        "Pulido hits the high note in the Valley. Pickup.",
+        "Bobby Pulido trades the tour bus for a voting card. TX-15 flips."
+      ],
+      "R": [
+        "De La Cruz holds TX-15. The encore has been cancelled.",
+        "The Valley stays red. Pulido goes back on tour.",
+        "De La Cruz holds. Pulido will be desvelado tonight.",
+        "De La Cruz holds TX-15. The crowd didn't get its encore.",
+        "Monica De La Cruz keeps the seat. The Valley skips the concert.",
+        "De La Cruz holds. Pulido's backup plan comes with a tour bus.",
+        "The incumbent keeps TX-15. No curtain call for Pulido."
+      ]
     },
     "TX-23": {
       "D": [],

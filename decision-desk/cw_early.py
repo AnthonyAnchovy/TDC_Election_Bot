@@ -197,6 +197,22 @@ def uf_summary(row: dict) -> list[str]:
     return lines
 
 
+def digest(pace: list[tuple], last: dict | None = None, names: dict | None = None) -> list[str]:
+    """Lines for the daily early-vote post. pace is countywatch_run.early_pace(): (state, votes, share of 2022's
+    total turnout, registration gap or None). last is {state: votes} from the previous post, for the change since.
+    States are listed by how far along they are."""
+    out = []
+    for st, votes, share, gap in sorted(pace, key=lambda p: -p[2]):
+        line = f"**{(names or {}).get(st, st)}** {votes:,} · {share:.0%} of 2022's turnout"
+        before = (last or {}).get(st)
+        if before is not None and votes != before:
+            line += f" · {votes - before:+,} since the last post"
+        if gap is not None and abs(gap) >= 0.005:
+            line += f" · registered {'D' if gap > 0 else 'R'}+{abs(gap) * 100:.0f}"
+        out.append(line)
+    return out
+
+
 def load_json(name: str):
     p = CW_DIR / name
     try:
