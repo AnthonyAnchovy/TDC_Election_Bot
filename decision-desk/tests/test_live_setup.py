@@ -71,7 +71,7 @@ with bot.TEN.scope(5):
 print(json.dumps([bot.AUTOCALLS_DEFAULT, before, after]))
 """
     assert boot(code, DESK_DATA=str(tmp_path / "a"), DESK_AUTOCALLS="off") == [False, False, True]     # /autocalls on still wins
-    assert boot(code, DESK_DATA=str(tmp_path / "b")) == [True, True, True]
+    assert boot(code, DESK_DATA=str(tmp_path / "b"), DESK_AUTOCALLS="on") == [True, True, True]
 
 
 def test_every_server_gets_the_commands_and_a_report(tmp_path):

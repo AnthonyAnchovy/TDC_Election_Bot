@@ -20,6 +20,7 @@ import logging
 import os
 import random
 import re
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -2738,13 +2739,13 @@ async def field_loop():
         log.exception("field loop failed")
 
 
-async def field_pass(guild, kinds: list[str], keep: bool):
+async def field_pass(guild, kinds: list[str], keep: bool, snapshot=None):
     """One server's field: where every race stands with this server's own calls on it, posted when it's due. The
     night's history (the timelapse, /trend and the desk's bot read it) is kept from the home server's snapshots, since
     the projections in it are the same for everyone."""
     paused = store.setting("field_paused", False)
     for kind in kinds:
-        snap = await field_snapshot(kind)
+        snap = await (snapshot or field_snapshot)(kind)     # a simulation hands in the night's own snapshots
         if keep:
             await asyncio.to_thread(F.record, snap)
         if kind == "senate":
@@ -3471,6 +3472,9 @@ async def on_guild_join(guild):
         log.warning("%s: %s", guild.name, line)
 
 
+_simulation: list = []
+
+
 @client.event
 async def on_ready():
     log.info("Logged in as %s", client.user)
@@ -3492,6 +3496,9 @@ async def on_ready():
         log.info("Server %s (%s): %s", guild.name, guild.id, "ready" if not problems else f"{len(problems)} thing(s) to fix")
         for line in problems:
             log.warning("%s: %s", guild.name, line)
+    if os.getenv("DESK_SIMULATE") and not _simulation:
+        import simulate         # a recorded night played into this server: see simulate.py
+        _simulation.append(asyncio.create_task(simulate.start(sys.modules[__name__], g)))
     if not alert_loop.is_running():
         alert_loop.start()
     if not county_loop.is_running():

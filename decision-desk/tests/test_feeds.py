@@ -228,7 +228,7 @@ seen = {}
 for g in (1, 2, 3):
     with bot.TEN.scope(g): seen[g] = [bot.store.setting("bsky_seen", []), bot.store.setting("nyt_seen", {})]
 print(json.dumps({"reads": reads, "acted": acted, "seen": seen, "listening": [g.id for g in bot.listening()]}))
-""", DESK_DATA=str(tmp_path), GUILD_ID="1"))
+""", DESK_DATA=str(tmp_path), GUILD_ID="1", DESK_AUTOCALLS="on"))
     assert got["listening"] == [1, 2]
     assert got["reads"]["nyt"] == 2                                    # once a pass, not once a server
     assert got["reads"]["bsky"] == [["at://x/1"], ["at://x/1"]]        # two accounts, each read once; only what all have seen is skipped
