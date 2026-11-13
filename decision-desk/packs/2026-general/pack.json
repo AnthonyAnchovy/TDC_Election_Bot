@@ -7,6 +7,32 @@
   "election_day": "2026-11-03",
   "timezone": "America/New_York",
   "predictions_deadline": "2026-11-03T18:00:00-05:00",
+  "feeds": {
+    "results": "results_sources.json",
+    "nyt": {
+      "house": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-house.json",
+      "senate": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-senate.json",
+      "governor": "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-governor.json"
+    },
+    "bluesky": {
+      "since": "2026-11-03T17:00:00-05:00",
+      "accounts": {
+        "did:plc:catipgdd42lzwcqfsfcc6ype": "Decision Desk HQ",
+        "did:plc:oegdayoj7y4heuqwngwg2d2p": "Dave Wasserman"
+      }
+    },
+    "early_vote": {
+      "uf": "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv",
+      "nc_absentee": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/absentee_20261103.zip"
+    },
+    "countywatch": {
+      "folder": "countywatch",
+      "race": "{state}-SEN",
+      "workbook": "County Watch 2026.xlsx",
+      "states": ["AK", "GA", "IA", "KS", "ME", "MI", "MN", "MS", "NC", "NE", "NH", "OH", "SC", "TX", "FL", "VA", "KY"],
+      "bellwether": ["VA", "KY"]
+    }
+  },
   "options": {
     "D": {
       "name": "Democratic",

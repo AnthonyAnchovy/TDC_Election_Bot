@@ -30,6 +30,7 @@ from discord import app_commands
 from discord.ext import tasks
 from dotenv import load_dotenv
 
+import autocaller as AUTO
 import bluesky as BSKY
 import capture
 import competitive as CMP
@@ -40,6 +41,8 @@ import cw_model as CM
 import desk as DESK
 import ddhq_grab as DG
 import desk_help as H
+import drinking as DR
+import feeds as FEEDS
 import field as F
 import flavor as FL
 import graphics as G
@@ -52,6 +55,7 @@ import packs
 import picks as P
 import scoring as S
 import tenancy as TEN
+import trend as TR
 
 HERE = Path(__file__).parent
 COUNTY_CARD = HERE / "assets" / "county_watch_card.png"
@@ -70,8 +74,18 @@ tree = app_commands.CommandTree(client)
 store = TEN.store
 
 
+CW_COMMANDS = {"watchstate", "resultsdm", "countyfile", "counties", "needs", "environment", "earlyvote", "countyset",
+               "countyclear", "countytest", "countyfeed", "countyrefresh", "excellink", "trend"}
+
+
 async def _enter_server(interaction: discord.Interaction) -> bool:
     TEN.enter(interaction.guild_id)
+    name = interaction.command.name if interaction.command else ""
+    if name in CW_COMMANDS and not FEEDS.countywatch() and interaction.type == discord.InteractionType.application_command:
+        await interaction.response.send_message(
+            f"**{packs.active().name}** has no County Watch, so `/{name}` has nothing to read. It needs county "
+            "baselines and feeds in the data pack (docs/data-packs.md).", ephemeral=True)
+        return False
     return True
 
 
@@ -94,6 +108,15 @@ async def each_server(work):
                 await work(guild)
             except Exception:
                 log.exception("%s failed in %s", getattr(work, "__name__", "A pass"), guild.name)
+
+
+async def post_everywhere(key: str, **kwargs):
+    """Post the same thing to that channel in every server: what a shared feed found, which is news to all of
+    them. A server without the channel is skipped, and one server's failure doesn't stop the next."""
+    async def one(guild):
+        if find_channel(guild, key):
+            await post(guild, key, **kwargs)
+    await each_server(one)
 
 PARTY_CHOICES = [
     app_commands.Choice(name="Democrat", value="D"),
@@ -444,6 +467,11 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None, ou
                             lead=S.minutes_text((time.time() - first["ts"]) / 60)))
     elif pros:
         lines.append(f"⚠️ {pros[0]['outlet']} called this for {R.PARTY_NAMES[pros[0]['party']]}.")
+    if DR.is_on(store):
+        said = FL.context(rid, party, race_names(rid))
+        beaten = agree[0]["outlet"] if agree and not outlet else None
+        for event in DR.events_for_call(FL.situation(rid, party), None, beaten):
+            lines.append(DR.line(store, event, outlet=beaten, winner=said["winner"], seat=said["seat"], place=said["place"]))
     if CFG.get("post_prediction_check", True):
         check = prediction_check_text(guild, rid, party)
         if check:
@@ -457,6 +485,9 @@ async def retract_official(guild, rid: str, how: str, fallback=None):
     if not prev:  # a simultaneous retraction already went through
         return
     text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{FL.retract_line(store, rid) or ''}".strip()
+    drink = DR.line(store, "retract", seat=label(rid))
+    if drink:
+        text += f"\n{drink}"
     extra = {} if is_safe_seat(rid) else {"file": await card_file(rid, prev["party"], how, retracted=True)}
     await post(guild, "desk_channel", fallback, content=text, **extra)
     await follow_up(guild, rid, fallback)
@@ -540,7 +571,7 @@ async def numbers_line(rid: str, wait: float = 1.5) -> str | None:
     seconds: a vote is never held up for them. A slow pull is left running, so the next vote finds it ready."""
     st, kind = R.RACES[rid]["state"], R.RACES[rid]["type"]
     try:
-        if kind == "senate" and st in CM.STATES:
+        if FEEDS.cw_state_of(rid):
             job = asyncio.ensure_future(asyncio.to_thread(CWR.projection, st, CWR.live_cache()))
             p = await asyncio.wait_for(asyncio.shield(job), wait)
             return REM.headline(REM.breakdown(p), *(_surname(n) for n in CWR.names()[st]))
@@ -840,12 +871,13 @@ async def safe_batch_loop():
     await each_server(flush_safe_seats)
 
 
-async def bluesky_pass(guild):
-    seen = set(store.setting("bsky_seen", []))
+async def read_bluesky(known: set) -> list[dict] | None:
+    """Every account's new posts, read once for all servers. `known` is the posts every listening server has
+    already dealt with. None, with the failure counted, when an account couldn't be read."""
     posts, error = [], None
     for did in BSKY.SOURCES:
         try:
-            posts += await BSKY.fetch(did, seen)
+            posts += await BSKY.fetch(did, known)
         except Exception as exc:    # one account failing shouldn't hold up the other
             error = f"{BSKY.SOURCES[did]}: {exc}"
             log.warning("Couldn't read %s from Bluesky: %s", BSKY.SOURCES[did], exc)
@@ -853,11 +885,15 @@ async def bluesky_pass(guild):
         _bsky.update(failures=_bsky["failures"] + 1, error=error)
     else:
         _bsky.update(failures=0, warned=False, error=None, checked=time.time())
-    if _bsky["failures"] >= 10 and not _bsky["warned"]:
-        _bsky["warned"] = True
-        await post(guild, "board_channel", content=f"⚠️ I haven't been able to read Bluesky for about 5 minutes ({_bsky['error']}). "
-                                                   "Log House calls by hand with `/procall` until it's back.")
+    return posts
+
+
+async def bluesky_pass(guild, posts: list[dict]):
+    """Act, in this server, on the posts it hasn't dealt with yet."""
+    seen = set(store.setting("bsky_seen", []))
     for p in sorted(posts, key=lambda x: x["when"]):
+        if p["uri"] in seen:
+            continue
         outlet, link = BSKY.SOURCES[p["did"]], BSKY.post_link(p["did"], p["uri"])
         seen.add(p["uri"])
         store.set_setting("bsky_seen", sorted(seen))    # first, so a post that fails here can't be called twice
@@ -876,22 +912,22 @@ async def bluesky_pass(guild):
             log.exception("Couldn't act on Bluesky post %s", link)
 
 
-async def nyt_pass(guild):
-    """Act on seats whose winner is new since the last read. A winner that NYT changes or takes back goes to a person,
-    because the bot doesn't undo a call on its own. Nothing counts until the state's polls have closed, so test data in
-    the file can't make a call."""
+async def read_nyt() -> dict | None:
+    """NYT's House file, read once for all servers. None, with the failure counted, when it couldn't be read."""
     try:
         found = await NYT.fetch()
     except Exception as exc:
         _nyt.update(failures=_nyt["failures"] + 1, error=str(exc)[:200])
         log.warning("Couldn't read NYT's House results: %s", exc)
-        if _nyt["failures"] >= 10 and not _nyt["warned"]:
-            _nyt["warned"] = True
-            await post(guild, "board_channel", content=f"⚠️ I haven't been able to read NYT's House results for about 5 "
-                                                       f"minutes ({_nyt['error']}). Log House calls by hand with `/procall` "
-                                                       "until it's back.")
-        return
+        return None
     _nyt.update(failures=0, warned=False, error=None, checked=time.time())
+    return found
+
+
+async def nyt_pass(guild, found: dict):
+    """Act, in this server, on seats whose winner is new since its last read. A winner that NYT changes or takes back
+    goes to a person, because the bot doesn't undo a call on its own. Nothing counts until the state's polls have
+    closed, so test data in the file can't make a call."""
     seen = store.setting("nyt_seen", {})
     check = []
     for rid in [rid for rid in seen if rid not in found]:
@@ -977,22 +1013,71 @@ async def ddhq_loop():
         log.exception("DDHQ grab pass failed")
 
 
+def listening() -> list:
+    """The servers that have automatic calls on."""
+    out = []
+    for guild in list(client.guilds):
+        with TEN.scope(guild.id):
+            if store.setting("autocalls", True):
+                out.append(guild)
+    return out
+
+
+async def outlet_trouble(state: dict, what: str, guilds: list):
+    """Tell each listening server, once, that an outlet has been unreadable for about five minutes."""
+    if state["failures"] < 10 or state["warned"]:
+        return
+    state["warned"] = True
+    for guild in guilds:
+        with TEN.scope(guild.id):
+            try:
+                await post(guild, "board_channel", content=f"⚠️ I haven't been able to read {what} for about 5 minutes "
+                           f"({state['error']}). Log House calls by hand with `/procall` until it's back.")
+            except Exception:
+                log.exception("Couldn't warn %s about %s", guild.name, what)
+
+
 @tasks.loop(seconds=30)
 async def nyt_loop():
+    """The file is the same for every server, so it's read once and each server acts on it for itself."""
     # same rule as bluesky_loop: nothing may escape
-    async def one(guild):
-        if store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
-            await nyt_pass(guild)
-    await each_server(one)
+    try:
+        guilds = listening()
+        if not guilds or not NYT.urls().get("house") or datetime.now(N.ET) < FEEDS.reading_since():
+            return
+        found = await read_nyt()
+        if found is None:
+            return await outlet_trouble(_nyt, "NYT's House results", guilds)
+
+        async def one(guild):
+            if guild in guilds:
+                await nyt_pass(guild, found)
+        await each_server(one)
+    except Exception:
+        log.exception("NYT pass failed")
 
 
 @tasks.loop(seconds=30)
 async def bluesky_loop():
+    """Each account is read once, and each server acts on the posts it hasn't dealt with."""
     # an exception escaping here would stop the task loop for the rest of the night, so nothing may
-    async def one(guild):
-        if store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
-            await bluesky_pass(guild)
-    await each_server(one)
+    try:
+        guilds = listening()
+        if not guilds or not BSKY.SOURCES or datetime.now(N.ET) < FEEDS.reading_since():
+            return
+        seen = []
+        for guild in guilds:
+            with TEN.scope(guild.id):
+                seen.append(set(store.setting("bsky_seen", [])))
+        posts = await read_bluesky(set.intersection(*seen))     # skip only what every server has dealt with
+        await outlet_trouble(_bsky, "Bluesky", guilds)
+
+        async def one(guild):
+            if guild in guilds:
+                await bluesky_pass(guild, posts)
+        await each_server(one)
+    except Exception:
+        log.exception("Bluesky pass failed")
 
 
 async def call_nyt_winners(guild, user_id: int, fallback=None) -> dict:
@@ -1055,10 +1140,14 @@ async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Cho
     if turn:
         store.set_setting("autocalls", turn.value == "on")
     on = store.setting("autocalls", True)
-    lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: {', '.join(BSKY.SOURCES.values())} on "
-             f"Bluesky, and {NYT.OUTLET}'s results data."]
-    if datetime.now(N.ET) < BSKY.SINCE:
-        lines.append("They start reading at 5 PM ET on Nov 3.")
+    sources = ([f"{', '.join(BSKY.SOURCES.values())} on Bluesky"] if BSKY.SOURCES else []) + \
+              ([f"{NYT.OUTLET}'s results data"] if NYT.urls().get("house") else [])
+    lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: "
+             + (", and ".join(sources) if sources else f"none. **{packs.active().name}** names no outlets to read, so "
+                                                         "calls are logged by hand with `/procall`") + "."]
+    since = FEEDS.reading_since().astimezone(N.ET)
+    if sources and datetime.now(N.ET) < since:
+        lines.append(f"They start reading at {since:%I %p}".replace(" 0", " ") + f" ET on {since:%b} {since.day}.")
     if _bsky["checked"]:
         lines.append(f"Bluesky last read {S.minutes_text((time.time() - _bsky['checked']) / 60)} ago. Since the last restart: "
                      f"{_bsky['calls']} calls, {_bsky['reviews']} posts sent to a person.")
@@ -2310,7 +2399,7 @@ async def results_cmd(interaction: discord.Interaction, race: str | None = None)
 
 @tree.command(name="resultstest", description="Admin: check a state's results reader against its Nov 2024 file.")
 @app_commands.guild_only()
-@app_commands.choices(state=[app_commands.Choice(name=R.STATE_NAMES[s], value=s) for s in ("FL", "NC", "VA")])
+@app_commands.choices(state=[app_commands.Choice(name=R.STATE_NAMES[s], value=s) for s in LIVE.supported()])
 async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
@@ -2442,6 +2531,105 @@ def field_file(buf, ext: str, kind: str) -> discord.File:
     return discord.File(buf, filename=f"{kind}_field.{ext}")
 
 
+BOT_OUTLET = "The Bot"
+
+
+async def bot_caller_pass(guild, snap: dict):
+    """The desk's own bot: after each Senate field snapshot, log its call on any race whose projection has held
+    long enough (autocaller.py). It goes on the board like an outlet's call and feeds /scoreboard, and it never
+    makes anything official. Turn it off with "bot_caller": false in config.json."""
+    if guild is None or not CFG.get("bot_caller", True):
+        return
+    try:
+        snaps = await asyncio.to_thread(F.history, "senate")
+        for rid, now_at in snap["races"].items():
+            if now_at[2] != "proj" or any(p["outlet"] == BOT_OUTLET for p in store.procalls(rid)):
+                continue
+            call = AUTO.decide_now(TR.series(snaps, rid), rid)
+            key = (now_at[4] if call.side == "D" else "R") if call else None
+            if key in options_for(rid):
+                await log_outlet_call(guild, rid, key, BOT_OUTLET, 0,
+                                      source=f"The desk's own bot: the projection has held at {abs(call.margin):.1f} points "
+                                             f"for {call.held:.0f} minutes. It's a voice to beat, never an official call.")
+    except Exception:
+        log.exception("The bot caller failed")
+
+
+def desk_marks(rid: str, d_key: str) -> list[tuple[float, str, str | None]]:
+    """Every time the desk called or retracted a race, for the chart: (time, "call" or "uncall", "D" or "R" side)."""
+    rows = store.db.execute("SELECT ts, action, party FROM history WHERE race_id = ? ORDER BY id", (rid,)).fetchall()
+    return [(ts, action, None if action == "uncall" else "D" if party == d_key else "R") for ts, action, party in rows]
+
+
+@tree.command(name="trend", description="A Senate race through the night as a chart: projected margin, votes counted, and the desk's calls.")
+@app_commands.guild_only()
+@app_commands.autocomplete(race=race_autocomplete)
+async def trend_cmd(interaction: discord.Interaction, race: str):
+    rid = resolve(race)
+    if not rid:
+        return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    await interaction.response.defer()
+    snaps = await asyncio.to_thread(F.history, "senate")
+    points = TR.series(snaps, rid)
+    d_key = next((s["races"][rid][4] for s in reversed(snaps) if rid in s["races"]), "D")
+    names = (_surname(cand(rid, d_key)), _surname(cand(rid, "R")))
+    bot = AUTO.decide(points, rid)
+    buf = await asyncio.to_thread(TR.render, label(rid), points, names[0], names[1], desk_marks(rid, d_key),
+                                  (bot.at, bot.side) if bot else None)
+    if not buf:
+        return await interaction.followup.send(
+            f"There's no history for {label(rid)} yet. The chart is drawn from the Senate field's snapshots, which "
+            "start when a state's votes do.", ephemeral=True)
+    info = TR.summary(points)
+    await interaction.followup.send(
+        content=f"📈 **{label(rid)}** · projection ranged {TR._lean(info['low'], *names)} to {TR._lean(info['high'], *names)}"
+                + (" and changed sides" if info["changed_sides"] else "") + f" · {info['votes']:,} votes counted",
+        file=discord.File(buf, filename=f"{rid}_trend.png"))
+
+
+REACTIONS = HERE / "assets" / "reactions"
+
+
+def reaction_files() -> dict[str, Path]:
+    """Every image in assets/reactions, by the name it's asked for: its file name without the ending."""
+    kinds = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    return {p.stem.lower().replace("_", " "): p for p in sorted(REACTIONS.glob("*")) if p.suffix.lower() in kinds}
+
+
+async def reaction_autocomplete(_interaction: discord.Interaction, current: str):
+    typed = current.strip().lower()
+    return [app_commands.Choice(name=name, value=name) for name in reaction_files() if typed in name][:25]
+
+
+@tree.command(name="react", description="Post a reaction image from the desk's collection.")
+@app_commands.guild_only()
+@app_commands.autocomplete(image=reaction_autocomplete)
+async def react_cmd(interaction: discord.Interaction, image: str):
+    files = reaction_files()
+    path = files.get(image.strip().lower())
+    if not path:
+        have = ", ".join(files) or "none yet"
+        return await interaction.response.send_message(
+            f"There's no reaction called `{image}`. In the collection: {have[:1500]}.\n"
+            "-# To add one, save an image into `assets/reactions/`. Its file name is what you type here.", ephemeral=True)
+    await interaction.response.send_message(file=discord.File(str(path), filename=path.name))
+
+
+@tree.command(name="drinkinggame", description="Admin: turn drinking-game lines on calls on or off for this server.")
+@app_commands.guild_only()
+@app_commands.choices(mode=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
+async def drinkinggame_cmd(interaction: discord.Interaction, mode: app_commands.Choice[str] | None = None):
+    if mode:
+        if not is_admin(interaction.user):
+            return await interaction.response.send_message("Admins only.", ephemeral=True)
+        store.set_setting(DR.SETTING, mode.value == "on")
+    state = "on" if DR.is_on(store) else "off"
+    rules = "\n".join(f"**{event}:** {lines[0]}" for event, lines in DR.rules().items())
+    await interaction.response.send_message(
+        f"Drinking-game mode is **{state}** for this server." + (f"\n{rules.format(seat='the seat', outlet='an outlet', lead='a while', winner='the winner', place='the state')}"[:1700] if state == "on" else "")
+        + "\n-# Water counts.", ephemeral=not mode)
+
+
 @tree.command(name="field", description="Every race as a circle from safe D to safe R: margin and votes counted.")
 @app_commands.describe(chamber="Senate (default) or the 82 rated House seats",
                        timelapse="Play the whole night so far instead of the latest movement")
@@ -2514,39 +2702,59 @@ async def fieldposts_cmd(interaction: discord.Interaction, action: app_commands.
 @tasks.loop(seconds=60)
 async def field_loop():
     """On the night: snapshot each field in config's field_auto every minute (kept when something moved, for the
-    timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 AM ET Nov 4, post
+    timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 the morning after, post
     the night's timelapse once. /fieldposts pause holds the posts, and the snapshots carry on."""
     try:
+        if not FEEDS.countywatch():
+            return                      # the field is drawn from County Watch's projections
         kinds = [k for k in CFG.get("field_auto", ["senate"]) if k in F.KINDS]
-        paused = store.setting("field_paused", False)
+        home = main_guild()
         if cw_night():
-            for kind in kinds:
-                snap = await field_snapshot(kind)
-                await asyncio.to_thread(F.record, snap)
-                if paused:
-                    continue
-                last = store.setting(f"field_last_{kind}")
-                since = time.time() - store.setting(f"field_at_{kind}", 0)
-                called = lambda s: {rid for rid, v in s["races"].items() if v[3]}
-                due = since >= 60 * CFG.get("field_minutes", 30) or (last and called(last) != called(snap) and since >= 300)
-                if not due or not F.changed(last, snap):
-                    continue
-                buf, ext = await asyncio.to_thread(F.render, snap, F.palette(card_theme()), last)
-                head = f"📊 **{F.TITLE[kind].title()} field** · {snap['clock']}"
-                await post(main_guild(), "board_channel", content=head + (f" · moving since {last['clock']}" if last else ""),
-                           file=field_file(buf, ext, kind))
-                store.set_setting(f"field_last_{kind}", snap)
-                store.set_setting(f"field_at_{kind}", time.time())
-        elif not paused and now() > N.ELECTION_DAY.replace(day=4, hour=8) and not store.setting("field_timelapse_posted"):
-            store.set_setting("field_timelapse_posted", True)
-            for kind in kinds:
-                snaps = F.history(kind)
-                if len(snaps) >= 2:
-                    buf, ext = await asyncio.to_thread(F.timelapse, snaps, F.palette(card_theme()))
-                    await post(main_guild(), "board_channel", content=f"🎞️ **The night on the {F.TITLE[kind].lower()} field**",
-                               file=field_file(buf, ext, kind))
+            await each_server(lambda guild: field_pass(guild, kinds, keep=guild == home))
+        elif now() > N.morning_after():
+            await each_server(lambda guild: field_timelapse(guild, kinds))
     except Exception:
         log.exception("field loop failed")
+
+
+async def field_pass(guild, kinds: list[str], keep: bool):
+    """One server's field: where every race stands with this server's own calls on it, posted when it's due. The
+    night's history (the timelapse, /trend and the desk's bot read it) is kept from the home server's snapshots, since
+    the projections in it are the same for everyone."""
+    paused = store.setting("field_paused", False)
+    for kind in kinds:
+        snap = await field_snapshot(kind)
+        if keep:
+            await asyncio.to_thread(F.record, snap)
+        if kind == "senate":
+            await bot_caller_pass(guild, snap)
+        if paused:
+            continue
+        last = store.setting(f"field_last_{kind}")
+        since = time.time() - store.setting(f"field_at_{kind}", 0)
+        called = lambda s: {rid for rid, v in s["races"].items() if v[3]}       # noqa: E731
+        due = since >= 60 * CFG.get("field_minutes", 30) or (last and called(last) != called(snap) and since >= 300)
+        if not due or not F.changed(last, snap):
+            continue
+        buf, ext = await asyncio.to_thread(F.render, snap, F.palette(card_theme()), last)
+        head = f"📊 **{F.TITLE[kind].title()} field** · {snap['clock']}"
+        await post(guild, "board_channel", content=head + (f" · moving since {last['clock']}" if last else ""),
+                   file=field_file(buf, ext, kind))
+        store.set_setting(f"field_last_{kind}", snap)
+        store.set_setting(f"field_at_{kind}", time.time())
+
+
+async def field_timelapse(guild, kinds: list[str]):
+    """The morning after, once per server: the night on the field."""
+    if store.setting("field_paused", False) or store.setting("field_timelapse_posted"):
+        return
+    store.set_setting("field_timelapse_posted", True)
+    for kind in kinds:
+        snaps = F.history(kind)
+        if len(snaps) >= 2:
+            buf, ext = await asyncio.to_thread(F.timelapse, snaps, F.palette(card_theme()))
+            await post(guild, "board_channel", content=f"🎞️ **The night on the {F.TITLE[kind].lower()} field**",
+                       file=field_file(buf, ext, kind))
 
 
 def reset_field():
@@ -2564,9 +2772,9 @@ _cw = {"early_at": 0.0, "live_at": 0.0, "status": "not run yet"}
 
 
 def cw_night() -> bool:
-    """Election-night window for live county pulls: from the first poll closings to 8 AM ET Nov 4."""
-    t = now()
-    return N.ELECTION_DAY.replace(hour=18) <= t <= N.ELECTION_DAY.replace(day=4, hour=8)
+    """Election-night window for live county pulls: from the first poll closings to 8 the morning after."""
+    start, end = FEEDS.night_window()
+    return start <= now() <= end
 
 
 @tasks.loop(seconds=10)
@@ -2575,9 +2783,12 @@ async def county_loop():
     refresh_seconds (30 by default), alerts posted the moment numbers move, workbook refreshed every
     workbook_seconds (120) so a slow rebuild never holds up the feeds."""
     try:
+        if not FEEDS.countywatch():
+            return                      # this pack's counties aren't modelled, so there's nothing to pull
         src = CF.load_sources()
         # stops when the first polls close: the NC pull takes ~20 s and would hold up live pulls on the night
-        if time.time() - _cw["early_at"] > 6 * 3600 and now() < N.ELECTION_DAY.replace(hour=18):
+        if (FEEDS.early_vote() and time.time() - _cw["early_at"] > 6 * 3600
+                and now() < N.ELECTION_DAY.replace(hour=18)):
             _cw["early_at"] = time.time()
             await CWR.refresh_early()
             _cw["dirty"] = True
@@ -2585,16 +2796,14 @@ async def county_loop():
             _cw["live_at"] = time.time()
             cache = await CWR.refresh_live()
             for m in CWR.blocked_notices(cache):
-                await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
+                await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
             _start_state_watch(cache)
             if cache.get("changed"):
                 _cw["dirty"] = True
                 if src.get("post_alerts", True):
-                    msgs = await asyncio.to_thread(CWR.alerts, cache, cache["changed"])
-                    g = main_guild()
-                    for m in msgs:
-                        await post(g, "board_channel", content=m, allowed_mentions=NO_PINGS)
-        elif now() > N.ELECTION_DAY.replace(day=4, hour=8):
+                    for m in await asyncio.to_thread(CWR.alerts, cache, cache["changed"]):
+                        await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
+        elif now() > FEEDS.night_window()[1]:
             # After the night, states with late ballots keep updating the workbook and the private /watchstate DMs. Nothing
             # goes to the board: the night's public alerts are over.
             extended = CWR.extended_states(src, now())
@@ -2608,7 +2817,7 @@ async def county_loop():
         for res in loaded:
             await _announce_file(main_guild(), res, "the grab button" if res.get("grab") else "the inbox folder")
         for m in CWR.workbook_notices():
-            await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
+            await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
         busy = _cw.get("wb_task") and not _cw["wb_task"].done()
         # the shared workbook syncs even when no feed moved, so what people type into it reaches the bot
         if ((_cw.get("dirty") or CWR.CC.enabled()) and not busy
@@ -2621,8 +2830,8 @@ async def county_loop():
                 log.info("County Watch: %s", _cw["status"])
                 dms = _cw.get("dm_task")
                 # one at a time: if sending is still going, the next update's message covers these numbers too
-                if store.setting("results_dm_users") and CWR.workbook_wrote(_cw["status"]) and (not dms or dms.done()):
-                    _cw["dm_task"] = asyncio.create_task(_send_results_dms(cache))
+                if CWR.workbook_wrote(_cw["status"]) and (not dms or dms.done()):
+                    _cw["dm_task"] = asyncio.create_task(each_server(lambda _guild: _send_results_dms(cache)))
             _cw["wb_task"] = asyncio.create_task(_write())   # runs alongside, never delays the next feed check
     except Exception:
         log.exception("County Watch loop failed")
@@ -2632,6 +2841,8 @@ async def _send_results_dms(cache: dict):
     """DM everyone who turned on /resultsdm each county whose numbers just reached the workbook. Runs on its own, so
     trouble here can't touch the workbook or the feeds. Only ever goes to people's DMs, never a channel."""
     try:
+        if not store.setting("results_dm_users"):
+            return
         new = await asyncio.to_thread(CWR.result_snapshot, cache)
         old = store.setting("results_dm_last")
         store.set_setting("results_dm_last", new)
@@ -2651,8 +2862,8 @@ async def _send_results_dms(cache: dict):
 
 def _start_state_watch(cache: dict):
     watch = _cw.get("watch_task")
-    if store.setting("state_watch") and (not watch or watch.done()):
-        _cw["watch_task"] = asyncio.create_task(_send_state_watch(cache))
+    if not watch or watch.done():       # each server's own watchers, from that server's records
+        _cw["watch_task"] = asyncio.create_task(each_server(lambda _guild: _send_state_watch(cache)))
 
 
 async def _send_state_watch(cache: dict):
@@ -3023,8 +3234,7 @@ async def county_test_all() -> list[str]:
 @tree.command(name="countytest", description="Admin: check a county feed against an old results file, or all of them at once.")
 @app_commands.guild_only()
 @app_commands.choices(state=[app_commands.Choice(name="All states", value="ALL")] +
-                      [app_commands.Choice(name=CM.STATES[s], value=s)
-                       for s in ("GA", "NC", "MN", "NE", "FL", "VA", "IA", "OH", "TX", "SC", "AK", "MI", "ME", "MS", "NH", "KY", "KS")])
+                      [app_commands.Choice(name=CM.STATES[s], value=s) for s in CM.STATES])
 async def countytest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
@@ -3081,7 +3291,7 @@ async def countyrefresh_cmd(interaction: discord.Interaction):
 def county_card(link: str) -> dict:
     """send() arguments for the workbook card. A OneDrive link gets no preview in Discord, so this stands in for one.
     The picture is a snapshot from before results (assets/county_watch_card.png), and the footer says so."""
-    e = discord.Embed(title="County Watch 2026: live Senate workbook", url=link, color=0x1F2A44,
+    e = discord.Embed(title=f"County Watch {N.ELECTION_DAY.year}: live workbook", url=link, color=0x1F2A44,
                       description="Live county-by-county numbers for every Senate race we're watching. It updates every couple of "
                                   "minutes once polls close. View only. If you're new to this, read the Start Here tab first.")
     e.set_footer(text="Picture is a preview from before results, based on final polls. Open the workbook for live numbers.")
@@ -3196,7 +3406,7 @@ async def on_ready():
                "Remove that line and restart before election night, or nothing will run on time.")
         log.warning(msg)
         real = datetime.now(N.ET)
-        if N.ELECTION_DAY.replace(hour=0) <= real <= N.ELECTION_DAY.replace(day=4, hour=12) and g:
+        if N.ELECTION_DAY.replace(hour=0) <= real <= N.morning_after(12) and g:
             await post(g, "board_channel", content=msg)
     for key in ("board_channel", "desk_channel"):
         if g and not find_channel(g, key):

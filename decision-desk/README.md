@@ -285,6 +285,21 @@ Things the code can't check for you. Do them on the PC that will run the bot:
 ## Rehearse
 Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
 
+## The desk's own bot, charts and extras
+
+| Command | Who | What it does |
+|---|---|---|
+| `/trend race` | Anyone | A Senate race through the night as a chart: the projected margin, the votes counted, when the desk called or retracted it, and when the desk's own bot would have called it. |
+| `/react image` | Anyone | Posts a reaction image from `assets/reactions/`. Save an image there and its file name is what you type. None are shipped. |
+| `/drinkinggame [on\|off]` | Admin to change | Drinking-game lines on calls: a flip, an upset, a retraction, an outlet beating the desk. Off by default, per server. Rules are in `drinking.py`, or a pack's `drinking.json`. |
+
+**The Bot.** On the night the bot makes its own calls on Senate races from the projection alone, and posts them to the
+board as an outlet called "The Bot". They feed `/scoreboard`, so the desk is timed against it, and they never make
+anything official. It calls when the projected lead has held on one side, by enough, for long enough: a 15-point lead
+for 20 minutes, 8 points for 40, 4 points for 75, and never under 4. Against 2026 it called 14 of 17 Senate races, none
+wrong, and left Alaska, Florida and Mississippi alone; it was a median 83 minutes slower than the desk. Set
+`"bot_caller": false` in `config.json` to switch it off. The thresholds are at the top of `autocaller.py`.
+
 ## Data packs, servers and the global board
 The bot isn't tied to one election. Everything about an election (its races, who can win them, what they add up to,
 when polls close, how predictions score) is a **data pack**: a folder in `packs/` with a `pack.json`. A pack can be a
@@ -301,6 +316,11 @@ whole general election or one contest, such as a mayoral race.
 - Each pack keeps its own records, and each Discord server its own within a pack, so one bot can run in several
   servers without their calls, picks or leaderboards mixing.
 - The global board is scored on outlet calls and final results, never on any one server's own calls.
+- A pack also names where its numbers come from (its `feeds` block): the state results files, the outlets read
+  for calls, early vote and County Watch. A pack that names none fetches nothing and is run by hand. 2026's files
+  are where they always were (`results_sources.json`, `countywatch/`).
+- A feed is read once however many servers the bot is in. Each server acts on it for itself: its own automatic
+  calls, field posts and County Watch alerts.
 - `docs/data-packs.md` explains how to write a pack, and what isn't general yet.
 
 ## The website
@@ -342,8 +362,8 @@ python replay.py
 
 - `python -m pytest` runs the rule tests and replays election night 2026: the same 877 recorded events have to give the same 482 calls and retractions in the same order, the same tally on all 348 vote posts, and the same leaderboard.
 - `python replay.py` prints where the replayed night ends and whether it matches. `--until 2026-11-03T22:55-06:00` stops partway.
-- `tests/fixtures/2026/night.json` is the recorded night, with people replaced by numbers. `field_history.json.gz` is the Senate field's snapshots from the night.
-- To rebuild the fixture, or make one for another night: `python tools/build_night_fixture.py --db desk.db --export <Discord export folder> --field field_history.json --out tests/fixtures/<year>`. The database and the export hold Discord IDs and names, so they stay out of the repo.
+- `tests/fixtures/2026/` holds the night's real records with people replaced by numbers: the recorded events, the bot's database, County Watch's county counts and the Senate field's snapshots. Every file's name says `.fixture`, the bot refuses to run on one, and tests only ever open copies. `tests/fixtures/README.md` lists them.
+- To rebuild them, or make a set for another night: `python tools/build_night_fixture.py --db desk.db --export <Discord export folder> --field field_history.json --out tests/fixtures/<year>`. The raw database and export hold Discord IDs and names, so they stay out of the repo.
 
 GitHub runs the tests on every pull request.
 

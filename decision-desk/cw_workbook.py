@@ -10,6 +10,8 @@ optional xlwings package (Windows). Without it, the bot updates the file only wh
 'County Watch live.csv' next to it.
 """
 from __future__ import annotations
+import feeds as FEEDS
+import packs
 
 import csv
 import json
@@ -175,12 +177,12 @@ def _style_header(ws, row, ncols, height=42):
 
 def _names() -> dict:
     try:
-        c = json.loads((HERE / "candidates.json").read_text(encoding="utf-8"))
+        c = json.loads(packs.active().path("candidates.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         c = {}
     out = {}
     for st in M.STATES:
-        e = c.get(f"{st}-SEN", {})
+        e = c.get(FEEDS.cw_race(st), {})
         out[st] = (e.get("I") if st == "NE" else e.get("D")) or "Democrat", e.get("R") or "Republican"
     return out
 

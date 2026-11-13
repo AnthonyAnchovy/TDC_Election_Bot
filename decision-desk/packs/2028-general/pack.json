@@ -1126,6 +1126,15 @@
    "20:00"
   ]
  },
+ "feeds": {
+  "bluesky": {
+   "since": "2028-11-07T17:00:00-05:00",
+   "accounts": {
+    "did:plc:catipgdd42lzwcqfsfcc6ype": "Decision Desk HQ",
+    "did:plc:oegdayoj7y4heuqwngwg2d2p": "Dave Wasserman"
+   }
+  }
+ },
  "game": {
   "categories": [
    {

@@ -91,6 +91,8 @@ def section(key: str, *, role: str, board: str, desk: str, junkie: bool, admin: 
             "County Watch",
             "County-by-county analysis for 15 Senate races (AK, FL, GA, IA, KS, ME, MI, MN, MS, NC, NE, NH, OH, SC, TX). "
             "Most states pull results by themselves. Alerts post when projections move.\n\n"
+            "**`/trend race`** 📢 A Senate race through the night as a chart: projected margin, votes counted, the "
+            "desk's calls, and when the desk's own bot would have called it.\n\n"
             "**`/needs state [what_if]`** 📢 The vote still out, county by county: how much the model expects, "
             "where it is, and the share of it the trailing side needs. `what_if` tries a different break.\n\n"
             "**`/counties state`** 📢 The state's read: projection and its range, swing by county type, which key "

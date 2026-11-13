@@ -47,6 +47,11 @@ def first_anywhere() -> datetime:
     return min((first_close(st) for st in CLOSINGS), default=first_close(None))
 
 
+def morning_after(hour: int = 8) -> datetime:
+    """The day after election day at this hour, in the pack's timezone: when the night's posts and pulls stop."""
+    return (ELECTION_DAY + timedelta(days=1)).replace(hour=hour)
+
+
 def is_closed(state: str | None, now: datetime) -> bool:
     return now >= first_close(state)
 

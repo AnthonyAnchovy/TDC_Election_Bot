@@ -140,6 +140,45 @@ How the website lays out the picker. Leave it out for one plain list per categor
 | `house` | A control pick (`control`), the tiebreaker, and a list of rated seats. |
 | `list` | The races of `category`, one per row. |
 
+### `feeds`
+
+Where the pack's numbers come from on the night. Every part is optional, and a pack with no `feeds` at all fetches
+nothing: calls, outlet calls and finals are entered by hand, which is all a one-off race needs.
+
+```json
+"feeds": {
+  "results": "results_sources.json",
+  "nyt": {"house": "https://...", "senate": "https://...", "governor": "https://..."},
+  "bluesky": {"since": "2028-11-07T17:00:00-05:00", "accounts": {"did:plc:...": "Decision Desk HQ"}},
+  "early_vote": {"uf": "https://...", "nc_absentee": "https://..."},
+  "countywatch": {"folder": "countywatch", "race": "{state}-SEN", "workbook": "County Watch 2026.xlsx",
+                  "states": ["GA", "NC"], "bellwether": ["VA"], "night_ends": "08:00"}
+}
+```
+
+| Part | What it turns on |
+|---|---|
+| `results` | The file, in the pack's folder, of official state results files that `/results` reads. Same layout as 2026's `results_sources.json`. |
+| `nyt` | The NYT results files read for calls. `house` feeds automatic House calls; all three feed `/callnyt`. A file is trusted only if it holds nine in ten of the pack's races of that kind. |
+| `bluesky` | The accounts read for House calls, by permanent ID, and the time from which their posts count (5 PM on election day if left out). Only Decision Desk HQ and Dave Wasserman posts can be read. |
+| `early_vote` | The UF Election Lab tracker and North Carolina's absentee file. |
+| `countywatch` | County Watch: the states it models, the race it follows in each (`{state}-SEN`, or `{state}-PRES` in a presidential year), and the folder with its baselines. Without it, the County Watch commands, the field graphic, `/trend` and the desk's bot are off. |
+
+A County Watch folder holds what 2026's `decision-desk/countywatch` does: `baseline.csv` (each county's last
+presidential result, its last comparable turnout and its demographics), `key_counties.json`, `first_counties.json`,
+`county_districts.json` and `feeds.json` (each state's live county feed). The column names in `baseline.csv` still
+say 22 and 24; in another year they mean "the turnout pattern to expect" and "the margins to swing from".
+
+What the pack ships is only read. What the night writes (pulled results, what alerts already said, the field's
+history, files dropped in the inbox, the workbook) goes under `data/<pack>/countywatch`, beside the servers'
+records. 2026 is the exception: its files have always shared `decision-desk/countywatch`, and still do.
+
+**Feeds and servers.** Everything a feed pulls is public, so it is fetched once however many servers the bot is
+in. Each server then acts on it for itself: its own automatic calls (and its own `/autocalls` switch), its own
+field posts with its own calls on them, County Watch alerts in its own board channel, and its own `/watchstate`
+and `/resultsdm` messages. Counties typed in with `/countyset`, files loaded with `/countyfile` and a feed
+re-pointed with `/countyfeed` change the shared numbers, so they show for every server.
+
 ### Files beside `pack.json`
 
 `candidates.json`, `seat_info.json`, `flavor.json`: the same files the bot has always read, now per pack. A pack with
@@ -157,7 +196,14 @@ loads every pack in `packs/`.
 - **The `/predict` map image** is only drawn for Senate and governor pages. A presidential page has its buttons but
   no map in Discord; the website has the map.
 - **The tiebreaker box in Discord** still describes itself as House seats. The website uses the pack's wording.
-- **Results feeds and County Watch** still point at 2026's sources.
+- **County Watch's model is still built around a two-party state race.** The states, the race it follows and every
+  file it reads now come from the pack, but only 2026 ships baselines. A 2028 pack needs its own `baseline.csv`
+  and `feeds.json`, and three pieces are still written for 2026's races: the Mississippi and Alaska special
+  handling, the Nebraska baseline (Osborn's 2024 race), and the Excel workbook's wording.
+- **The field graphic and `/trend`** follow Senate races, whatever race County Watch is pointed at.
+- **State parsers are per state, not per year.** A state that changes its results site needs its parser updated;
+  the pack only says where the file is.
+- **No national feed.** Nothing reads a presidential or all-states results source yet.
 
 ## Flavor lines
 

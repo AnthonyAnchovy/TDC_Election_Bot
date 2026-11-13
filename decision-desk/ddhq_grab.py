@@ -73,7 +73,7 @@ def scan(folders: list[Path] | None = None, done: Path | None = None) -> list[di
     """Every grab file waiting in Downloads, oldest first, each moved away so it's only read once:
     {"file", "found", "tally"} or {"file", "error"}."""
     folders = CWR._download_dirs() if folders is None else folders
-    done = CWR.INBOX / "done" if done is None else done
+    done = CWR.inbox() / "done" if done is None else done
     out = []
     files = [f for d in folders for f in d.glob(PATTERN) if f.is_file()]
     for f in sorted(files, key=lambda p: p.stat().st_mtime):

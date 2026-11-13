@@ -4,9 +4,10 @@
     python replay.py --until 2026-11-03T22:55-06:00    stop there and show where the desk stood
 
 A night is a fixture folder made by tools/build_night_fixture.py:
-  night.json              every vote, override, retraction and outlet call in order, the roster, the predictions,
+  night.fixture.json      every vote, override, retraction and outlet call in order, the roster, the predictions,
                           and what the bot did with them (`expected`)
-  field_history.json.gz   the Senate field's snapshots: projected margin and votes counted, about once a minute
+  field.fixture.json.gz   the Senate field's snapshots: projected margin and votes counted, about once a minute
+  desk.fixture.sqlite     the night's database itself, people as numbers (fixture_db() hands out a copy)
 
 replay() runs the events through desk.py on a fresh Store. FieldHistory answers "what did the model say about this
 race at this moment", which is what a feature that shows margins beside a call needs to be tested against.
@@ -30,8 +31,22 @@ HERE = Path(__file__).parent
 NIGHT_2026 = HERE / "tests" / "fixtures" / "2026"
 
 
+def fixture_db(into: Path, folder: Path = NIGHT_2026) -> Path:
+    """A working copy of a night's database, in `into`. The fixture itself is never opened for writing."""
+    import shutil
+    copy = Path(into) / "desk.db"
+    shutil.copyfile(Path(folder) / "desk.fixture.sqlite", copy)
+    return copy
+
+
+def load_countywatch(folder: Path = NIGHT_2026) -> dict:
+    """The county counts held that night: {state: {fips: {"D", "R", "O", "pct_in", "complete"}}}."""
+    data = json.loads((Path(folder) / "countywatch.fixture.json").read_text(encoding="utf-8"))
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
 def load_night(folder: Path = NIGHT_2026) -> dict:
-    return json.loads((Path(folder) / "night.json").read_text(encoding="utf-8"))
+    return json.loads((Path(folder) / "night.fixture.json").read_text(encoding="utf-8"))
 
 
 # ------------------------------------------------------------------ the desk
@@ -153,7 +168,7 @@ class FieldHistory:
 
     @classmethod
     def load(cls, folder: Path = NIGHT_2026, kind: str = "senate") -> "FieldHistory":
-        with gzip.open(Path(folder) / "field_history.json.gz", "rt", encoding="utf-8") as f:
+        with gzip.open(Path(folder) / "field.fixture.json.gz", "rt", encoding="utf-8") as f:
             return cls(json.load(f).get(kind, []))
 
     def at(self, ts: float) -> dict | None:

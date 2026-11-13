@@ -21,7 +21,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-BASE_FILE = Path(__file__).parent / "countywatch" / "ak_modes24.json"
+import feeds as FEEDS
+import packs
+
+
+def base_file() -> Path:
+    return FEEDS.cw_file("ak_modes24.json")
 MODEL_MIN = 5_000           # Election Day votes in matched precincts before this says anything
 ABSENTEE_RATIO = 0.70       # 2026 absentees / 2024's 74K: a midterm has fewer. Judgment call, near NYT's estimate of 52K
 QUESTIONED_RATIO = 0.72     # the same for questioned ballots: 10K of 2024's 13.8K, also near NYT's estimate
@@ -33,8 +38,13 @@ _base: dict = {}
 
 def base() -> dict:
     if not _base:
-        _base.update(json.loads(BASE_FILE.read_text(encoding="utf-8")))
+        _base.update(json.loads(base_file().read_text(encoding="utf-8")))
     return _base
+
+
+@packs.on_activate
+def _forget(_pack):
+    _base.clear()
 
 
 def _m(x) -> float | None:

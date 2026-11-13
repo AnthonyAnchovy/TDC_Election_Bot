@@ -75,6 +75,9 @@ def general_2028() -> dict:
         "house_seats": base["house_seats"],
         "ratings": {"rated": [], "battleground": [], "safe": {}},
         "closings": {**base["closings"], "DC": ["20:00", "20:00"]},
+        # The two Bluesky accounts are pinned by permanent ID, so they carry over. NYT's file addresses, the state
+        # results files and County Watch's baselines are per election and have to be added when they exist.
+        "feeds": {"bluesky": {"since": "2028-11-07T17:00:00-05:00", "accounts": base["feeds"]["bluesky"]["accounts"]}},
         "game": {
             "categories": [
                 {"key": "president", "name": "President, state by state", "points": 1, "required": True, "races": {"type": "president"}},

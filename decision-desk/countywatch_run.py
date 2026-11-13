@@ -26,10 +26,20 @@ import cw_early as E
 import cw_feeds as FD
 import cw_model as M
 import cw_workbook as W
+import feeds as FEEDS
+import packs
 
 HERE = Path(__file__).parent
-CW = HERE / "countywatch"
-WORKBOOK = HERE / "County Watch 2026.xlsx"
+
+
+def workbook() -> Path:
+    """The pack's Excel workbook (County Watch 2026.xlsx beside the code, for 2026)."""
+    return FEEDS.cw_workbook()
+
+
+def inbox() -> Path:
+    """Where files downloaded by hand are dropped: an inbox folder beside what the night writes."""
+    return FEEDS.cw_state("inbox")
 log = logging.getLogger("countywatch")
 UA = FD.UA
 
@@ -49,7 +59,7 @@ def _locked(fn):
 
 
 def _load(name, default):
-    path = CW / name
+    path = FEEDS.cw_state(name)
     for attempt in range(20):
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -62,7 +72,7 @@ def _load(name, default):
 
 
 def _save(name, data):
-    path = CW / name
+    path = FEEDS.cw_state(name)
     tmp = path.with_name(f".{name}.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(data, default=str), encoding="utf-8")
     for attempt in range(40):
@@ -357,12 +367,12 @@ def _inputs() -> dict:
     if _INPUTS["cloud"] is not None and CC.enabled():
         return _INPUTS["cloud"]
     try:
-        mt = WORKBOOK.stat().st_mtime
+        mt = workbook().stat().st_mtime
     except OSError:
         return {}
     if _INPUTS["mtime"] != mt:
         try:
-            _INPUTS["keep"], _INPUTS["mtime"] = W.read_inputs(WORKBOOK), mt
+            _INPUTS["keep"], _INPUTS["mtime"] = W.read_inputs(workbook()), mt
         except Exception:
             return _INPUTS["keep"]
     return _INPUTS["keep"]
@@ -409,8 +419,6 @@ def manual() -> dict:
 
 
 # ------------------------------------------------------------------ files you download yourself
-INBOX = CW / "inbox"
-
 
 def feed_view(cache: dict | None = None) -> dict:
     """Feed numbers with any loaded files laid over them, per state (what the workbook's Feed columns show)."""
@@ -454,7 +462,7 @@ def reset_night() -> str:
     with _LOCK:
         for name in ("live.json", "discord_entries.json", "alerts.json"):
             try:
-                (CW / name).unlink()
+                FEEDS.cw_state(name).unlink()
                 gone.append(name)
             except FileNotFoundError:
                 pass
@@ -471,10 +479,13 @@ def _download_dirs() -> list[Path]:
 def scan_inbox() -> list[dict]:
     """Load every file dropped into countywatch/inbox, plus countywatch-*.json files the grab button saved to
     Downloads, then move each to inbox/done."""
-    INBOX.mkdir(exist_ok=True)
-    (INBOX / "done").mkdir(exist_ok=True)
+    if not FEEDS.countywatch():
+        return []
+    box = inbox()
+    box.mkdir(exist_ok=True)
+    (box / "done").mkdir(exist_ok=True)
     out = []
-    files = [f for f in INBOX.iterdir() if f.is_file()]
+    files = [f for f in box.iterdir() if f.is_file()]
     for d in _download_dirs():
         files += [f for f in d.glob("countywatch-*.json") if f.is_file()]
     for f in sorted(files, key=lambda p: p.stat().st_mtime):
@@ -490,7 +501,7 @@ def scan_inbox() -> list[dict]:
             res = {"file": f.name, "error": str(exc)[:300]}
         out.append(res)
         try:
-            shutil.move(str(f), str(INBOX / "done" / f"{datetime.now().strftime('%H%M%S')}_{f.name}"))
+            shutil.move(str(f), str(box / "done" / f"{datetime.now().strftime('%H%M%S')}_{f.name}"))
         except OSError:
             try:
                 f.unlink()          # never load the same file twice
@@ -546,19 +557,20 @@ async def refresh_early(nc_full: bool = True) -> dict:
     timeout = aiohttp.ClientTimeout(total=600)
     async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": UA}) as s:
         try:
-            async with s.get(E.UF_URL) as r:
-                r.raise_for_status()
-                cache["uf"] = E.parse_uf(await r.read())
-                cache["uf_fetched"] = datetime.now().strftime("%b %d %I:%M %p")
-                cache.pop("uf_error", None)
+            if E.uf_url():
+                async with s.get(E.uf_url()) as r:
+                    r.raise_for_status()
+                    cache["uf"] = E.parse_uf(await r.read())
+                    cache["uf_fetched"] = datetime.now().strftime("%b %d %I:%M %p")
+                    cache.pop("uf_error", None)
         except Exception as exc:
             cache["uf_error"] = str(exc)[:200]
-        if nc_full:
+        if nc_full and E.nc_abs_url():
             try:
-                async with s.get(E.NC_ABS_URL) as r:
+                async with s.get(E.nc_abs_url()) as r:
                     r.raise_for_status()
                     raw = await r.read()
-                agg = await asyncio.to_thread(E.aggregate_nc, raw, E.ELECTION_2026)
+                agg = await asyncio.to_thread(E.aggregate_nc, raw, E.election_day())
                 cache["nc"] = nc_tables(agg)
                 cache.pop("nc_error", None)
             except Exception as exc:
@@ -568,8 +580,8 @@ async def refresh_early(nc_full: bool = True) -> dict:
 
 
 def nc_tables(agg: dict) -> dict:
-    days = (E.ELECTION_2026 - agg["through"]).days
-    off = E.load_offsets(CW / "nc_ev2022_by_day.csv")
+    days = (E.election_day() - agg["through"]).days
+    off = E.load_offsets(FEEDS.cw_file("nc_ev2022_by_day.csv"))
     same = E.as_of(off, days)
     base = {c["name"].upper(): c for c in M.load()["NC"]}
     rows = []
@@ -673,9 +685,9 @@ def write_workbook(cache=None, *, local: bool = False) -> str:
                 log.exception("shared workbook update failed")
                 _WB.update(fails=_WB["fails"] + 1, error=str(exc)[:150] if isinstance(exc, CC.CloudError) else type(exc).__name__,
                            partial=False)
-                done = W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
+                done = W.update(workbook(), live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
                 return f"shared workbook update failed ({exc}), so {done} on this PC instead"
-        return W.update(WORKBOOK, live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
+        return W.update(workbook(), live=live, uf=early.get("uf"), nc=nc, reads=rd, extra_manual=extra)
     except Exception as exc:
         log.exception("workbook update failed")
         return f"workbook update failed: {exc}"
@@ -709,7 +721,7 @@ def _county_districts() -> dict:
     """{fips: U.S. House districts, biggest share first}, built by tools/make_county_districts.py. Without the file the
     messages simply leave districts out."""
     try:
-        return json.loads((CW / "county_districts.json").read_text(encoding="utf-8"))
+        return json.loads(FEEDS.cw_file("county_districts.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -718,11 +730,19 @@ def _county_districts() -> dict:
 def _tracked_counties(st: str) -> frozenset:
     """The FIPS of a state's counties named on Key Counties or First Counties. Those lists can say 'Virginia Beach' where
     the baseline says 'Virginia Beach city', and an exact match wins, so 'Fairfax' never means Fairfax city."""
-    keys = json.loads((CW / "key_counties.json").read_text(encoding="utf-8")).get(st, [])
-    first = json.loads((CW / "first_counties.json").read_text(encoding="utf-8"))["states"]
+    keys = json.loads(FEEDS.cw_file("key_counties.json").read_text(encoding="utf-8")).get(st, [])
+    first = json.loads(FEEDS.cw_file("first_counties.json").read_text(encoding="utf-8"))["states"]
     names = [k[0] for k in keys] + [n for e in first if e["state"] == st for n in e["counties"]]
     fips = {c["name"]: c["fips"] for c in M.load()[st]}
     return frozenset(filter(None, (fips.get(n) or fips.get(f"{n} city") for n in names)))
+
+
+@packs.on_activate
+def _forget(_pack):
+    """Another pack has its own county lists and workbook."""
+    _county_districts.cache_clear()
+    _tracked_counties.cache_clear()
+    _INPUTS.update(mtime=None, keep={}, cloud=None)
 
 
 def _place_name(st: str, name: str) -> str:

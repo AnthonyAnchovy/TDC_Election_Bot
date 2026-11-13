@@ -153,3 +153,11 @@ def test_party_cards_still_draw(theme):
         buf = G.call_card(rid, party, candidate=P.name_of(rid, party), tally="Called by 3 of 5", theme=theme,
                           counts=S.chamber_counts(__import__("races").chamber(rid), {}), use_custom=False)
         assert Image.open(io.BytesIO(buf.getvalue())).width >= 800, (rid, party)
+
+
+def test_the_newer_commands_are_registered(bot):
+    names = {c.name for c in bot.tree.get_commands()}
+    assert {"trend", "react", "drinkinggame", "globalboard", "globalme", "pack", "needs", "closeout", "final", "forcecall"} <= names
+    assert bot.BOT_OUTLET == "The Bot" and not bot.is_house_caller(bot.BOT_OUTLET)      # it can never make a seat official
+    assert bot.card_theme() in ("editorial", "wire", "classic") and bot.CFG["card_theme"] == "editorial"
+    assert bot.reaction_files() == {}                                                   # none shipped: people add their own

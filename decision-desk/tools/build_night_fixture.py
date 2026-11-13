@@ -8,9 +8,16 @@ Reads three things that never go in the repo, because they hold Discord user IDs
                       doesn't keep: withdrawn votes, and who holds the Election Junkie role
   field_history.json  the Senate field's snapshots (no personal data; copied as is, gzipped)
 
-Writes night.json: every input event in order, the roster, the predictions, and what the bot did with them (the
-`expected` block), with people replaced by numbers. replay.py feeds the events back through desk.py and the tests
-compare the outcome with `expected`.
+Writes, into the fixture folder, files whose names no running bot would ever create (they all say ".fixture"):
+  night.fixture.json         every input event in order, the roster, the predictions, and what the bot did with them
+                             (the `expected` block). replay.py feeds the events back through desk.py and the tests
+                             compare the outcome with `expected`.
+  desk.fixture.sqlite        the night's database itself, rebuilt row by row with people replaced by numbers. It is
+                             what a real desk.db looks like, so tests can open one with today's code.
+  countywatch.fixture.json   the county counts County Watch was holding (2026: Mississippi, all 82 counties)
+  field.fixture.json.gz      the Senate field's snapshots, as recorded
+People are numbers in all of them, the same number everywhere. Tests copy the database before opening it, and
+packs.db_path() refuses to run the bot on a file named like these.
 
 Two things about the roster aren't recorded anywhere and are worked out here:
   votes needed       read off each vote's board post ("2 of 3 votes needed"); a change becomes a roster event
@@ -170,6 +177,7 @@ def build(db_path: Path, export_dir: Path) -> dict:
 
     junkies = sorted(num[u] for u in order if who.get(u, {}).get("junkie"))
     return {
+        "_private": {"num": num, "by_name": by_name},        # for the database copy; never written out
         "_note": "Election night, built by tools/build_night_fixture.py. People are numbers; times are Unix seconds.",
         "roster": {"junkies": junkies, "counted": junkies, "threshold": "majority"},
         "events": events,
@@ -212,6 +220,73 @@ def fit_counted(night: dict) -> str:
             + ("" if not miss else f" (closest fit: {miss} differences from the night remain)"))
 
 
+def write_db(src: Path, out: Path, num: dict[int, int], by_name: dict[str, int]):
+    """An anonymised copy of the night's database: a new file with the same tables and rows, user IDs replaced by
+    the fixture's numbers and names in "Called by Anthon (override)" replaced the same way. Built fresh, row by row,
+    so nothing of the original lingers in unused pages."""
+    from store import Store
+    for stale in (out, out.with_name(out.name + "-journal")):
+        stale.unlink(missing_ok=True)
+    old = sqlite3.connect(f"file:{src.as_posix()}?mode=ro", uri=True)
+    new = Store(str(out)).db
+
+    def who(uid):
+        return num.get(uid, 0) if uid else 0
+
+    def detail(text):
+        d = json.loads(text or "{}")
+        m = BY_NAME.match(d.get("how", ""))
+        if m and m.group(2) in by_name:
+            d["how"] = f"{m.group(1)} by user{num[by_name[m.group(2)]]}{m.group(3) or ''}"
+        return json.dumps(d)
+
+    new.executemany("INSERT INTO calls VALUES (?,?,?,?)",
+                    [(r, p, t, detail(d)) for r, p, t, d in old.execute("SELECT race_id, party, called_at, detail FROM calls")])
+    new.executemany("INSERT INTO history VALUES (?,?,?,?,?,?)",
+                    [(i, t, a, r, p, detail(d)) for i, t, a, r, p, d in old.execute("SELECT id, ts, action, race_id, party, detail FROM history")])
+    new.executemany("INSERT INTO desk_votes VALUES (?,?,?,?,?,?,?)",
+                    [(i, who(u), r, k, p, t, a) for i, u, r, k, p, t, a in
+                     old.execute("SELECT id, user_id, race_id, kind, party, ts, active FROM desk_votes")])
+    new.executemany("INSERT INTO procalls VALUES (?,?,?,?,?)",
+                    [(r, o, p, t, who(u)) for r, o, p, t, u in old.execute("SELECT race_id, outlet, party, ts, logged_by FROM procalls")])
+    new.executemany("INSERT INTO predictions VALUES (?,?,?,?)",
+                    [(who(u), r, p, t) for u, r, p, t in old.execute("SELECT user_id, race_id, party, ts FROM predictions")])
+    new.executemany("INSERT INTO prediction_meta VALUES (?,?,?)",
+                    [(who(u), t, s) for u, t, s in old.execute("SELECT user_id, saved_at, house_dem_seats FROM prediction_meta")])
+    new.executemany("INSERT INTO sent_alerts VALUES (?,?)", old.execute("SELECT key, ts FROM sent_alerts").fetchall())
+    for key, value in old.execute("SELECT key, value FROM settings"):
+        v = json.loads(value)
+        if key == "picks_unlocked":
+            v = {str(who(int(u))): t for u, t in v.items()}
+        elif key == "state_watch":
+            v = {st: [who(u) for u in users] for st, users in v.items()}
+        elif key == "results_dm_users":
+            v = [who(u) for u in v]
+        elif key == "names":
+            continue
+        new.execute("INSERT INTO settings VALUES (?,?)", (key, json.dumps(v)))
+    new.execute("INSERT OR REPLACE INTO settings VALUES ('names', ?)",
+                (json.dumps({str(n): f"user{n}" for n in sorted(set(num.values()))}),))
+    new.commit()
+    new.execute("VACUUM")
+    new.close()
+    raw = out.read_bytes()
+    leaked = [str(u) for u in num if str(u).encode() in raw] + [n for n in by_name if len(n) > 3 and n.encode() in raw]
+    if leaked:
+        out.unlink()
+        raise SystemExit(f"The database copy still held {len(leaked)} real IDs or names, so it wasn't kept.")
+
+
+def countywatch(src: Path) -> dict:
+    """The county counts County Watch was holding when the database was copied, in the shape cw_model.project takes:
+    {state: {fips: {"D", "R", "O", "pct_in", "complete"}}}."""
+    db = sqlite3.connect(f"file:{src.as_posix()}?mode=ro", uri=True)
+    row = db.execute("SELECT value FROM settings WHERE key = 'state_watch_last'").fetchone()
+    held = json.loads(row[0]) if row else {}
+    return {st: {fips: {"D": d, "R": r, "O": o, "pct_in": pct, "complete": bool(done)}
+                 for fips, (d, r, o, pct, done) in counties.items()} for st, counties in held.items()}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--db", type=Path, required=True)
@@ -221,16 +296,24 @@ def main():
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     night = build(a.db, a.export)
+    private = night.pop("_private")
     print(fit_counted(night))
-    (a.out / "night.json").write_text(json.dumps(night, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    (a.out / "night.fixture.json").write_text(json.dumps(night, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    write_db(a.db, a.out / "desk.fixture.sqlite", private["num"], private["by_name"])
+    print(f"desk.fixture.sqlite: {(a.out / 'desk.fixture.sqlite').stat().st_size:,} bytes, people as numbers")
+    held = countywatch(a.db)
+    (a.out / "countywatch.fixture.json").write_text(json.dumps(
+        {"_note": "County counts County Watch was holding when the night's database was copied (its state_watch_last "
+                  "setting), shaped for cw_model.project.", **held}, separators=(",", ":")), encoding="utf-8")
+    print("countywatch.fixture.json: " + (", ".join(f"{st} {len(c)} counties" for st, c in held.items()) or "nothing held"))
     left = RP.differences(night, RP.replay(night))
     print("replay reproduces the night" if not left else "replay differs from the night:\n  " + "\n  ".join(left[:10]))
-    print(f"night.json: {len(night['events'])} events, {len(night['expected']['history'])} calls and retractions")
+    print(f"night.fixture.json: {len(night['events'])} events, {len(night['expected']['history'])} calls and retractions")
     if a.field:
         raw = json.dumps(json.loads(a.field.read_text(encoding="utf-8")), separators=(",", ":")).encode()
-        with gzip.GzipFile(a.out / "field_history.json.gz", "wb", mtime=0) as f:
+        with gzip.GzipFile(a.out / "field.fixture.json.gz", "wb", mtime=0) as f:
             f.write(raw)
-        print(f"field_history.json.gz: {len(raw):,} bytes before gzip")
+        print(f"field.fixture.json.gz: {len(raw):,} bytes before gzip")
 
 
 if __name__ == "__main__":

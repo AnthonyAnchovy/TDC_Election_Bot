@@ -11,6 +11,8 @@ final poll, solid = live projection), and two charts. Every cell is a formula ov
 it works in the shared workbook without the bot writing anything new.
 """
 from __future__ import annotations
+import feeds as FEEDS
+import packs
 
 import json
 from zoneinfo import ZoneInfo
@@ -666,5 +668,6 @@ def _needles(ws, races, names, d_seats, r_seats, i_seats) -> int:
 def W_SAFE() -> dict:
     """Solid-rated Senate seats up this year that aren't on the board (from competitive.SAFE)."""
     import competitive as C
-    board = {f"{st}-SEN" for st in M.STATES if st not in M.BELLWETHER}
-    return {k: p for k, p in C.SAFE.items() if k.endswith("-SEN") and k not in board}
+    board = {FEEDS.cw_race(st) for st in M.STATES if st not in M.BELLWETHER}
+    kind = FEEDS.cw_race("").lstrip("-")
+    return {k: p for k, p in C.SAFE.items() if k.endswith(f"-{kind}") and k not in board}

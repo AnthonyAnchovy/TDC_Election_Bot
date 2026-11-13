@@ -19,6 +19,8 @@ pack.json, in brief (docs/data-packs.md has every field):
   closings      {"GA": ["19:00", "19:00"]} by jurisdiction, in the pack's timezone; "*" is the default
   game          {"categories": [{"key", "name", "points", "required", "races": {...}}], "flip_bonus", "tiebreaker"}
   sections      how the website lays the picker out
+  feeds         where its numbers come from on the night: state results files, outlets read for calls, early
+                vote, County Watch (feeds.py). Left out, nothing is fetched and everything is entered by hand
 
 One pack is active at a time in a process: activate() swaps it in, and the modules that used to hard-code 2026
 (races, competitive, night, scoring) refill themselves from it. The bot runs one pack (DESK_PACK in .env, or the
@@ -164,7 +166,8 @@ class Pack:
             kinds[r["type"]] = kinds.get(r["type"], 0) + 1
         return {"id": self.id, "name": self.name, "summary": self.data.get("summary", ""),
                 "election_day": self.data["election_day"], "races": len(self.races), "types": kinds,
-                "example": bool(self.data.get("example"))}
+                "example": bool(self.data.get("example")),
+                "feeds": [k for k, v in (self.data.get("feeds") or {}).items() if v]}
 
 
 # ------------------------------------------------------------------ checking a pack
@@ -221,7 +224,8 @@ def problems(data: dict) -> list[str]:
     for c in cats:
         if not c.get("key") or "races" not in c:
             out.append('game: a category needs a "key" and a "races" rule')
-    return out
+    import feeds
+    return out + feeds.problems(data)
 
 
 # ------------------------------------------------------------------ finding and loading
@@ -330,7 +334,11 @@ def _legacy() -> Path | None:
 def db_path(pack_id: str | None = None, server: int | str | None = None) -> Path:
     """The database for one pack in one Discord server. DESK_DB overrides everything (tests, one-off copies)."""
     if os.getenv("DESK_DB"):
-        return Path(os.environ["DESK_DB"])
+        chosen = Path(os.environ["DESK_DB"])
+        if ".fixture." in chosen.name:
+            raise PackError(f"{chosen.name} is a test fixture, kept as it was on the night. Copy it and point "
+                            "DESK_DB at the copy.")
+        return chosen
     pack_id = pack_id or active().id
     home = str(os.getenv("GUILD_ID") or "")
     if pack_id == DEFAULT and (server is None or str(server) == home) and _legacy():

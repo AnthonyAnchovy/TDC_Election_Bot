@@ -5,7 +5,8 @@ Each supported state publishes a machine-readable file on election night:
   NC  zipped tab-delimited precinct file from the State Board of Elections
   VA  JSON from the Department of Elections
 
-URLs live in results_sources.json so they can be fixed on the night without touching code.
+URLs live in the data pack's results file (feeds.results, results_sources.json for 2026) so they can be fixed on
+the night without touching code. A pack that names no results file has no live counts.
 Every parser returns {race_id: {"cands": [{"name", "party", "votes"}], "reporting": (done, total) | None}}.
 Counts are unofficial and are never treated as a call.
 """
@@ -20,11 +21,11 @@ import time
 import zipfile
 from pathlib import Path
 
+import feeds as FEEDS
 import net as NET
 import races as R
 
 HERE = Path(__file__).parent
-SOURCES_FILE = HERE / "results_sources.json"
 UA = "DecisionDeskDiscordBot/1.0 (friend-group election night bot)"
 
 _cache: dict[str, tuple[float, dict]] = {}
@@ -33,8 +34,9 @@ _locks: dict[str, asyncio.Lock] = {}
 
 # ------------------------------------------------------------------ config
 def sources() -> dict:
+    path = FEEDS.results_file()
     try:
-        return json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8")) if path else {"states": {}}
     except (OSError, ValueError):
         return {"states": {}}
 
@@ -262,7 +264,7 @@ async def fetch_state(state: str, *, test: bool = False, force: bool = False) ->
         raise LookupError(f"No live feed set up for {state}")
     url = cfg.get("test_url") if test else cfg["url"]
     if not url:
-        raise LookupError(f"No test_url for {state} in results_sources.json")
+        raise LookupError(f"No test_url for {state} in the pack's results file")
     ttl = sources().get("cache_seconds", 60)
     key = f"{state}|{url}"
     lock = _locks.setdefault(key, asyncio.Lock())
