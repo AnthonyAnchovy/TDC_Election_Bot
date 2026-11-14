@@ -421,9 +421,8 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
              width: int | None = None, brand: bool = True) -> io.BytesIO:
     """calls: race -> party. marks: race -> True (pick right) / False (pick wrong), drawn as badges.
     width: downscale the PNG (used for the fast-updating prediction picker)."""
-    assert kind in MAP_KINDS
     marks = marks or {}
-    if kind == "president":
+    if kind not in ("senate", "governor"):       # a president's states, or any other statewide race a pack has
         return _weighted_map(kind, calls, title, marks, pending_word, width, brand)
     holders = R.SENATE if kind == "senate" else R.GOVERNOR
     suffix = "SEN" if kind == "senate" else "GOV"
@@ -431,7 +430,8 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
     W, H = 1200, 1030
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    title = (title or ("2026 SENATE" if kind == "senate" else "2026 GOVERNORS")).upper()
+    year = __import__("packs").active().election_day().year
+    title = (title or (f"{year} SENATE" if kind == "senate" else f"{year} GOVERNORS")).upper()
     d.text((52, 56), title, font=fit(d, title, W - 400, 48), fill=WHITE, anchor="lm")
     if brand:
         d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
@@ -542,8 +542,8 @@ def _weighted_map(kind: str, calls: dict[str, str], title, marks: dict, pending_
         if got and races[rid].get("holder") and got != races[rid]["holder"]:
             flips += 1
             d.polygon([(x + tile - 30, y), (x + tile - 8, y), (x + tile, y + 8), (x + tile, y + 30)], fill=WHITE)
-        d.text((x + tile / 2, y + tile / 2 - (9 if rid else 0)), st, font=font(26), fill=txt, anchor="mm")
-        if rid:
+        d.text((x + tile / 2, y + tile / 2 - (9 if rid and races[rid]["weight"] > 1 else 0)), st, font=font(26), fill=txt, anchor="mm")
+        if rid and races[rid]["weight"] > 1:
             d.text((x + tile / 2, y + tile / 2 + 20), str(races[rid]["weight"]), font=font(18, False), fill=txt, anchor="mm")
         if rid in marks:
             ok = marks[rid]
@@ -584,7 +584,8 @@ def _weighted_map(kind: str, calls: dict[str, str], title, marks: dict, pending_
         bx += w
     cx = 52 + bw / 2
     d.line([cx, bar_y - 8, cx, bar_y + bar_h + 8], fill=WHITE, width=3)
-    d.text((cx, bar_y + bar_h + 26), f"{need} of {total} to win  ·  the number on a state is its votes",
+    weighted = any(r["weight"] > 1 for r in races.values())
+    d.text((cx, bar_y + bar_h + 26), f"{need} of {total} to win" + ("  ·  the number on a state is its votes" if weighted else ""),
            font=font(22, False), fill=MUTED, anchor="mm")
     if width:
         img = img.resize((width, round(H * width / W)), Image.LANCZOS)
@@ -617,7 +618,7 @@ def house_chart(calls: dict[str, str]) -> io.BytesIO:
     W, H = 1200, 760
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    d.text((52, 56), "2026 HOUSE", font=font(48), fill=WHITE, anchor="lm")
+    d.text((52, 56), f"{__import__('packs').active().election_day().year} HOUSE", font=font(48), fill=WHITE, anchor="lm")
     d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
 
     colors = ([PARTY["D"]] * dem + [PARTY["I"]] * ind + [PENDING] * unc + [PARTY["R"]] * rep)

@@ -134,7 +134,7 @@ def chamber(race_id: str) -> str:
     r = RACES[race_id]
     if r["type"] == "control":
         return r.get("body") or ("senate" if race_id == "US-SENATE" else "house")
-    return r["type"]
+    return r.get("body") or r["type"]       # a president's states count toward the Electoral College
 
 
 def chamber_name(race_id: str) -> str:

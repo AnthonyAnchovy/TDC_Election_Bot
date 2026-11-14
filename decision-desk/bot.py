@@ -57,6 +57,7 @@ import picks as P
 import scoring as S
 import tenancy as TEN
 import trend as TR
+import views as V
 
 HERE = Path(__file__).parent
 COUNTY_CARD = HERE / "assets" / "county_watch_card.png"
@@ -122,6 +123,21 @@ async def post_everywhere(key: str, **kwargs):
         if find_channel(guild, key):
             await post(guild, key, **kwargs)
     await each_server(one)
+
+EXAMPLES = V.examples()            # "e.g. GA-SEN, AZ-GOV, PA-07, HOUSE" in 2026: what a race can be typed as
+
+
+def _cw_kind() -> str:
+    """The kind of race County Watch follows, for command descriptions: "Senate" in 2026."""
+    import feeds
+    for st in feeds.cw_states():
+        r = R.RACES.get(feeds.cw_race(st))
+        if r:
+            return packs.TYPE_LABEL.get(r["type"], r["type"].replace("_", " ").title())
+    return "statewide"
+
+
+CW_KIND = _cw_kind()
 
 PARTY_CHOICES = [
     app_commands.Choice(name="Democrat", value="D"),
@@ -326,16 +342,24 @@ def channel_note(guild, key: str) -> str:
 
 
 # =========================================================================== official calls
-async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File:
-    """The chamber map: the dark tile map for Senate and governors and the House chart, in every card theme. Calls are
-    read here, and the drawing runs in a worker thread."""
+async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File | None:
+    """The map for a kind of race: a tile map for any statewide race type the pack draws (Senate, governors, a
+    president's states), the House chart for the House. None for races that aren't on a map (a mayor's race).
+    Calls are read here, and the drawing runs in a worker thread."""
     calls = dict(store.all() if calls is None else calls)
     if kind in ("house", "control"):
         render = functools.partial(G.house_chart, calls)
-    else:
+    elif kind in V.statewide_types():
         render = functools.partial(G.tile_map, kind, calls)
+    else:
+        return None
     buf = await asyncio.to_thread(render)
     return discord.File(buf, filename=f"{kind}_map.png")
+
+
+def view_file_kind(view: dict) -> str | None:
+    """What map_file draws for a view: its race type for a tile map, "house" for the House chart, None for a list."""
+    return {"tiles": view["type"], "house": "house"}.get(view["draw"])
 
 
 THEME_CHOICES = [app_commands.Choice(name="Wire (halftone poster)", value="wire"),
@@ -368,14 +392,18 @@ def house_line() -> str:
 
 
 async def follow_up(guild, rid: str, fallback):
+    """After a call: where its body stands, with the map. What that is comes from the pack's views (views.py)."""
     kind = R.RACES[rid]["type"]
     calls = store.all()
+    view = V.of_race(rid)
     if kind == "house":
         extra = f"\n{S.house_tracker_text(results())}" if rid in CMP.RATING_OF else ""
         await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}{extra}")
-    elif rid == "US-SENATE":
-        await post(guild, "desk_channel", fallback, content=S.path_text("senate", calls),
-                   file=await map_file("senate", calls))
+    elif kind == "control" and view and view["draw"] == "tiles":       # control of the Senate, the presidency
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls),
+                   file=await map_file(view["type"], calls))
+    elif kind == "control" and (not view or view["draw"] != "house"):
+        await post(guild, "desk_channel", fallback, content=S.path_text(R.chamber(rid), calls))
     elif kind == "control":
         # the wire and editorial cards already show the House (seat strip / hemicycle), so only classic gets the chart
         if card_theme() == "classic":
@@ -383,8 +411,10 @@ async def follow_up(guild, rid: str, fallback):
                        file=await map_file("house", calls))
         else:
             await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}")
+    elif view and view["draw"] == "list":         # no map: the list, so the post still says where things stand
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls))
     elif CFG.get("post_map_after_call", True):
-        await post(guild, "desk_channel", fallback, content=S.path_text(kind, calls),
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls) if view else S.path_text(kind, calls),
                    file=await map_file(kind, calls, highlight=rid))
     await nudge_control(guild, rid, fallback)
 
@@ -392,8 +422,8 @@ async def follow_up(guild, rid: str, fallback):
 async def nudge_control(guild, rid: str, fallback):
     """Once the desk's own calls give a party the Senate or the House, say so on the board, once, with a button to
     vote on control. In 2026 nobody could call the Senate at all, and the House vote came from someone noticing."""
-    control = {"senate": "US-SENATE", "house": "US-HOUSE"}.get(R.chamber(rid))
-    if not control or R.RACES[rid]["type"] == "control" or store.get(control):
+    control = ((R.BODIES.get(R.chamber(rid)) or {}).get("control") or "").upper()
+    if control not in R.RACES or R.RACES[rid]["type"] == "control" or store.get(control):
         return
     party = S.clinched(R.chamber(control), store.all())
     key = f"clinch-{control}-{party}"
@@ -404,7 +434,7 @@ async def nudge_control(guild, rid: str, fallback):
     await post(guild, "board_channel", fallback,
                content=f"📣 **The {name} math is settled.** The desk's calls give {cand(control, party)} "
                        f"{S.EMOJI[party]} a majority. Vote to call control of the {name} with the button, "
-                       f"or `/call {name.upper()}`.",
+                       f"or `/call {name.upper() if R.normalize(name) == control else control}`.",
                view=ScopedView(timeout=None).add_item(AlsoCall(control, party)))
 
 
@@ -413,7 +443,8 @@ def prediction_check(guild, rid: str, winner: str) -> tuple[list[str], list[str]
     right, wrong = [], []
     for uid in store.predictors():
         picks = store.user_predictions(uid)[0]
-        pick = S.senate_control_pick(picks) if rid == "US-SENATE" else picks.get(rid)   # nobody picks that one directly
+        # nobody picks an implied race (control of the Senate, the presidency): it's what their picks add up to
+        pick = S.implied_picks(picks).get(rid) if rid in S.implied_races() else picks.get(rid)
         if pick is None:
             continue
         (right if pick == winner else wrong).append(name_of(guild, uid))
@@ -522,7 +553,7 @@ async def outlet_autocomplete(_interaction: discord.Interaction, current: str):
 # =========================================================================== /call, /uncall, /unvote
 @tree.command(name="call", description="Vote to call a race. A majority of Election Junkies makes it official.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, AZ-GOV, PA-07, HOUSE", winner="Who you think won")
+@app_commands.describe(race=EXAMPLES, winner="Who you think won")
 @app_commands.autocomplete(race=race_autocomplete)
 async def call_cmd(interaction: discord.Interaction, race: str, winner: Winner):
     rid = resolve(race)
@@ -712,7 +743,7 @@ def cleared_text(gone: dict) -> str:
 
 @tree.command(name="clearrace", description="Admin: erase one race's call, votes and outlet calls, so it scores nothing.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", confirm="Type CLEAR to confirm")
+@app_commands.describe(race=EXAMPLES, confirm="Type CLEAR to confirm")
 @app_commands.autocomplete(race=race_autocomplete)
 async def clearrace_cmd(interaction: discord.Interaction, race: str, confirm: str):
     refusal = wipe_refusal(interaction, confirm, "CLEAR")
@@ -1125,7 +1156,7 @@ async def call_nyt_winners(guild, user_id: int, fallback=None) -> dict:
     return out
 
 
-@tree.command(name="callnyt", description="Admin: make official every House, Senate and governor race NYT has called.")
+@tree.command(name="callnyt", description="Admin: make official every race NYT's results data has called.")
 @app_commands.guild_only()
 async def callnyt_cmd(interaction: discord.Interaction):
     if not is_admin(interaction.user):
@@ -1230,16 +1261,44 @@ def predictions_hidden() -> bool:
     return CFG.get("hide_predictions_until_deadline", True) and predictions_open()
 
 
+def body_summary(picks: dict[str, str], body: str) -> str:
+    """What someone's picks add up to in a body: "D 49 · R 50 · I 1 → control depends on the independents"."""
+    b = R.BODIES.get(body) or {}
+    races = [(rid, r) for rid, r in R.RACES.items() if r["type"] != "control" and (r.get("body") == body or r["type"] == body)]
+    tally = {"D": 0, "R": 0, **(b.get("holdover") or {})}
+    unpicked = 0
+    for rid, r in races:
+        if rid in picks:
+            tally[picks[rid]] = tally.get(picks[rid], 0) + r.get("weight", 1)
+        else:
+            unpicked += 1
+    out = " · ".join(f"{k} {n}" for k, n in tally.items() if n or k in ("D", "R"))
+    if unpicked:
+        return out + f" · {unpicked} unpicked"
+    who = S.body_pick(picks, body)
+    if not who:
+        return out + " → control depends on the independents"
+    tied = " (VP tiebreak)" if who == b.get("tie_goes_to") and tally.get(who) == b.get("majority", 0) - 1 else ""
+    return out + f" → **{R.PARTY_NAMES.get(who, who)} control**{tied}"
+
+
 def senate_summary(picks: dict[str, str]) -> str:
-    s = S.senate_from_picks(picks)
-    out = f"D {s['D']} · R {s['R']}" + (f" · I {s['I']}" if s["I"] else "")
-    if s["unpicked"]:
-        return out + f" · {s['unpicked']} unpicked"
-    if s["D"] >= R.SENATE_MAJORITY:
-        return out + " → **Democratic control**"
-    if s["R"] >= 50:
-        return out + " → **Republican control**" + (" (VP tiebreak)" if s["R"] == 50 else "")
-    return out + " → control depends on the independents"
+    return body_summary(picks, "senate")
+
+
+def majority_views() -> list[dict]:
+    """The pack's map views whose picks add up to a majority of something (the Senate, the Electoral College)."""
+    return [v for v in V.views() if v["draw"] == "tiles" and (R.BODIES.get(v["body"]) or {}).get("majority")]
+
+
+def picks_line(picks: dict[str, str]) -> str:
+    """A set of picks in one line: what each body adds up to, and the control picks made directly."""
+    bits = [f"{v['name']} {body_summary(picks, v['body'])}" for v in majority_views()]
+    for v in V.views():
+        if v["control"] and v["control"] not in S.implied_races() and v["draw"] == "house":
+            got = picks.get(v["control"])
+            bits.append(f"{R.chamber_name(v['control'])}: " + (R.PARTY_NAMES.get(got, got) if got else "not picked"))
+    return " · ".join(bits)
 
 
 class PickButton(discord.ui.Button):
@@ -1441,8 +1500,7 @@ class PredictView(ScopedView):
             e.add_field(name="Independents on this page (a third click)", value="\n".join(indies)[:1024], inline=False)
         done = S.completion(self.picks, {"house_dem_seats": self.house_seats})
         so_far = [f"**{S.PART_NAMES[key][0].upper() + S.PART_NAMES[key][1:]}:** {a}/{b}" for key, (a, b) in done["parts"].items()]
-        if R.races_of("senate"):
-            so_far[0:0] = [f"**Senate adds up to:** {senate_summary(self.picks)}"]
+        so_far[0:0] = [f"**{v['name']} adds up to:** {body_summary(self.picks, v['body'])}" for v in majority_views()]
         if S.GAME.get("tiebreaker"):
             so_far.append(f"**Tiebreaker** ({tiebreak()['name']}): "
                           + (str(self.house_seats) if self.house_seats is not None else "not entered"))
@@ -1513,7 +1571,7 @@ def prediction_card_file(name: str, picks: dict, house_seats, marks=None) -> dis
     return discord.File(buf, filename="predictions.png")
 
 
-@tree.command(name="predict", description="Make your 2026 predictions: click states blue or red, then Save.")
+@tree.command(name="predict", description=f"Make your predictions for the {packs.active().name}, then Save."[:100])
 @app_commands.guild_only()
 async def predict_cmd(interaction: discord.Interaction):
     if not can_pick(interaction.user.id):
@@ -1541,6 +1599,35 @@ def grade_text(c: dict) -> str:
     return f"{c['right']}/{decided} right" + (f", {c['pending']} pending" if c["pending"] else "")
 
 
+MARK = {True: " ✅", False: " ❌"}
+
+
+def category_fields(picks: dict[str, str], g: dict) -> list[tuple[str, str, bool]]:
+    """One field per category of the pack's game, as (name, value, full width). A category of one race (who wins the
+    House) shows the pick; one that adds up to a body (Senate seats) shows what it adds up to and whether that's
+    right; the rest show right/wrong counts. Bonus categories say so."""
+    out = []
+    cats = S.GAME.get("categories") or []
+    for c in cats:
+        if c.get("implied_by"):
+            continue
+        key, rids = c["key"], S.category_races(c["key"])
+        name = c.get("name", key)
+        name = (name[0].upper() + name[1:]) + ("" if c.get("required") else " (bonus)")
+        if len(rids) == 1:
+            got = picks.get(rids[0])
+            value = f"{S.EMOJI[got]} {cand(rids[0], got)}{MARK.get(g['marks'].get(rids[0]), '')}" if got else "not picked"
+            out.append((name, value, False))
+            continue
+        lines = []
+        for implied in (x for x in cats if x.get("implied_by") == key):
+            for rid in S.category_races(implied["key"]):
+                lines.append(body_summary(picks, R.RACES[rid].get("body") or "") + MARK.get(g["marks"].get(rid), ""))
+        lines.append(grade_text(g["cats"][key]))
+        out.append((name, "\n".join(lines), bool(len(lines) > 1)))
+    return out
+
+
 @tree.command(name="predictions", description="See someone's predictions (yours by default) and how they're doing.")
 @app_commands.guild_only()
 @app_commands.describe(member="Whose predictions")
@@ -1554,18 +1641,14 @@ async def predictions_cmd(interaction: discord.Interaction, member: discord.Memb
         return await interaction.response.send_message(f"{target.display_name} hasn't saved predictions.",
                                                        ephemeral=True)
     g = S.grade(picks, results(), CFG.get("points"))
-    house = picks.get("US-HOUSE")
-    mark = {True: " ✅", False: " ❌"}.get(g["marks"].get("US-HOUSE"), "")
     e = discord.Embed(title=f"{target.display_name}'s predictions", color=0xFAD63E)
     e.add_field(name="Points", value=f"**{g['points']}**" + (f" · {g['flips']} flip{'s' * (g['flips'] != 1)} called"
                                               if g["flips"] else ""),
                 inline=False)
-    control = {True: " ✅", False: " ❌"}.get(g["marks"].get("US-SENATE"), "")
-    e.add_field(name="Senate", value=f"{senate_summary(picks)}{control}\n{grade_text(g['cats']['senate'])}", inline=False)
-    e.add_field(name="House", value=(f"{S.EMOJI[house]} {R.PARTY_NAMES[house]}{mark}" if house else "not picked")
-                + (f"\nTiebreaker ({tiebreak()['name']}): {meta['house_dem_seats']}" if meta.get("house_dem_seats") is not None else ""))
-    e.add_field(name="Governors (bonus)", value=grade_text(g["cats"]["governor"]))
-    e.add_field(name="Battlegrounds (bonus)", value=grade_text(g["cats"]["battleground"]))
+    for name, value, wide in category_fields(picks, g):
+        e.add_field(name=name, value=value[:1024], inline=not wide)
+    if meta.get("house_dem_seats") is not None:
+        e.add_field(name="Tiebreaker", value=f"{tiebreak()['name']}: {meta['house_dem_seats']}")
     card = prediction_card_file(target.display_name, picks, meta.get("house_dem_seats"), marks=g["marks"])
     e.set_image(url="attachment://predictions.png")
     e.set_footer(text=f"Saved {datetime.fromtimestamp(meta['saved_at'], TZ).strftime('%b %d %I:%M %p')}"
@@ -1603,6 +1686,26 @@ async def compare_cmd(interaction: discord.Interaction, member: discord.Member,
     await interaction.response.send_message(embed=e)
 
 
+def leaderboard_bits(row: dict) -> list[str]:
+    """One person's standing by category: "Senate 30/35 · Senate control ✅ · House majority ✅ · bonus 41" in 2026.
+    A category of one race shows ✅, ❌ or ⏳; a required one its right/decided; the bonus categories add up."""
+    bits, bonus, has_bonus = [], 0, False
+    for c in S.GAME.get("categories") or []:
+        key, rids = c["key"], S.category_races(c["key"])
+        name = c.get("name", key)
+        name = name[0].upper() + name[1:]
+        if c.get("implied_by") or len(rids) == 1:
+            mark = [row["marks"][rid] for rid in rids if rid in row["marks"]]
+            if mark or len(rids) == 1:
+                bits.append(f"{name} {'✅' if mark and mark[0] else '❌' if mark else '⏳'}")
+        elif c.get("required"):
+            cat = row["cats"][key]
+            bits.append(f"{name} {cat['right']}/{cat['right'] + cat['wrong']}")
+        else:
+            bonus, has_bonus = bonus + row["cats"][key]["right"], True
+    return bits + ([f"bonus {bonus}"] if has_bonus else [])
+
+
 @tree.command(name="leaderboard", description="Prediction game standings.")
 @app_commands.guild_only()
 async def leaderboard_cmd(interaction: discord.Interaction):
@@ -1624,13 +1727,7 @@ async def leaderboard_cmd(interaction: discord.Interaction):
     rows = S.leaderboard(entries, results(), CFG.get("points"), final)
     lines = []
     for i, r in enumerate(rows, 1):
-        c = r["cats"]
-        house = {True: "✅", False: "❌"}.get(r["marks"].get("US-HOUSE"), "⏳")
-        bonus = c["governor"]["right"] + c["battleground"]["right"]
-        bits = [f"Senate {c['senate']['right']}/{c['senate']['right'] + c['senate']['wrong']}",
-                f"House {house}", f"bonus {bonus}"]
-        if "US-SENATE" in r["marks"]:
-            bits.insert(1, f"Senate control {'✅' if r['marks']['US-SENATE'] else '❌'}")
+        bits = leaderboard_bits(r)
         if r["flips"]:
             bits.append(f"{r['flips']} flip{'s' * (r['flips'] != 1)}")
         if r["miss"] is not None:
@@ -1638,16 +1735,15 @@ async def leaderboard_cmd(interaction: discord.Interaction):
         lines.append(f"**{i}. {name_of(guild, r['user_id'])}** — **{r['points']}** pts · " + " · ".join(bits))
     pts = {**S.DEFAULT_POINTS, **(CFG.get("points") or {})}
     e = discord.Embed(title="Prediction leaderboard", description="\n".join(lines)[:4000], color=0xFAD63E)
-    e.set_footer(text=f"Senate {pts['senate']} · Senate control {pts['senate_control']} · House control "
-                      f"{pts['house_control']} · governor "
-                      f"{pts['governor']} · battleground {pts['battleground']} · +{pts['flip_bonus']} per "
-                      f"correct flip · scored on pro calls, else desk calls")
+    worth = " · ".join(f"{c.get('name', c['key'])} {pts.get(c['key'], 0)}" for c in S.GAME.get("categories") or [])
+    flip = f" · +{pts['flip_bonus']} per correct flip" if pts.get("flip_bonus") else ""
+    e.set_footer(text=f"{worth}{flip} · scored on pro calls, else desk calls"[:2048])
     await interaction.response.send_message(embed=e)
 
 
 @tree.command(name="finalhouse", description="Admin: set the final number the tiebreaker is settled against.")
 @app_commands.guild_only()
-@app_commands.describe(dem_seats="The real number: Democratic House seats in 2026, or whatever this election's tiebreaker asks")
+@app_commands.describe(dem_seats=f"The real answer to the tiebreaker: {tiebreak()['name']}"[:100])
 async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_commands.Range[int, 0, 1000]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
@@ -1684,7 +1780,7 @@ def closeout_embed(guild) -> discord.Embed:
     left = S.open_items(results(), store.setting("final_house_dem"), entries)
     e = discord.Embed(title="Closing out the night", color=0xFAD63E if not left["closed"] else 0x2E9E5B)
     for key, title in (("control", "Control"), ("senate", "Senate"), ("governor", "Governors"),
-                       ("battleground", "Rated House seats")):
+                       ("battleground", "Rated House seats"), ("other", "Other races")):
         if left[key]:
             e.add_field(name=f"{title}: {len(left[key])} with no result", inline=False,
                         value=_trim(", ".join(f"`{rid}`" for rid in left[key]), 1024))
@@ -1728,7 +1824,7 @@ async def final_cmd(interaction: discord.Interaction, race: str, winner: Winner 
         return await interaction.response.send_message(f"{label(rid)} has no final result entered.", ephemeral=True)
     store.set_setting("final_results", finals)
     left = S.open_items(results(), store.setting("final_house_dem"))
-    open_n = sum(len(left[k]) for k in ("control", "senate", "governor", "battleground"))
+    open_n = sum(len(left[k]) for k in ("control", "senate", "governor", "battleground", "other"))
     await interaction.response.send_message(
         f"{said} The map and the desk's calls are unchanged.\n-# {open_n} races still have no result: `/closeout`.",
         ephemeral=True)
@@ -1851,16 +1947,15 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
     e = discord.Embed(title=f"{'PREVIEW · ' if preview else ''}🕖 Polls closing · {N.fmt(when, TZ)}",
                       description=", ".join(names), color=0xFAD63E)
     lines = []
+    order = {rid: i for i, rid in enumerate(rid for v in V.views() if v["draw"] in ("tiles", "list") for rid in v["races"])}
     for st in states:
-        for suffix in ("SEN", "GOV"):
-            rid = f"{st}-{suffix}"
-            if rid not in R.RACES:
-                continue
+        for rid in sorted((rid for rid in order if R.RACES[rid]["state"] == st), key=order.get):
             split: dict[str, int] = {}
             for picks in entries:
                 if rid in picks:
                     split[picks[rid]] = split.get(picks[rid], 0) + 1
-            txt = f"**{rid}** ({R.RACES[rid]['holder']}-held)"
+            held = R.RACES[rid]["holder"] or CMP.HOLDER_OF.get(rid)
+            txt = f"**{rid}**" + (f" ({held}-held)" if held else "")
             if split:
                 txt += " · group picked " + " ".join(f"{S.EMOJI[p]}{n}" for p, n in sorted(split.items()))
             if rid in calls:
@@ -1869,7 +1964,8 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
                 txt += f" · {pros[rid]['outlet']} called {pros[rid]['party']}"
             lines.append(txt)
     if lines:
-        e.add_field(name="Senate & governor races", value="\n".join(lines)[:1024], inline=False)
+        e.add_field(name=" & ".join(v["name"] for v in V.views() if v["draw"] == "tiles") + " races"
+                    if V.statewide_types() else "Races", value="\n".join(lines)[:1024], inline=False)
     res = results()
     order = ["Toss-up", "Tilt D", "Tilt R", "Lean D", "Lean R", "Likely D", "Likely R"]
     watch = sorted((rid for rid, _, _ in CMP.RATINGS if rid[:2] in states),
@@ -1945,10 +2041,8 @@ async def announce_web_saves(guild):
             if predictions_hidden():
                 await post(guild, "board_channel", None, content=text + "\n-# Everyone's picks are revealed when predictions close.")
             else:
-                house = picks.get("US-HOUSE")
                 done = S.completion(picks, meta)
-                text += (f"\n-# Senate {senate_summary(picks)} · House: "
-                         + (R.PARTY_NAMES[house] if house else "not picked") + f" · {done['share']:.0%} filled in")
+                text += f"\n-# {picks_line(picks)} · {done['share']:.0%} filled in".replace("-#  · ", "-# ")
                 await post(guild, "board_channel", None, content=text,
                            file=prediction_card_file(name, picks, (meta or {}).get("house_dem_seats")))
         except Exception:
@@ -2024,8 +2118,9 @@ async def closings_cmd(interaction: discord.Interaction, preview: bool = False):
         upcoming = [(w, s) for w, s in N.waves() if w > t] or N.waves()
         return await interaction.response.send_message(embed=wave_embed(*upcoming[0], preview=True))
     lines = [f"{'✅' if w <= t else '⏳'} **{N.fmt(w, TZ)}** — {', '.join(states)}" for w, states in N.waves()]
-    e = discord.Embed(title="Poll closings, Nov 3", description="\n".join(lines), color=0x2B2D31)
-    e.set_footer(text="When most of each state's polls close. Source: The Green Papers.")
+    e = discord.Embed(title=f"Poll closings, {N.ELECTION_DAY:%b} {N.ELECTION_DAY.day}", description="\n".join(lines),
+                      color=0x2B2D31)
+    e.set_footer(text="When most of each place's polls close, from the data pack's closing times.")
     await interaction.response.send_message(embed=e)
 
 
@@ -2036,7 +2131,7 @@ async def next_cmd(interaction: discord.Interaction):
     calls = store.all()
     pros = {p["race_id"]: p for p in store.procalls()}
     ready = sorted((N.first_close(r["state"]), rid) for rid, r in R.RACES.items()
-                   if r["type"] in ("senate", "governor") or rid in CMP.RATING
+                   if rid in V.watched()
                    if rid not in calls and r["state"] and N.is_closed(r["state"], t))
     lines = []
     for when, rid in ready:
@@ -2064,6 +2159,10 @@ async def next_cmd(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def earlywarning_cmd(interaction: discord.Interaction):
     rows = S.early_watch(results())
+    if not rows:
+        return await interaction.response.send_message(
+            f"**{packs.active().name}** has no early-warning seats: they're the rated House seats in states that "
+            "close first, and this data pack rates none.", ephemeral=True)
     by_time: dict[str, list[str]] = {}
     held = lost = gained = 0
     for rid, rating, fav, won in rows:
@@ -2096,14 +2195,25 @@ async def earlywarning_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=e)
 
 
-@tree.command(name="map", description="Post the current official map.")
+MAP_CHOICES = [app_commands.Choice(name=v["name"][:100], value=v["key"]) for v in V.views()][:25]
+
+
+@tree.command(name="map", description="The current official map, or where the races stand, for any part of this election.")
 @app_commands.guild_only()
-@app_commands.choices(chamber=[app_commands.Choice(name="Senate", value="senate"),
-                               app_commands.Choice(name="Governors", value="governor"),
-                               app_commands.Choice(name="House", value="house")])
+@app_commands.describe(chamber="Which part of the election (the data pack's own sections)")
+@app_commands.choices(chamber=MAP_CHOICES)
 async def map_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str]):
+    view = V.find(chamber.value)
+    if not view:
+        return await interaction.response.send_message("That isn't part of this election any more.", ephemeral=True)
     await interaction.response.defer()
-    await interaction.followup.send(content=S.path_text(chamber.value, store.all()), file=await map_file(chamber.value))
+    calls = store.all()
+    text = V.tally(view, calls)
+    if view["draw"] == "list":
+        e = discord.Embed(title=view["name"], description=text[:4000], color=0x2B2D31)
+        return await interaction.followup.send(embed=e)
+    file = await map_file(view_file_kind(view), calls)
+    await interaction.followup.send(content=text, **({"file": file} if file else {}))
 
 
 @tree.command(name="race", description="Everything about one race: votes, official call, pro calls.")
@@ -2172,28 +2282,40 @@ def _wiki_state(st: str) -> str:
 
 
 def race_links(rid: str) -> list[tuple[str, str]]:
+    """Wikipedia and Ballotpedia for a race, for the pack's year. Only the U.S. races those sites name the same way
+    every cycle get links: a city or other place's race gets none rather than a guess."""
     r = R.RACES[rid]
-    st = r["state"]
+    st, y = r["state"], N.ELECTION_DAY.year
     if not st:
-        return [("Wikipedia", "https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections")]
+        page = {"house": "United_States_House_of_Representatives_elections", "senate": "United_States_Senate_elections",
+                "electoral_college": "United_States_presidential_election"}.get(R.chamber(rid))
+        return [("Wikipedia", f"https://en.wikipedia.org/wiki/{y}_{page}")] if page else []
+    if st not in packs.STATE_NAMES or r["type"] not in ("senate", "governor", "house", "president"):
+        page = LIVE.page_link(st)
+        return [("Official results", page)] if page else []
     name = _wiki_state(st)
+    if r["type"] == "president":
+        links = [("Wikipedia", f"https://en.wikipedia.org/wiki/{y}_United_States_presidential_election_in_{name}"),
+                 ("Ballotpedia", f"https://ballotpedia.org/Presidential_election_in_{name},_{y}")]
+        page = LIVE.page_link(st)
+        return links + ([("Official results", page)] if page else [])
     special = "special_" if r["type"] == "senate" and st in R.SENATE_SPECIAL else ""
     poss = "%27" if name.endswith("s") else "%27s"
     if r["type"] == "senate":
-        wiki = f"https://en.wikipedia.org/wiki/2026_United_States_Senate_{special}election_in_{name}"
-        bp = f"https://ballotpedia.org/United_States_Senate_{special}election_in_{name},_2026"
+        wiki = f"https://en.wikipedia.org/wiki/{y}_United_States_Senate_{special}election_in_{name}"
+        bp = f"https://ballotpedia.org/United_States_Senate_{special}election_in_{name},_{y}"
     elif r["type"] == "governor":
-        wiki = f"https://en.wikipedia.org/wiki/2026_{name}_gubernatorial_election"
-        bp = f"https://ballotpedia.org/{name}_gubernatorial_election,_2026"
+        wiki = f"https://en.wikipedia.org/wiki/{y}_{name}_gubernatorial_election"
+        bp = f"https://ballotpedia.org/{name}_gubernatorial_election,_{y}"
     else:
-        base = f"https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_{name}"
+        base = f"https://en.wikipedia.org/wiki/{y}_United_States_House_of_Representatives_elections_in_{name}"
         if rid.endswith("-AL"):
             wiki = base
-            bp = f"https://ballotpedia.org/{name}{poss}_At-Large_Congressional_District_election,_2026"
+            bp = f"https://ballotpedia.org/{name}{poss}_At-Large_Congressional_District_election,_{y}"
         else:
             n = int(rid.split("-")[1])
             wiki = f"{base}#District_{n}"
-            bp = f"https://ballotpedia.org/{name}{poss}_{R._ordinal(n)}_Congressional_District_election,_2026"
+            bp = f"https://ballotpedia.org/{name}{poss}_{R._ordinal(n)}_Congressional_District_election,_{y}"
     links = [("Wikipedia", wiki), ("Ballotpedia", bp)]
     page = LIVE.page_link(st)
     if page:
@@ -2286,24 +2408,26 @@ class RefreshView(ScopedView):
 def feed_error_text(st: str, exc: Exception) -> str:
     msg = str(exc)
     if "404" in msg or "403" in msg:
-        return (f"{R.STATE_NAMES[st]}'s 2026 file isn't up yet ({msg.split(' from ')[0]}). States usually post it "
+        return (f"{R.STATE_NAMES[st]}'s {N.ELECTION_DAY.year} file isn't up yet ({msg.split(' from ')[0]}). States usually post it "
                 f"once polls close at {N.fmt(N.first_close(st), TZ)}.")
     return f"Couldn't read {R.STATE_NAMES[st]}'s results file: {msg[:200]}"
 
 
 @tree.command(name="seat", description="Background on a race: rating, incumbent, nominees, lean, poll close, links.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. FL-13, PA-07, NC-SEN, GA-GOV")
+@app_commands.describe(race=EXAMPLES)
 @app_commands.autocomplete(race=race_autocomplete)
 async def seat_cmd(interaction: discord.Interaction, race: str):
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
     calls, res = store.all(), results()
-    if rid == "US-HOUSE":
-        e = discord.Embed(title="Control of the House", color=EMBED_COLOR[None],
-                          description=f"{S.path_text('house', calls)}\n{S.house_tracker_text(res)}\n\n"
-                                      f"`/earlywarning` lists the first rated seats to watch.")
+    if R.RACES[rid]["type"] == "control":
+        body = R.chamber(rid)
+        extra = (f"\n{S.house_tracker_text(res)}\n\n`/earlywarning` lists the first rated seats to watch."
+                 if body == "house" else "")
+        e = discord.Embed(title=f"Control of the {R.chamber_name(rid)}", color=EMBED_COLOR[None],
+                          description=f"{S.path_text(body, calls)}{extra}")
         return await interaction.response.send_message(embed=e)
     await interaction.response.defer()
     r, info = R.RACES[rid], load_seat_info().get(rid, {})
@@ -2333,7 +2457,7 @@ async def seat_cmd(interaction: discord.Interaction, race: str):
     e.add_field(name="Nominees", inline=True, value="\n".join(
         f"{S.EMOJI.get(p, '')} {n}" for p, n in nominees.items()) if nominees else "Not on file yet (candidates.json)")
     if info.get("pvi"):
-        e.add_field(name="Partisan lean", value=f"{info['pvi']} (Cook PVI, 2026 map)", inline=True)
+        e.add_field(name="Partisan lean", value=f"{info['pvi']} (Cook PVI)", inline=True)
     st = r["state"]
     first, last = N.first_close(st), N.last_close(st)
     e.add_field(name="Polls close", inline=True, value=N.fmt(first, TZ) + (
@@ -2375,14 +2499,15 @@ async def seat_cmd(interaction: discord.Interaction, race: str):
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="results", description="Live vote counts from official state results files (FL, NC, VA).")
+@tree.command(name="results", description=f"Live vote counts from official state results files "
+                                            f"({', '.join(LIVE.supported()) or 'none in this data pack'}).")
 @app_commands.guild_only()
-@app_commands.describe(race="One race, e.g. FL-13 or NC-SEN. Leave blank for every tracked race with votes.")
+@app_commands.describe(race=f"One race ({EXAMPLES}). Leave blank for every tracked race with votes."[:100])
 @app_commands.autocomplete(race=race_autocomplete)
 async def results_cmd(interaction: discord.Interaction, race: str | None = None):
     if race:
         rid = resolve(race)
-        if not rid or rid == "US-HOUSE":
+        if not rid or R.RACES[rid]["type"] == "control":
             return await interaction.response.send_message(f"I don't recognize `{race}` as a single race.",
                                                            ephemeral=True)
         st = R.RACES[rid]["state"]
@@ -2399,7 +2524,7 @@ async def results_cmd(interaction: discord.Interaction, race: str | None = None)
         return await interaction.followup.send(embed=results_embed(rid, data), view=RefreshView(rid))
 
     await interaction.response.defer()
-    tracked = set(CMP.RATING_OF) | {rid for rid, r in R.RACES.items() if r["type"] in ("senate", "governor")}
+    tracked = set(CMP.RATING_OF) | V.watched()
     e = discord.Embed(title="Live counts · tracked races", color=EMBED_COLOR[None])
     for st in LIVE.supported():
         try:
@@ -2424,7 +2549,7 @@ async def results_cmd(interaction: discord.Interaction, race: str | None = None)
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="resultstest", description="Admin: check a state's results reader against its Nov 2024 file.")
+@tree.command(name="resultstest", description="Admin: check a state's results reader against its test file from an earlier election.")
 @app_commands.guild_only()
 @app_commands.choices(state=[app_commands.Choice(name=R.STATE_NAMES[s], value=s) for s in LIVE.supported()])
 async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
@@ -2451,7 +2576,7 @@ async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.
         f"✅ **{st}** reader works on the 2024 file ({data['bytes'] / 1e6:.1f} MB).\n"
         f"Found {len(house)} House races" + (f" plus {', '.join(other)}" if other else "") + ".\n"
         f"Sample, {sample_id}: {top}" + (f" · precincts {rep[0]:,}/{rep[1]:,}" if rep else "") +
-        "\n-# 2024 districts, so seat numbers line up with the old maps. The 2026 file appears on election night.",
+        f"\n-# An earlier election's file, so seat numbers follow its maps. The {N.ELECTION_DAY.year} file appears on election night.",
         ephemeral=True)
 
 
@@ -2460,14 +2585,25 @@ async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.
 async def board_cmd(interaction: discord.Interaction):
     calls = store.all()
     e = discord.Embed(title="Decision Desk tally", color=0x2B2D31)
-    for kind, name in (("senate", "Senate"), ("governor", "Governors"), ("house", "House seats")):
+    paths, controls = [], []
+    for v in V.views():
+        if v["draw"] == "list":
+            e.add_field(name=v["name"], value=V.tally(v, calls)[:1024] or "nothing yet", inline=False)
+            continue
+        kind = v["body"] or v["type"]
         c = S.chamber_counts(kind, calls)
-        e.add_field(name=name, value=f"D {c['D']} · R {c['R']}" + (f" · I {c['I']}" if c["I"] else "")
+        name = "House seats" if v["draw"] == "house" else v["name"]
+        e.add_field(name=name, value=" · ".join(f"{k} {n}" for k, n in c.items() if k != "uncalled" and (n or k in "DR"))
                     + f"\n{c['uncalled']} uncalled", inline=True)
-    hc = calls.get("US-HOUSE")
-    e.add_field(name="Path to majority", inline=False,
-                value=f"{S.path_text('senate', calls)}\n{S.path_text('house', calls)}\n{S.house_tracker_text(results())}"
-                      + (f"\nHouse control called: {S.EMOJI[hc]} {R.PARTY_NAMES[hc]}" if hc else ""))
+        if (R.BODIES.get(kind) or {}).get("majority"):
+            paths.append(S.path_text(kind, calls))
+        if v["control"] and calls.get(v["control"]) and v["control"] not in S.implied_races():
+            got = calls[v["control"]]
+            controls.append(f"{R.chamber_name(v['control'])} control called: {S.EMOJI[got]} {R.PARTY_NAMES.get(got, got)}")
+    if CMP.RATING:
+        paths.append(S.house_tracker_text(results()))
+    if paths or controls:
+        e.add_field(name="Path to majority", inline=False, value="\n".join(paths + controls)[:1024])
     recent = store.recent(8)
     if recent:
         e.add_field(name="Recent", inline=False, value="\n".join(
@@ -2489,7 +2625,7 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
     cw = await asyncio.to_thread(CWR.reset_night)
     _cw["dirty"] = True
     await interaction.followup.send(
-        f"Cleared {cleared_text(gone)}, so nobody has points from them. Alerts, the final House seat count and the "
+        f"Cleared {cleared_text(gone)}, so nobody has points from them. Alerts, the tiebreaker's answer and the "
         "field's snapshots are cleared too" + (
             ", along with predictions." if include_predictions else ". Predictions kept.")
         + f" County Watch: {cw}. Numbers typed straight into the workbook's Manual columns stay; clear those by hand."
@@ -2507,15 +2643,16 @@ async def cardtheme_cmd(interaction: discord.Interaction, theme: app_commands.Ch
     store.set_setting("card_theme", theme.value if theme else None)
     store.set_setting("card_art", not theme)        # picking a theme means that look, not the saved art
     await interaction.response.defer(ephemeral=True)
-    sample = await card_file("OH-SEN", "D", "Sample card")
+    rid, key = V.sample_card()
+    sample = await card_file(rid, key, "Sample card")
     note = (f"Call cards now use **{card_theme()}**." if theme else
             f"Back to the saved art in assets/calls, and **{card_theme()}** for races without any.")
-    await interaction.followup.send(f"{note} Here's a sample (OH-SEN, a flip):", file=sample, ephemeral=True)
+    await interaction.followup.send(f"{note} Here's a sample ({label(rid)}, {cand(rid, key)}):", file=sample, ephemeral=True)
 
 
 @tree.command(name="cardpreview", description="See the call card for any race and winner, in any theme. Only you see it.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", winner="Who wins on the card",
+@app_commands.describe(race=EXAMPLES, winner="Who wins on the card",
                        theme="Defaults to the current theme", retracted="Show the retraction card instead")
 @app_commands.autocomplete(race=race_autocomplete)
 @app_commands.choices(theme=THEME_CHOICES)
@@ -2536,6 +2673,16 @@ async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: W
 # =========================================================================== the field
 FIELD_CHOICES = [app_commands.Choice(name="Senate", value="senate"),
                  app_commands.Choice(name="House battleground", value="house")]
+
+
+def field_refusal(kind: str) -> str | None:
+    """Why this pack can't draw a field, or None. The Senate field is placed by County Watch's projections, and the
+    House one by the pack's ratings."""
+    if kind == "senate" and (not FEEDS.countywatch() or not R.races_of("senate")):
+        return f"**{packs.active().name}** has no Senate field: it needs Senate races and County Watch in the data pack."
+    if kind == "house" and not CMP.RATINGS:
+        return f"**{packs.active().name}** has no House battleground field: the data pack rates no House seats."
+    return None
 FIELD_TEST_CHOICES = [app_commands.Choice(name="Whole simulated night (timelapse)", value="night"),
                       app_commands.Choice(name="One simulated update (30 minutes of movement)", value="update"),
                       app_commands.Choice(name="Right now, real data", value="now")]
@@ -2588,7 +2735,7 @@ def desk_marks(rid: str, d_key: str) -> list[tuple[float, str, str | None]]:
     return [(ts, action, None if action == "uncall" else "D" if party == d_key else "R") for ts, action, party in rows]
 
 
-@tree.command(name="trend", description="A Senate race through the night as a chart: projected margin, votes counted, and the desk's calls.")
+@tree.command(name="trend", description=f"A {CW_KIND} race through the night as a chart: projected margin, votes counted, the desk's calls."[:100])
 @app_commands.guild_only()
 @app_commands.autocomplete(race=race_autocomplete)
 async def trend_cmd(interaction: discord.Interaction, race: str):
@@ -2658,12 +2805,14 @@ async def drinkinggame_cmd(interaction: discord.Interaction, mode: app_commands.
 
 
 @tree.command(name="field", description="Every race as a circle from safe D to safe R: margin and votes counted.")
-@app_commands.describe(chamber="Senate (default) or the 82 rated House seats",
+@app_commands.describe(chamber=f"Senate (default) or the {len(CMP.RATINGS)} rated House seats",
                        timelapse="Play the whole night so far instead of the latest movement")
 @app_commands.choices(chamber=FIELD_CHOICES)
 async def field_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str] | None = None,
                     timelapse: bool = False):
     kind = chamber.value if chamber else "senate"
+    if field_refusal(kind):
+        return await interaction.response.send_message(field_refusal(kind), ephemeral=True)
     await interaction.response.defer(ephemeral=True)
     snap = await field_snapshot(kind)
     theme = F.palette(card_theme())
@@ -2929,7 +3078,7 @@ async def _send_state_watch(cache: dict):
         log.exception("State watch DMs failed")
 
 
-@tree.command(name="watchstate", description="Admin: DM you (and only you) when a state's Senate votes or % in change.")
+@tree.command(name="watchstate", description=f"Admin: DM you (and only you) when a state's {CW_KIND} votes or % in change."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES, turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
 async def watchstate_cmd(interaction: discord.Interaction, state: app_commands.Choice[str], turn: app_commands.Choice[str] | None = None):
@@ -3051,7 +3200,7 @@ def _trim(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-@tree.command(name="counties", description="County-by-county read of a Senate race: key counties, swing, projection.")
+@tree.command(name="counties", description=f"County-by-county read of a {CW_KIND} race: key counties, swing, projection."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 async def counties_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
@@ -3097,7 +3246,7 @@ async def counties_cmd(interaction: discord.Interaction, state: app_commands.Cho
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="needs", description="The vote still out in a Senate race, county by county, and what the trailing side needs of it.")
+@tree.command(name="needs", description=f"The vote still out in a {CW_KIND} race, county by county, and what the trailing side needs."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 @app_commands.describe(what_if="Optional: try a different break for the vote still out. Points toward the Democratic "
@@ -3138,7 +3287,7 @@ async def environment_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="earlyvote", description="Early vote so far in a Senate state, compared with 2022.")
+@tree.command(name="earlyvote", description="Early vote so far in a County Watch state, compared with the last comparable election.")
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 async def earlyvote_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
@@ -3168,11 +3317,11 @@ async def county_autocomplete(interaction: discord.Interaction, current: str):
     return [app_commands.Choice(name=("★ " if c["key"] else "") + c["name"], value=c["fips"]) for c in hits]
 
 
-@tree.command(name="countyset", description="Enter a county's Senate vote count by hand (for states without a live feed).")
+@tree.command(name="countyset", description=f"Enter a county's {CW_KIND} vote count by hand (for states without a live feed)."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 @app_commands.autocomplete(county=county_autocomplete)
-@app_commands.describe(county="Start typing; ★ = key county", dem="Votes for the Democratic side (Osborn in NE)",
+@app_commands.describe(county="Start typing; ★ = key county", dem="Votes for the Democratic side (County Watch's left-hand candidate)",
                        rep="Votes for the Republican", other="Everyone else (optional)",
                        done="Fully counted? Only say yes when every precinct is in")
 async def countyset_cmd(interaction: discord.Interaction, state: app_commands.Choice[str], county: str,

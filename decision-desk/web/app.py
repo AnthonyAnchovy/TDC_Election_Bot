@@ -421,7 +421,7 @@ async def night(request: Request):
             counts = S.chamber_counts(key, calls)
             uncalled = counts.pop("uncalled")
             total = b.get("seats") or sum(counts.values()) + uncalled
-            path = S.path_text(key, calls).replace("**", "") if key in ("senate", "house", "governor") else ""
+            path = S.path_text(key, calls).replace("**", "")
             bodies.append({"key": key, "name": b.get("name", key), "counts": {k: v for k, v in counts.items() if v},
                            "uncalled": uncalled, "majority": b.get("majority"), "total": total,
                            "clinched": S.clinched(key, calls), "control": calls.get(b.get("control") or ""), "path": path})

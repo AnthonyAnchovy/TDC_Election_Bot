@@ -244,7 +244,7 @@ def open_items(results: dict[str, str], final_house_dem: int | None, entries: di
     """What still has to be settled before the game's result is final: races in the game with no result (control,
     Senate, governors and rated House seats under their own names, anything else a pack adds under "other"), the
     tiebreaker's answer, and entries with no tiebreaker guess."""
-    kinds = {"senate": [], "governor": [], "control": [], "battleground": [], "other": []}
+    kinds = {"senate": [], "governor": [], "control": [], "battleground": [], "other": []}     # "other": a president's states, a mayor
     for rid, r in R.RACES.items():
         if rid in results:
             continue
@@ -320,23 +320,29 @@ def clinched(kind: str, calls: dict[str, str]) -> str | None:
 
 
 def path_text(kind: str, calls: dict[str, str]) -> str:
+    """Where a body stands: what each side still needs of the races uncalled, or who has clinched it. A body
+    with no majority to win (governors) gets the count. kind is a body or race type: "senate", "electoral_college"."""
+    body = R.BODIES.get(kind) or {}
+    label = {"senate": "Senate", "house": "House", "governor": "Governors"}.get(kind) or body.get("name") \
+        or kind.replace("_", " ").title()
     c = chamber_counts(kind, calls)
-    d, r, unc = c["D"], c["R"], c["uncalled"]
-    if kind == "senate":
-        d_need, r_need = R.SENATE_MAJORITY - d, 50 - r  # VP (R) breaks a 50-50 tie
-        label = "Senate"
-    elif kind == "house":
-        d_need, r_need = R.HOUSE_MAJORITY - d, R.HOUSE_MAJORITY - r
-        label = "House"
-    else:
-        return f"Governors: D {d} · R {r} · {unc} uncalled"
+    d, r, unc = c.get("D", 0), c.get("R", 0), c["uncalled"]
+    need = body.get("majority")
+    if not need:
+        extra = "".join(f" · {k} {n}" for k, n in c.items() if k not in ("D", "R", "uncalled") and n)
+        return f"{label}: D {d} · R {r}{extra} · {unc} uncalled"
+    tie = body.get("tie_goes_to")           # the Senate's Vice President: that side needs one seat fewer
+    d_need, r_need = need - (tie == "D") - d, need - (tie == "R") - r
+    weighted = any(x.get("weight", 1) > 1 for x in R.RACES.values() if x.get("body") == kind)
+    unit = "electoral votes" if weighted else "seats"
+    side = lambda k: (packs.active().options.get(k) or {}).get("plural") or k      # noqa: E731
     if d_need <= 0:
-        return f"{label}: **Democrats clinch control** ({d} seats)"
+        return f"{label}: **{side('D')} clinch control** ({d} {unit})"
     if r_need <= 0:
-        tie = " with the VP tiebreak" if kind == "senate" and r == 50 else ""
-        return f"{label}: **Republicans clinch control**{tie} ({r} seats)"
-    if d_need > unc + c["I"]:
-        return f"{label}: Democrats can no longer reach a majority · R need {r_need} of {unc} uncalled"
+        tied = " with the VP tiebreak" if tie == "R" and r == need - 1 else ""
+        return f"{label}: **{side('R')} clinch control**{tied} ({r} {unit})"
+    if d_need > unc + c.get("I", 0):
+        return f"{label}: {side('D')} can no longer reach a majority · R need {r_need} of {unc} uncalled"
     return f"{label}: D need **{d_need}** of {unc} uncalled · R need **{r_need}**"
 
 

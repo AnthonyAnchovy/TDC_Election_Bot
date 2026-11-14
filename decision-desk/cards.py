@@ -33,6 +33,22 @@ PARTY_NOUN = {"D": "Democrat", "R": "Republican", "I": "Independent"}
 SEATS = {"senate": 100, "governor": 50, "house": 435}
 NEEDED = {"senate": 51, "governor": 26, "house": 218}
 CHAMBER_LABEL = {"senate": "SENATE", "governor": "GOVERNORS", "house": "HOUSE"}
+_BUILT_IN = (dict(SEATS), dict(NEEDED), dict(CHAMBER_LABEL))
+
+
+@packs.on_activate
+def _bodies(pack):
+    """Seat totals, majorities and names for the seat strip, from the pack's bodies (538 and 270 for the Electoral
+    College). A race whose body the pack doesn't size gets a card without the strip."""
+    for table, built_in in zip((SEATS, NEEDED, CHAMBER_LABEL), _BUILT_IN):
+        table.clear()
+        table.update(built_in)
+    for key, b in pack.bodies.items():
+        if b.get("seats"):
+            SEATS[key] = b["seats"]
+            CHAMBER_LABEL[key] = str(b.get("name") or key).upper()
+            if b.get("majority"):
+                NEEDED[key] = b["majority"]
 
 _fonts: dict = {}
 
@@ -351,12 +367,12 @@ def wire(c: dict) -> Image.Image:
     img.alpha_composite(Image.new("RGBA", (W, H - y0 + 30), (0, 0, 0, 120)), (0, y0 - 30))
     d = ImageDraw.Draw(img)
     counts = c["counts"]
-    if counts:
+    if counts and c["chamber"] in SEATS and c["chamber"] in NEEDED:
         ch = c["chamber"]
         total = SEATS[ch]
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))   # own layer so translucent seats blend instead of punching holes
         seat_strip(ImageDraw.Draw(layer), x, y0 + 8, 1000, seat_order(counts, total),
-                   per_row=55 if total == 435 else 25, gap=3 if total == 435 else 6, cols=WIRE_SEAT,
+                   per_row=55 if total > 200 else 25, gap=3 if total > 200 else 6, cols=WIRE_SEAT,
                    highlight=called_index(c, total), ring=YELLOW)
         img.alpha_composite(layer)
         d = ImageDraw.Draw(img)
@@ -454,7 +470,7 @@ def editorial(c: dict) -> Image.Image:
 
     # where the chamber stands: strip for the Senate and governors, hemicycle for the House
     counts = c["counts"]
-    if counts:
+    if counts and c["chamber"] in SEATS and c["chamber"] in NEEDED:
         ch = c["chamber"]
         total = SEATS[ch]
         order = seat_order(counts, total)
