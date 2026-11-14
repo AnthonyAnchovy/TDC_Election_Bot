@@ -94,7 +94,7 @@ Change the values under `points` in `config.json`. Picks are scored against outl
 | `/clearrace race CLEAR` | Admin | Erases one race's official call, votes and outlet calls, so it scores nothing. For a test or a call logged by mistake. |
 | `/scoreboard` | Anyone | Per person: right and wrong calls, how often they were first, and the average minutes ahead of each outlet (e.g. "AP +14m · NYT +22m · best: NC-SEN, 41 min before Wasserman"). Also shows the official desk against the pros. |
 | `/next` | Anyone | Races where polls have closed but the desk hasn't called, with vote counts and outlet calls. |
-| `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. |
+| `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. `/map` offers the data pack's own sections: Senate, House and Governors in 2026, President as well in 2028, and a list for a race with no map. |
 | `/closings` | Anyone | Poll-closing schedule. Alerts post to the board automatically as each wave closes. |
 | `/field [chamber] [timelapse]` | Anyone | The field (below): every race as a circle between safe D and safe R. It animates what moved since the last board post, or plays the whole night with `timelapse`. |
 | `/fieldposts [pause\|resume]` | Admin | Pauses or resumes the field's automatic posts. Snapshots keep saving while paused, and a timelapse that comes due waits until you resume. Blank shows which it is. |

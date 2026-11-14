@@ -140,6 +140,12 @@ How the website lays out the picker. Leave it out for one plain list per categor
 | `house` | A control pick (`control`), the tiebreaker, and a list of rated seats. |
 | `list` | The races of `category`, one per row. |
 
+The sections are also what Discord shows as the parts of the election: `/map`'s choices, `/board`'s tallies, the map
+posted after a call, and the races listed when polls close. A `map` section of statewide races is drawn as a tile map
+(a race type the bot hasn't seen, like attorney general, gets one too), a `house` section as the House chart, and a
+`list` section, or a map of places that aren't states, as text. What a section adds up to, and what a majority of it
+is, comes from `bodies`.
+
 ### `feeds`
 
 Where the pack's numbers come from on the night. Every part is optional, and a pack with no `feeds` at all fetches
@@ -193,8 +199,9 @@ loads every pack in `packs/`.
 
 - **A city or other place has no outline of its own on a card.** A state's card draws the state; a card for
   anywhere else falls back to the national map.
-- **`/map`** posts the Senate, governor and House maps. A presidential pack has the map in `/predict` and on the
-  website, but no `/map` choice yet.
+- **`/help` is written for 2026.** Every command follows the pack (its choices, examples, maps and tallies, checked
+  by running each one under all three packs in `tests/test_commands_every_pack.py`), but the help pages still
+  describe the 2026 night.
 - **County Watch's model is still built around a two-party state race.** The states, the race it follows and every
   file it reads now come from the pack, but only 2026 ships baselines. A 2028 pack needs its own `baseline.csv`
   and `feeds.json`, and three pieces are still written for 2026's races: the Mississippi and Alaska special
