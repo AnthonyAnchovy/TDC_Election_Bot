@@ -352,14 +352,18 @@ async def map_file(kind: str, calls: dict | None = None, highlight: str | None =
     elif kind in V.statewide_types():
         render = functools.partial(G.tile_map, kind, calls)
     else:
-        return None
+        view = next((v for v in V.views() if v["draw"] == "wards" and v["type"] == kind), None)
+        if not view:
+            return None
+        rid = view["races"][0]
+        render = functools.partial(G.ward_map, R.RACES[rid]["state"], rid, calls.get(rid))
     buf = await asyncio.to_thread(render)
     return discord.File(buf, filename=f"{kind}_map.png")
 
 
 def view_file_kind(view: dict) -> str | None:
     """What map_file draws for a view: its race type for a tile map, "house" for the House chart, None for a list."""
-    return {"tiles": view["type"], "house": "house"}.get(view["draw"])
+    return {"tiles": view["type"], "house": "house", "wards": view["type"]}.get(view["draw"])
 
 
 THEME_CHOICES = [app_commands.Choice(name="Wire (halftone poster)", value="wire"),
@@ -1947,7 +1951,7 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
     e = discord.Embed(title=f"{'PREVIEW · ' if preview else ''}🕖 Polls closing · {N.fmt(when, TZ)}",
                       description=", ".join(names), color=0xFAD63E)
     lines = []
-    order = {rid: i for i, rid in enumerate(rid for v in V.views() if v["draw"] in ("tiles", "list") for rid in v["races"])}
+    order = {rid: i for i, rid in enumerate(rid for v in V.views() if v["draw"] in ("tiles", "list", "wards") for rid in v["races"])}
     for st in states:
         for rid in sorted((rid for rid in order if R.RACES[rid]["state"] == st), key=order.get):
             split: dict[str, int] = {}
@@ -2587,7 +2591,7 @@ async def board_cmd(interaction: discord.Interaction):
     e = discord.Embed(title="Decision Desk tally", color=0x2B2D31)
     paths, controls = [], []
     for v in V.views():
-        if v["draw"] == "list":
+        if v["draw"] in ("list", "wards"):
             e.add_field(name=v["name"], value=V.tally(v, calls)[:1024] or "nothing yet", inline=False)
             continue
         kind = v["body"] or v["type"]

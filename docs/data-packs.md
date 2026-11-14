@@ -190,6 +190,18 @@ re-pointed with `/countyfeed` change the shared numbers, so they show for every 
 `candidates.json`, `seat_info.json`, `flavor.json`: the same files the bot has always read, now per pack. A pack with
 `"shared_files": true` (2026) uses the copies in `decision-desk/` instead.
 
+`shapes.json` draws a place that isn't a U.S. state: its outline on call cards, and a map of its parts. Build it from
+the place's ward (or district) boundaries as GeoJSON with `tools/build_ward_shapes.py`. The Chicago template's
+comes from the City of Chicago data portal's "Boundaries - Wards (2023-)" (dataset p293-wvbd), the ward map in force
+for the 2027 election:
+
+```
+python tools/build_ward_shapes.py wards.geojson --place CHI --state IL --pack 2027-chicago-mayor
+```
+
+`--state` is the state the place is in, which the card's locator map lights up. With wards on file, a section holding
+one race in that place is drawn as a ward map in `/map` and after a call, instead of a list.
+
 ## Checking a pack
 
 A pack that's wrong is refused when the bot starts, with every problem listed in plain words. `python -m pytest`
@@ -197,8 +209,10 @@ loads every pack in `packs/`.
 
 ## What is not general yet
 
-- **A city or other place has no outline of its own on a card.** A state's card draws the state; a card for
-  anywhere else falls back to the national map.
+- **A ward map shows the call, not ward results.** Chicago's map is drawn by ward, but nothing reads ward-by-ward
+  counts yet, so every ward takes the winner's colour. `graphics.ward_map` already colours each ward by its leader
+  when it's given them; it needs a feed (the Chicago Board of Election Commissioners posts results by ward).
+- **A place without a `shapes.json` has no outline of its own on a card**, and falls back to the national map.
 - **`/help` is written for 2026.** Every command follows the pack (its choices, examples, maps and tallies, checked
   by running each one under all three packs in `tests/test_commands_every_pack.py`), but the help pages still
   describe the 2026 night.

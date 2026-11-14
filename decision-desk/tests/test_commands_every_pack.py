@@ -179,7 +179,7 @@ def test_the_map_offers_the_packs_own_parts(packs_run):
     pres = packs_run["2028-general"]["maps"]["president"]
     assert pres[0]["file"] and "Electoral College: D need **270** of 538 uncalled" in pres[0]["text"]
     city = packs_run["2027-chicago-mayor"]["maps"]["city"]
-    assert not city[0]["file"] and city[0]["title"] == "The race" and "Mayor of Chicago:" in city[0]["body"]
+    assert city[0]["file"] and city[0]["text"].startswith("Mayor of Chicago:")      # the city by ward
     senate = packs_run["2026-general"]["maps"]["senate"]
     assert senate[0]["file"] and senate[0]["text"].startswith("Senate:")
 
@@ -200,7 +200,7 @@ def test_command_examples_come_from_the_pack(packs_run):
 def test_a_call_in_a_city_race_posts_a_card_and_where_it_stands(packs_run):
     rows = [r for r in packs_run["2027-chicago-mayor"]["said"] if r["cmd"] in ("call", "realcall", "forcecall")]
     assert any(r["text"].startswith("🚨 **DECISION DESK PROJECTION**") and r["file"] for r in rows)
-    assert any(r["text"].startswith("Mayor of Chicago:") for r in rows)       # the list, where a map would go
+    assert any(r["text"].startswith("Mayor of Chicago:") and r["file"] for r in rows)     # and the ward map
     closings = next(r for r in packs_run["2027-chicago-mayor"]["said"] if r["cmd"] == "closings")
     assert closings["title"].startswith("Poll closings, ") and "Nov 3" not in closings["title"]
     preview = [r for r in packs_run["2027-chicago-mayor"]["said"] if r["cmd"] == "closings"][1]

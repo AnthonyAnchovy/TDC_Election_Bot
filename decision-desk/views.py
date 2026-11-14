@@ -4,7 +4,8 @@ alerts (no Discord here).
 A view is one of the pack's picker sections, drawn on its own:
   "tiles"   a U.S. map of statewide races, one tile per state (Senate, governors, a president's states)
   "house"   the House chart: every district called, and the path to a majority
-  "list"    races that aren't on a map (a mayor's race, a ballot question), as lines of text
+  "wards"   one race in a city the pack has wards for: the city by ward (Chicago)
+  "list"    races that aren't on a map (a ballot question), as lines of text
 
 2026 has three (Senate, House, governors), 2028 adds President, and the Chicago template has two lists. Nothing here
 names a chamber: what a view counts toward, and what a majority of it is, comes from the pack's "bodies".
@@ -15,7 +16,13 @@ import packs
 import picks as P
 import races as R
 
-DRAWS = ("tiles", "house", "list")
+DRAWS = ("tiles", "house", "wards", "list")
+
+
+def has_wards(rid: str) -> bool:
+    """Whether the pack has a ward map for the place this race is in (its shapes.json)."""
+    import graphics as G
+    return bool((G.place(R.RACES[rid]["state"]) or {}).get("parts"))
 
 
 def _types(rids: list[str]) -> list[str]:
@@ -34,6 +41,8 @@ def views() -> list[dict]:
             draw, kind = "house", "house"
         elif sec["kind"] == "map" and len(types) == 1 and all(R.RACES[rid]["state"] for rid in rids):
             draw, kind = "tiles", types[0]
+        elif len(rids) == 1 and has_wards(rids[0]) and P.options_for(rids[0]):
+            draw, kind = "wards", types[0]
         else:
             draw, kind = "list", types[0] if len(types) == 1 else None
         body = sec.get("body") or (kind if kind in R.BODIES else None)
@@ -72,7 +81,7 @@ def watched() -> set[str]:
     every race of a pack with no map at all (a city election is all of one list)."""
     import competitive as CMP
     vs = views()
-    out = {rid for v in vs if v["draw"] in ("tiles", "list") for rid in v["races"]}
+    out = {rid for v in vs if v["draw"] in ("tiles", "list", "wards") for rid in v["races"]}
     return out | set(CMP.RATING)
 
 
@@ -80,7 +89,7 @@ def tally(view: dict, calls: dict[str, str]) -> str:
     """The view's state of play in one or two lines: the path to a majority of its body, or, for a list, each
     race and who the desk called it for."""
     import scoring as S
-    if view["draw"] == "list":
+    if view["draw"] in ("list", "wards"):
         lines = []
         for rid in view["races"]:
             got = calls.get(rid)

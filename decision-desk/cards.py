@@ -123,7 +123,7 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
     # for a candidate who isn't a party's (colors.py). "key" stays the option as the pack names it.
     return {"rid": race_id, "party": COL.style(race_id, party), "key": party, "kind": kind, "chamber": R.chamber(race_id),
             # the state's outline is only drawn for a state: a city or any other place gets the card without one
-            "state": st if st in packs.STATE_NAMES else None,
+            "state": st if st in packs.STATE_NAMES or G.place(st) else None,
             "state_name": R.STATE_NAMES.get(st, f"U.S. {R.chamber_name(race_id)}"), "office": office,
             "name": None if kind == "control" else candidate, "holder": holder,
             "flip": bool(holder and party and holder != party and not retracted), "hold": bool(party and holder == party),
@@ -244,9 +244,10 @@ def state_cutout(state: str, race_id: str | None, bw: int, bh: int, base, hi) ->
         return [((x * k - min(xs)) * sc * S + pad * S, (-y - min(ys)) * sc * S + pad * S) for x, y in r]
     img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    for r in srings:
+    cut = G.holes(srings) if G.place(state) else set()           # a city's enclaves (Norridge, inside Chicago)
+    for i, r in sorted(enumerate(srings), key=lambda ir: ir[0] in cut):
         if len(r) > 2:
-            d.polygon(proj(r), fill=tuple(hi if whole else base) + (255,))
+            d.polygon(proj(r), fill=(0, 0, 0, 0) if i in cut else tuple(hi if whole else base) + (255,))
     if not whole:
         pts = []
         for r in drings:
@@ -504,7 +505,8 @@ def editorial(c: dict) -> Image.Image:
     if c["kind"] == "control":
         loc = us_locator(None, 420, 320, base=col, hi=col, all_hi=True)
     else:
-        loc = us_locator(c["state"], 420, 320, base=(222, 224, 228), hi=col)
+        # a city the pack draws itself is located by the state it's in (Chicago lights up Illinois)
+        loc = us_locator((G.place(c["state"]) or {}).get("state") or c["state"], 420, 320, base=(222, 224, 228), hi=col)
     img.alpha_composite(loc, (int(cx - loc.width / 2), 220))
     d = ImageDraw.Draw(img)
     if c["state"]:

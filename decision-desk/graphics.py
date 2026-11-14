@@ -163,9 +163,34 @@ def _split_name(name):
 _SHAPES = None
 
 
+def place(code: str | None) -> dict | None:
+    """A place the active pack draws itself (a city: its outline and its wards), from the pack's shapes.json."""
+    if not code:
+        return None
+    import packs
+    return ((packs.active().read("shapes.json") or {}).get("places") or {}).get(code)
+
+
+def _area(ring) -> float:
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1])) / 2
+
+
+def holes(rings: list) -> set[int]:
+    """Which rings of a place's outline are holes: wound the other way from its largest ring (Norridge and Harwood
+    Heights, inside Chicago). A state's rings are all filled."""
+    if not rings:
+        return set()
+    big = _area(max(rings, key=lambda r: abs(_area(r))))
+    return {i for i, r in enumerate(rings) if _area(r) * big < 0}
+
+
 def _state_rings(state: str | None):
-    """Polygons (lists of (x, y)) for a state, or the lower 48 when state is None."""
+    """Polygons (lists of (x, y)) for a state, or the lower 48 when state is None. A place the pack draws itself
+    gives its outline (holes included: see holes())."""
     global _SHAPES
+    own = place(state)
+    if own:
+        return [[(x, y) for x, y in r] for r in own.get("outline") or []]
     if _SHAPES is None:
         p = Path(__file__).parent / "state_shapes.json"
         _SHAPES = __import__("json").loads(p.read_text()) if p.exists() else {}
@@ -192,9 +217,10 @@ def _shape_mask(state: str | None, box_w: int, box_h: int) -> Image.Image | None
     h = int((max(ys) - min(ys)) * sc) + 4
     m = Image.new("L", (w * 2, h * 2), 0)  # 2x supersample for smooth edges
     md = ImageDraw.Draw(m)
-    for r in pts:
+    cut = holes(rings) if place(state) else set()
+    for i, r in sorted(enumerate(pts), key=lambda ir: ir[0] in cut):     # holes last, so they cut through
         if len(r) > 2:
-            md.polygon([((x - min(xs)) * sc * 2 + 4, (y - min(ys)) * sc * 2 + 4) for x, y in r], fill=255)
+            md.polygon([((x - min(xs)) * sc * 2 + 4, (y - min(ys)) * sc * 2 + 4) for x, y in r], fill=0 if i in cut else 255)
     return m.resize((w, h), Image.LANCZOS)
 
 
@@ -504,6 +530,70 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
 
 
 MAP_KINDS = ("senate", "governor", "president")
+
+
+def ward_map(code: str, rid: str, called: str | None, *, leaders: dict[str, str] | None = None,
+             title: str | None = None, width: int | None = None) -> io.BytesIO | None:
+    """A city by ward, in the bot's dark map style. Each ward is drawn in the colour of whoever leads it when
+    `leaders` has it ({ward: option}); otherwise the whole city takes the called winner's colour, or stays grey
+    until a call. None when the pack has no wards for the place."""
+    import colors
+    import packs
+    import picks as P
+    own = place(code)
+    parts = (own or {}).get("parts") or {}
+    if not parts:
+        return None
+    leaders = leaders or {}
+    rings = [r for rs in parts.values() for r in rs]
+    lats = [y for r in rings for _, y in r]
+    k = math.cos(math.radians((max(lats) + min(lats)) / 2))
+    xs = [x * k for r in rings for x, _ in r]
+    ys = [-y for r in rings for _, y in r]
+    W, top, bottom = 1100, 130, 150
+    box_h = 1180
+    sc = min((W - 104) / (max(xs) - min(xs)), box_h / (max(ys) - min(ys)))
+    map_w = (max(xs) - min(xs)) * sc
+    H = int(top + (max(ys) - min(ys)) * sc + bottom)
+    x0 = (W - map_w) / 2
+    S = 2
+    img = Image.new("RGB", (W * S, H * S), BG)
+    d = ImageDraw.Draw(img)
+    proj = lambda r: [((x * k - min(xs)) * sc * S + x0 * S, (-y - min(ys)) * sc * S + top * S) for x, y in r]   # noqa: E731
+    fill_of = lambda key: PARTY[colors.style(rid, key)] if key else PENDING                                     # noqa: E731
+    for ward, rs in parts.items():
+        for r in rs:
+            if len(r) > 2:
+                d.polygon(proj(r), fill=fill_of(leaders.get(ward, called)), outline=BG, width=2 * S)
+    for ward, rs in parts.items():
+        biggest = max(rs, key=lambda r: abs(_area(r)))
+        p = proj(biggest)
+        cx, cy = sum(x for x, _ in p) / len(p), sum(y for _, y in p) / len(p)
+        d.text((cx, cy), ward, font=font(15 * S), fill=(255, 255, 255), anchor="mm")
+    name = packs.active().places.get(code, code)
+    title = (title or f"{name} · {R.RACES[rid]['label']}").upper()
+    d.text((52 * S, 56 * S), title, font=fit(d, title, (W - 300) * S, 40 * S), fill=WHITE, anchor="lm")
+    d.text(((W - 52) * S, 56 * S), "DECISION DESK", font=font(22 * S), fill=MUTED, anchor="rm")
+    y = H - bottom + 40
+    if called and not leaders:
+        line = f"CALLED: {P.name_of(rid, called).upper()}"
+        d.text((52 * S, y * S), line, font=font(34 * S), fill=fill_of(called), anchor="lm")
+    else:
+        d.text((52 * S, y * S), "NOT CALLED YET" if not called else "WARD LEADERS", font=font(30 * S), fill=MUTED, anchor="lm")
+    x = 52
+    for key in P.options_for(rid):
+        label = P.name_of(rid, key)
+        d.rounded_rectangle([x * S, (y + 40) * S, (x + 22) * S, (y + 62) * S], radius=4 * S, fill=fill_of(key))
+        d.text(((x + 30) * S, (y + 51) * S), label, font=font(20 * S, False), fill=WHITE, anchor="lm")
+        x += 30 + d.textlength(label, font=font(20 * S, False)) / S + 28
+        if x > W - 200:
+            break
+    d.text(((W - 52) * S, (y + 51) * S), f"{len(parts)} {own.get('parts_name', 'part')}s", font=font(20 * S, False),
+           fill=MUTED, anchor="rm")
+    img = img.resize((W, H), Image.LANCZOS)
+    if width:
+        img = img.resize((width, round(H * width / W)), Image.LANCZOS)
+    return to_png(img)
 EXTRA_TILES = {"DC": (9, 5)}        # drawn only on a map whose races include it
 
 

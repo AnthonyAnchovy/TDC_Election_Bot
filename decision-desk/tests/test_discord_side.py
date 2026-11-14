@@ -271,3 +271,27 @@ def test_a_safe_seat_roll_up_is_posted_once_when_two_passes_overlap(tmp_path):
     assert out.returncode == 0, out.stderr[-800:]
     posted, left = json.loads(out.stdout.strip().splitlines()[-1])
     assert posted == [["FL-10", "KY-05"]] and left == []
+
+
+# ------------------------------------------------------------------ a city drawn by ward
+def test_chicago_has_its_wards_and_its_outline():
+    packs.activate("2027-chicago-mayor")
+    try:
+        chi = G.place("CHI")
+        assert chi["state"] == "IL" and len(chi["parts"]) == 50 and sorted(map(int, chi["parts"])) == list(range(1, 51))
+        assert len(G.holes(chi["outline"])) == 1            # Norridge and Harwood Heights, surrounded by Chicago
+        lons = [x for r in chi["outline"] for x, _ in r]
+        lats = [y for r in chi["outline"] for _, y in r]
+        assert -87.95 < min(lons) < max(lons) < -87.52 and 41.64 < min(lats) < max(lats) < 42.03
+        import views as V
+        assert [(v["key"], v["draw"]) for v in V.views()] == [("city", "wards"), ("bets", "wards")]
+        called = Image.open(G.ward_map("CHI", "CHI-MAYOR", "B"))
+        blank = Image.open(G.ward_map("CHI", "CHI-MAYOR", None))
+        assert called.width == 1100 and called.height > 1300 and called.tobytes() != blank.tobytes()
+        import cards as C
+        assert C.race_facts("CHI-MAYOR", "B", "Candidate B", "", None, False, None)["state"] == "CHI"
+        mask = G._shape_mask("CHI", 300, 300)
+        assert mask is not None and 0 < sum(mask.point(lambda v: 255 if v > 127 else 0).histogram()[255:]) < 300 * 300
+    finally:
+        packs.activate(packs.DEFAULT)
+    assert G.place("CHI") is None and G.place("GA") is None               # other packs don't have it
