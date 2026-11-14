@@ -84,7 +84,27 @@ def test_what_a_line_can_mention():
     house = FL.context("US-HOUSE", "D", names("US-HOUSE"))
     assert (house["winner"], house["loser"], house["place"]) == ("Democrats", "Republicans", "Control of the House")
     blank = FL.context("VT-AL", "D", names("VT-AL"))
-    assert blank["winner"] == "The Democrat"             # no nominee on file: still a sentence
+    assert blank["winner"] == "the Democrat"             # no nominee on file: still a phrase, capitalised where a line starts
+    assert FL.draw(None, "x", ["{winner} wins {office}."], blank) == "The Democrat wins Vermont's at-large seat."
+    assert FL.draw(None, "x", ["{office} stays with {winner}."], blank) == "Vermont's at-large seat stays with the Democrat."
+
+
+def test_a_seat_is_named_the_way_a_sentence_says_it():
+    office = lambda rid, k: FL.context(rid, k, names(rid))["office"]
+    assert office("VA-SEN", "D") == "the Virginia Senate seat" and office("FL-GOV", "R") == "the Florida governorship"
+    assert office("TX-15", "D") == "Texas's 15th District" and office("VT-AL", "D") == "Vermont's at-large seat"
+    assert FL.context("FL-GOV", "R", names("FL-GOV"))["side"] == "Republicans"
+
+
+def test_going_back_is_only_said_of_someone_who_held_the_seat():
+    """2026 told Maine that Hannah Pingree was "going back": she was new. An incumbent line needs the seat's
+    incumbent on file, and the winner to be them."""
+    back = ["{place} re-ups. {incumbent} is going back."]
+    suozzi = FL.context("NY-03", "D", names("NY-03"))
+    assert FL.draw(None, "x", back, suozzi) == "New York re-ups. Tom Suozzi is going back."
+    for rid, key in (("ME-GOV", "D"), ("FL-GOV", "R"), ("VA-SEN", "D"), ("TX-15", "D")):
+        assert FL.draw(None, "x", back, FL.context(rid, key, names(rid))) is None, rid
+    assert any("{incumbent}" not in t for t in FL._lines()["hold"])     # an open-seat hold still gets a line
 
 
 def test_a_race_with_its_own_lines_uses_them_first(store, rng):
@@ -114,7 +134,8 @@ def test_other_moments_fill_in_their_blanks(store, rng):
 
 
 # ------------------------------------------------------------------ the file itself
-ALLOWED = {"call": {"winner", "loser", "place", "seat", "rating", "party"}, "desk": {"outlet", "lead"}}
+ALLOWED = {"call": {"winner", "loser", "place", "seat", "office", "rating", "party", "side", "incumbent"},
+           "desk": {"outlet", "lead"}}
 
 
 def test_every_line_in_flavor_json_is_usable():
@@ -133,7 +154,8 @@ def test_every_line_in_flavor_json_is_usable():
             assert key == "retract" or key in P.options_for(rid), f"{rid} has lines for {key}, which it can't elect"
             for text in lines:
                 assert isinstance(text, str) and text.strip() and "{" not in text, f"{rid}/{key}: {text!r}"
-    assert all(any(not FL._needs(t) or FL._needs(t) <= {"winner", "seat", "place"} for t in data[k]) for k in ("call", "hold", "flip", "control"))
+    assert all(any(not FL._needs(t) or FL._needs(t) <= {"winner", "seat", "place", "office", "party", "side"} for t in data[k])
+               for k in ("call", "hold", "flip", "control"))
 
 
 def test_built_in_lines_cover_every_moment_if_the_file_is_gone(store, rng, monkeypatch):

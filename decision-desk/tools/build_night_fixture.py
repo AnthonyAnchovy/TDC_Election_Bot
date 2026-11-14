@@ -121,13 +121,22 @@ def build(db_path: Path, export_dir: Path) -> dict:
                 e["do"] == "vote" and e["race"] == rid and -1 < ts - e["t"] < 10 for e in events):
             events.append({"t": ts, "do": "settle", "race": rid})
     followed = {(rid, d.get("outlet")): ts for a, rid, _p, d, ts in history if a == "call" and d.get("outlet")}
+    announced = [(datetime.fromisoformat(m["timestamp"]).timestamp(), m.get("content") or "") for m in msgs
+                 if m["author"].get("isBot") and (m.get("content") or "").startswith("📡 **")]
+
+    def was_posted(rid, outlet, ts):
+        return any(abs(t - ts) < 30 and c.startswith(f"📡 **{outlet}**") and R.RACES[rid]["label"] in c
+                   for t, c in announced)
+
     for rid, outlet, party, ts, logged_by in procalls:
         if not logged_by:
             via = "auto"                    # read from Bluesky or NYT's data
         elif R.RACES[rid]["type"] != "house" and abs(followed.get((rid, outlet), -1e9) - ts) < 2:
             via = "callnyt"                 # /callnyt made a Senate or governor race official
+        elif outlet == "NYT" and not was_posted(rid, outlet, ts):
+            via = "callnyt"                 # /callnyt logging, without a post, a call the desk had already made
         else:
-            via = "manual"                  # /procall, or /callnyt logging a call the desk had already made
+            via = "manual"                  # /procall, which posts to the board
         events.append({"t": ts, "do": "outlet", "via": via, "race": rid, "party": party, "outlet": outlet,
                        "user": num.get(logged_by, 0)})
     for m in msgs:

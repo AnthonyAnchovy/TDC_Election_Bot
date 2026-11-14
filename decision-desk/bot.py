@@ -863,12 +863,17 @@ async def flush_safe_seats(guild):
     queue = store.setting("safe_batch", [])
     if not queue or time.time() - queue[0][2] < 60 * CFG.get("safe_batch_minutes", 5):
         return
+    # Taken off the queue before the post's await, so a second pass running meanwhile can't post the same seats.
+    store.set_setting("safe_batch", [])
     safe: dict[str, list[str]] = {}
     for rid, party, _ts in queue:
         if (store.get(rid) or {}).get("party") == party and rid not in safe.get(party, []):
             safe.setdefault(party, []).append(rid)
-    await post_safe_seats(guild, safe)
-    store.set_setting("safe_batch", store.setting("safe_batch", [])[len(queue):])
+    try:
+        await post_safe_seats(guild, safe)
+    except Exception:
+        store.set_setting("safe_batch", queue + store.setting("safe_batch", []))     # try again on the next pass
+        raise
 
 
 @tasks.loop(seconds=30)
@@ -1981,7 +1986,7 @@ async def picks_reminder(guild, t: datetime):
     absent = sorted(name_of(guild, u) for u in counted_voters(guild) - set(store.predictors()))
     if absent and not predictions_hidden():
         lines.append(f"**Not started:** {', '.join(absent)}")
-    e = discord.Embed(title=f"Predictions close in {lead}", color=0xFAD63E, description=_trim("\n".join(lines), 4000)
+    e = discord.Embed(title=f"Predictions close in {S.time_left(deadline().timestamp() - t.timestamp(), lead)}", color=0xFAD63E, description=_trim("\n".join(lines), 4000)
                       or "Nobody has saved predictions yet.")
     e.set_footer(text="/predict to fill in the rest. Every part scores: Senate, House majority, governors, House seats, "
                       "and the tiebreaker.")

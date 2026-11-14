@@ -8,9 +8,17 @@ What gets used, in order:
   1. a line written for this race and this winner       flavor.json "races": {"GA-SEN": {"D": [...]}}
   2. a line for the kind of result it was               "upset", "flip", "hold", "control", else "call"
 A pool is used like a deck: a line doesn't come round again until every other line in its pool has been used, and
-what has been used is remembered in the server's database, so a restart doesn't reshuffle. Lines can name the
-winner, the loser and the place: {winner} {loser} {place} {seat} {rating} {party}. A line whose placeholders can't
-be filled for a race is skipped for it.
+what has been used is remembered in the server's database, so a restart doesn't reshuffle. A line can use:
+  {winner} {loser}  who won and who lost, by name ("the Democrat" when the pack has no name)
+  {place} {seat}    "Virginia", "Virginia Senate"
+  {office}          the seat as a sentence says it: "the Virginia Senate seat", "the Ohio governorship",
+                    "Texas's 15th District"
+  {party} {side}    "Democratic", "Democrats" (only when the winner is a party's)
+  {incumbent}       the winner, only when they held the seat already: lines like "{place} re-ups. {incumbent} is
+                    going back." are skipped for an open seat
+  {rating}          the race's rating, for upsets
+A line whose placeholders can't be filled for a race is skipped for it. Its first letter is made a capital, so a
+line can start with {office} or {winner}.
 
 Other moments have pools too: "retract" (and a race's own {"retract": [...]}), "desk_ahead", "desk_behind",
 "desk_wrong". If flavor.json has no lines for a moment, the built-in ones below are used, so there is always a line.
@@ -28,8 +36,8 @@ import races as R
 BUILT_IN = {
     "call": ["The desk has seen enough: {winner} takes {seat}.", "{seat} goes to {winner}. No further questions.",
              "Called: {winner} in {place}.", "{winner} wins {seat}. The desk is moving on."],
-    "hold": ["{winner} holds {seat}. Nothing changes hands.", "{place} stays put: {winner} keeps the seat.",
-             "No change in {seat}. {winner} holds."],
+    "hold": ["{winner} wins {office}. Nothing changes hands.", "{office} stays put: {winner} wins it.",
+             "No change in {place}: {winner} wins {office}."],
     "flip": ["{seat} changes hands: {winner} takes it from {loser}.", "That's a pickup. {winner} flips {seat}.",
              "New management in {place}: {winner} wins."],
     "upset": ["The ratings had {seat} {rating}. {winner} had other ideas.",
@@ -83,7 +91,7 @@ def draw(store, pool: str, lines: list[str], fmt: dict | None = None, rng=random
         while len(seen) > KEEP:
             seen.pop(next(iter(seen)))
         store.set_setting(MEMORY, seen)
-    return text.format(**fmt) if fmt else text
+    return _capital(text.format(**fmt)) if fmt else text
 
 
 def situation(rid: str, key: str) -> str:
@@ -109,8 +117,37 @@ def context(rid: str, key: str, names: dict[str, str]) -> dict:
     loser = names.get(holder) if holder and holder != key and len(names) > 2 else (others[0] if len(others) == 1 else None)
     place = R.STATE_NAMES.get(r["state"]) if r["state"] else None
     winner = names.get(key) or R.PARTY_NAMES[key]
-    return {"winner": winner[0].upper() + winner[1:], "loser": loser, "place": place or r["label"], "seat": r["label"],
-            "rating": CMP.RATING_OF.get(rid), "party": R.PARTY_NAMES[key] if key in packs.active().options else None}
+    shared = packs.active().options.get(key) if key in packs.active().options else None
+    return {"winner": winner, "loser": loser, "place": place or r["label"], "seat": r["label"],
+            "office": office(rid, place), "rating": CMP.RATING_OF.get(rid),
+            "party": R.PARTY_NAMES[key] if shared else None, "side": (shared or {}).get("plural"),
+            "incumbent": winner if incumbent(rid) and incumbent(rid) == winner else None}
+
+
+def office(rid: str, place: str | None) -> str:
+    """The seat as a sentence says it: "the Virginia Senate seat", "the Ohio governorship", "Texas's 15th District"."""
+    r = R.RACES[rid]
+    if not place:
+        return r["label"]
+    if r["type"] == "senate":
+        return f"the {place} Senate seat"
+    if r["type"] == "governor":
+        return f"the {place} governorship"
+    if r["type"] == "house":
+        return f"{place}'s at-large seat" if rid.endswith("-AL") else f"{place}'s {r['label'][len(place) + 1:]}"
+    return r["label"]
+
+
+def incumbent(rid: str) -> str | None:
+    """Who holds the seat now, by name, when the pack says (seat_info.json's "incumbent"). None for an open seat
+    or one the pack says nothing about, so a line that assumes the winner is going back is never used there."""
+    info = (packs.active().read("seat_info.json") or {}).get(rid) or {}
+    return info.get("incumbent") if not info.get("open") else None
+
+
+def _capital(text: str) -> str:
+    """A line can start with "{office}" or "{winner}" ("the Virginia Senate seat", "the Democrat")."""
+    return text[:1].upper() + text[1:] if text else text
 
 
 def _pool(kind: str) -> list[str]:

@@ -38,3 +38,9 @@ def test_the_early_vote_post_ranks_states_and_shows_the_change():
         "**MI** 500,000 · 11% of 2022's turnout",
     ]
     assert CE.digest([]) == []
+
+
+def test_a_late_reminder_says_how_long_is_really_left():
+    assert S.time_left(3 * 3600, "three hours") == "three hours" and S.time_left(2.6 * 3600, "three hours") == "three hours"
+    assert S.time_left(60, "three hours") == "1 minute" and S.time_left(40 * 60, "three hours") == "40 minutes"
+    assert S.time_left(12 * 3600, "a day") == "12 hours" and S.time_left(20 * 3600, "a day") == "a day" and S.time_left(4 * 86400, "a week") == "4 days"

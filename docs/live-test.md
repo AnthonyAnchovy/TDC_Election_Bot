@@ -91,6 +91,20 @@ return the final 2026 counts, where the states still serve them) and the Senate 
 | `/forcecall`, `/closeout`, `/drinkinggame on`, `/react` | Each answers. `/react` has no images until you add some. |
 | `/autocalls on` | Only if you want the flood: every House seat in a state that had closed by 7:05 PM is called from NYT's file. It tests rate limits well, and it is a lot of posts. |
 
+## 4b. The whole night, played back (15 minutes)
+
+Instead of calling races by hand, the bot can play election night 2026 from its record into the test server:
+every vote, `/realcall`, retraction and outlet call, at about 240 times the night's speed. Add to `.env`:
+
+```
+DESK_SIMULATE=tests/fixtures/2026
+```
+
+and start the bot. It sets aside the server's earlier test records, posts a 🧪 marker, plays the night, and
+finishes with a 🧪 summary that says whether the desk's record matched the night. People appear as user1 to user7;
+votes have no live count beside them (today's feeds hold final counts); the field graphics are the night's own.
+Remove the line afterwards, or the next start plays the night again. `simulate.py` has the details.
+
 ## 5. A second server (optional)
 
 Add the same test bot to a second private server with the same two channels and role. It gets the commands as soon

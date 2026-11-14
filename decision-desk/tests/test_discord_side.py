@@ -237,3 +237,37 @@ def test_the_tiebreaker_asks_the_packs_question(bot):
     pres = json.loads(boot("2028-general", "print(json.dumps(bot.tiebreak()))"))
     assert pres["label"] == "How many electoral votes does the winner get?" and (pres["min"], pres["max"]) == (270, 538)
     assert all(len(t["label"]) <= 45 for t in (tb, city, pres))                     # Discord's limit for a box's label
+
+
+
+ROLL_UP = """
+import asyncio, time
+from types import SimpleNamespace as NS
+posted = []
+async def slow(guild, safe):
+    await asyncio.sleep(0.05)
+    posted.append(sorted(r for rids in safe.values() for r in rids))
+bot.post_safe_seats = slow
+g = NS(id=1)
+with bot.TEN.scope(1):
+    for rid, p in (("KY-05", "R"), ("FL-10", "D")):
+        bot.DESK.claim_official(bot.store, rid, p, "Projected by NYT", outlet="NYT")
+        bot.queue_safe_seat(rid, p)
+    bot.store.set_setting("safe_batch", [[r, p, time.time() - 900] for r, p, _t in bot.store.setting("safe_batch")])
+    async def both():
+        await asyncio.gather(bot.flush_safe_seats(g), bot.flush_safe_seats(g))
+    asyncio.run(both())
+    print(json.dumps([posted, bot.store.setting("safe_batch")]))
+"""
+
+
+def test_a_safe_seat_roll_up_is_posted_once_when_two_passes_overlap(tmp_path):
+    """The roll-up is taken off the queue before its post goes out. In the simulation, the 30-second loop and the
+    driver's own pass both posted the same seats, and 17 seats were listed twice."""
+    env = {**__import__("os").environ, "DESK_PACK": "2026-general", "DESK_DATA": str(tmp_path), "DESK_CAPTURE": "0",
+           "GUILD_ID": "1", "PYTHONIOENCODING": "utf-8"}
+    out = subprocess.run([sys.executable, "-X", "utf8", "-c", "import bot, json\n" + ROLL_UP], capture_output=True,
+                         text=True, encoding="utf-8", cwd=DESK, env=env)
+    assert out.returncode == 0, out.stderr[-800:]
+    posted, left = json.loads(out.stdout.strip().splitlines()[-1])
+    assert posted == [["FL-10", "KY-05"]] and left == []

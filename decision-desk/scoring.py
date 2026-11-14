@@ -214,6 +214,19 @@ def completion(picks: dict[str, str], meta: dict | None = None) -> dict:
 REMINDERS = ((7 * 86400, "a week"), (86400, "a day"), (3 * 3600, "three hours"))
 
 
+def time_left(seconds: float, lead: str) -> str:
+    """How long until picks close, in words. The reminder's own wording ("a day") unless a bot started late has
+    less time than that left: then the real time, so a reminder sent a minute before the deadline says so."""
+    nominal = {text: s for s, text in REMINDERS}.get(lead)
+    if nominal is None or seconds >= 0.8 * nominal:
+        return lead
+    minutes = max(1, round(seconds / 60))
+    if minutes < 90:
+        return f"{minutes} minute{'s' * (minutes != 1)}"
+    hours = round(seconds / 3600)
+    return f"{hours} hours" if hours < 36 else f"{round(seconds / 86400)} days"
+
+
 def reminder_due(now: float, deadline: float, sent) -> tuple[str, str] | None:
     """The reminder to post now, as (key, "a day"), or None. Reminders go out a week, a day and three hours before
     picks close. Only the latest one whose time has come is ever sent, so a bot started late posts one, not three."""

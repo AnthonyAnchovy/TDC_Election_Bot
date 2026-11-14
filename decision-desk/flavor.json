@@ -1,5 +1,5 @@
 {
-  "_note": "Lines posted with calls, flips and retractions. flavor.py picks them: a line isn't used again until every other line in its pool has had a turn. Pools: call, hold (the seat stays put), flip (it changes hands), upset (the ratings favored someone else), control (a chamber), retract, desk_ahead, desk_behind, desk_wrong. A line can name {winner}, {loser}, {place}, {seat}, {rating} and {party}; the desk_ lines can use {outlet} and {lead}. Edit freely; changes apply without restarting.",
+  "_note": "Lines posted with calls, flips and retractions. flavor.py picks them: a line isn't used again until every other line in its pool has had a turn. Pools: call, hold (the seat stays put), flip (it changes hands), upset (the ratings favored someone else), control (a chamber), retract, desk_ahead, desk_behind, desk_wrong. A line can name {winner}, {loser}, {place}, {seat}, {office} (\"the Virginia Senate seat\", \"Texas's 15th District\"), {rating}, {party} (\"Democratic\"), {side} (\"Democrats\") and {incumbent} (the winner, only when they already held the seat, so a line about going back is never used for an open seat); the desk_ lines can use {outlet} and {lead}. The first letter of a line is made a capital. Edit freely; changes apply without restarting.",
   "call": [
     "The desk has seen enough.",
     "Projection confirmed. No further questions.",
@@ -11,21 +11,23 @@
     "The math is done. The desk is moving on.",
     "Called. The desk will be taking no questions at this time.",
     "Another one off the board.",
-    "{winner} wins {seat}. The desk has put its pencil down.",
+    "{winner} wins {office}. The desk has put its pencil down.",
     "{place} is off the board: {winner}.",
-    "The desk calls {seat} for {winner}, and would like that noted.",
-    "{winner} takes {seat}. Next.",
+    "The desk calls {office} for {winner}, and would like that noted.",
+    "{winner} takes {office}. Next.",
     "Enough of {place} is in. It's {winner}."
   ],
   "hold": [
-    "{winner} holds {seat}. The furniture stays where it is.",
-    "No change in {place}. {winner} keeps the seat.",
-    "{seat} stays with {winner}. The desk barely looked up.",
-    "{winner} holds on in {place}.",
-    "{place} re-ups. {winner} is going back.",
-    "{winner} keeps {seat}. Somebody had to.",
-    "Hold. {winner} survives {place} for another term.",
-    "{seat}: same as it ever was. {winner} holds."
+    "{side} hold {office}. The furniture stays where it is.",
+    "{winner} keeps {office} in {party} hands.",
+    "{office} stays with the {side}. The desk barely looked up.",
+    "No change of party in {place}: {winner} wins {office}.",
+    "{office}: same as it ever was. {side} hold.",
+    "{winner} wins {office}, and the {side} keep it.",
+    "{incumbent} holds on in {place}.",
+    "{place} re-ups. {incumbent} is going back.",
+    "{incumbent} keeps the seat. Somebody had to.",
+    "Hold. {incumbent} survives {place} for another term."
   ],
   "flip": [
     "Seat changes hands.",
@@ -37,19 +39,19 @@
     "Under new ownership.",
     "The seat switches sides. The desk switches markers.",
     "Flipped. The losing campaign's group chat has gone quiet.",
-    "{winner} flips {seat}.",
-    "{seat} changes hands. {winner} takes it from {loser}.",
+    "{winner} flips {office}.",
+    "{office} changes hands. {winner} takes it from {loser}.",
     "{place} changes its mind: {winner} wins.",
     "{loser} is out in {place}. {winner} takes the seat.",
     "Pickup in {place}. {winner} has measured the office and likes it.",
-    "{winner} takes {seat} off the other side's wall map."
+    "{winner} takes {office} off the other side's wall map."
   ],
   "upset": [
-    "The ratings had {seat} {rating}. {winner} did not read the ratings.",
+    "The ratings had {office} {rating}. {winner} did not read the ratings.",
     "Upset in {place}: {winner} wins a seat rated {rating}.",
-    "{rating}, they said. {winner} wins {seat} anyway.",
-    "Somebody owes the raters a phone call. {winner} takes {seat}, rated {rating}.",
-    "{winner} wins {seat}. The forecast called it {rating} and the forecast is taking the night off."
+    "{rating}, they said. {winner} wins {office} anyway.",
+    "Somebody owes the raters a phone call. {winner} takes {office}, rated {rating}.",
+    "{winner} wins {office}. The forecast called it {rating} and the forecast is taking the night off."
   ],
   "control": [
     "{winner} take {seat}.",
