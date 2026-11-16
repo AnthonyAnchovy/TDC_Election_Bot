@@ -5,7 +5,8 @@
   "board_channel": "decision-desk-board",
   "desk_channel": "decision-desk",
   "post_map_after_call": true,
-  "card_theme": "wire",
+  "card_theme": "editorial",
+  "bot_caller": true,
   "field_auto": ["senate"],
   "field_minutes": 30,
   "safe_batch_minutes": 5,
@@ -13,6 +14,7 @@
   "hide_predictions_until_deadline": false,
   "points": {
     "senate": 1,
+    "senate_control": 5,
     "house_control": 5,
     "governor": 1,
     "battleground": 1,

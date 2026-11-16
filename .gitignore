@@ -11,6 +11,20 @@ venv/
 decision-desk/desk.db
 decision-desk/desk.db-journal
 
+# a night's raw records, used to build tests/fixtures (they hold Discord IDs and names)
+/desk.db
+/field_history.json
+/discord-export*/
+.pytest_cache/
+
+# each data pack's records, per Discord server, and which pack the bot starts on
+decision-desk/data/
+decision-desk/data-test/
+decision-desk/packs/ACTIVE
+
+# what the bot saw and did on a night (feed payloads, and a command log with Discord user IDs)
+decision-desk/captures/
+
 # County Watch runtime caches and night-of inputs
 decision-desk/countywatch/live.json
 decision-desk/countywatch/early.json

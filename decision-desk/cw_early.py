@@ -18,11 +18,25 @@ import zipfile
 from datetime import date, datetime
 from pathlib import Path
 
+import feeds as FEEDS
+import packs
+
 HERE = Path(__file__).parent
-CW_DIR = HERE / "countywatch"
-UF_URL = "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv"
-NC_ABS_URL = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/absentee_20261103.zip"
-ELECTION_2026 = date(2026, 11, 3)
+
+
+def uf_url() -> str | None:
+    """The UF Election Lab's early-vote tracker for the active pack's election, if the pack names one."""
+    return FEEDS.early_vote().get("uf")
+
+
+def nc_abs_url() -> str | None:
+    return FEEDS.early_vote().get("nc_absentee")
+
+
+def election_day() -> date:
+    return packs.active().election_day().date()
+
+
 ELECTION_2022 = date(2022, 11, 8)
 UF_AGE = ["18-25", "26-40", "41-65", "65+"]
 
@@ -197,8 +211,24 @@ def uf_summary(row: dict) -> list[str]:
     return lines
 
 
+def digest(pace: list[tuple], last: dict | None = None, names: dict | None = None) -> list[str]:
+    """Lines for the daily early-vote post. pace is countywatch_run.early_pace(): (state, votes, share of 2022's
+    total turnout, registration gap or None). last is {state: votes} from the previous post, for the change since.
+    States are listed by how far along they are."""
+    out = []
+    for st, votes, share, gap in sorted(pace, key=lambda p: -p[2]):
+        line = f"**{(names or {}).get(st, st)}** {votes:,} · {share:.0%} of 2022's turnout"
+        before = (last or {}).get(st)
+        if before is not None and votes != before:
+            line += f" · {votes - before:+,} since the last post"
+        if gap is not None and abs(gap) >= 0.005:
+            line += f" · registered {'D' if gap > 0 else 'R'}+{abs(gap) * 100:.0f}"
+        out.append(line)
+    return out
+
+
 def load_json(name: str):
-    p = CW_DIR / name
+    p = FEEDS.cw_file(name)
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -206,4 +236,4 @@ def load_json(name: str):
 
 
 def save_json(name: str, data):
-    (CW_DIR / name).write_text(json.dumps(data, indent=1, default=str), encoding="utf-8")
+    FEEDS.cw_file(name).write_text(json.dumps(data, indent=1, default=str), encoding="utf-8")

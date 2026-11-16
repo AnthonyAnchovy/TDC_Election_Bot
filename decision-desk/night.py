@@ -1,35 +1,28 @@
-"""Election-night timing: poll closing times for Nov 3, 2026, in Eastern Time.
+"""Election-night timing for the active data pack: when polls close, in Eastern Time for display.
 
-Source: The Green Papers 2026 polling hours, checked Oct 21, 2026. Nov 3 is after
-daylight saving ends, so ET is UTC-5. Each state has (most polls closed, last polls closed).
-Times past midnight are written as 24:00, 25:00 (i.e. early Nov 4).
-Edit this table if a state changes its hours.
+The pack's "closings" block gives each jurisdiction (most polls closed, last polls closed) as clock times in the
+pack's timezone on election day; times past midnight are written 24:00, 25:00. "*" is the default for a place the
+block doesn't list, and a pack with no closings at all closes at 8 PM. 2026's came from The Green Papers' polling
+hours, checked Oct 21, 2026. Edit the pack if a state changes its hours.
 """
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-ET = ZoneInfo("America/New_York")
-ELECTION_DAY = datetime(2026, 11, 3, tzinfo=ET)
+import packs
 
-CLOSINGS = {
-    "AL": ("20:00", "20:00"), "AK": ("24:00", "25:00"), "AZ": ("21:00", "21:00"),
-    "AR": ("20:30", "20:30"), "CA": ("23:00", "23:00"), "CO": ("21:00", "21:00"),
-    "CT": ("20:00", "20:00"), "DE": ("20:00", "20:00"), "FL": ("19:00", "20:00"),
-    "GA": ("19:00", "19:00"), "HI": ("24:00", "24:00"), "ID": ("22:00", "23:00"),
-    "IL": ("20:00", "20:00"), "IN": ("18:00", "19:00"), "IA": ("21:00", "21:00"),
-    "KS": ("20:00", "21:00"), "KY": ("18:00", "19:00"), "LA": ("21:00", "21:00"),
-    "ME": ("20:00", "20:00"), "MD": ("20:00", "20:00"), "MA": ("20:00", "20:00"),
-    "MI": ("20:00", "21:00"), "MN": ("21:00", "21:00"), "MS": ("20:00", "20:00"),
-    "MO": ("20:00", "20:00"), "MT": ("22:00", "22:00"), "NE": ("21:00", "21:00"),
-    "NV": ("22:00", "22:00"), "NH": ("19:00", "20:00"), "NJ": ("20:00", "20:00"),
-    "NM": ("21:00", "21:00"), "NY": ("21:00", "21:00"), "NC": ("19:30", "19:30"),
-    "ND": ("22:00", "23:00"), "OH": ("19:30", "19:30"), "OK": ("20:00", "20:00"),
-    "OR": ("23:00", "23:00"), "PA": ("20:00", "20:00"), "RI": ("20:00", "20:00"),
-    "SC": ("19:00", "19:00"), "SD": ("20:00", "21:00"), "TN": ("20:00", "20:00"),
-    "TX": ("20:00", "21:00"), "UT": ("22:00", "22:00"), "VT": ("19:00", "19:00"),
-    "VA": ("19:00", "19:00"), "WA": ("23:00", "23:00"), "WV": ("19:30", "19:30"),
-    "WI": ("21:00", "21:00"), "WY": ("21:00", "21:00"),
-}
+ET = ZoneInfo("America/New_York")
+ELECTION_DAY = datetime(2026, 11, 3, tzinfo=ET)     # replaced by the active pack's
+CLOSINGS: dict = {}
+DEFAULT_CLOSE = ("20:00", "20:00")
+CLOSINGS_DEFAULT = [DEFAULT_CLOSE]      # what a place the pack doesn't list closes at; set from the pack's "*"
+
+
+@packs.on_activate
+def _fill(pack: packs.Pack):
+    global ELECTION_DAY, CLOSINGS
+    ELECTION_DAY = pack.election_day()
+    CLOSINGS = {st: tuple(v) for st, v in (pack.data.get("closings") or {}).items() if st != "*"}
+    CLOSINGS_DEFAULT[0] = tuple((pack.data.get("closings") or {}).get("*") or DEFAULT_CLOSE)
 
 
 def _at(hhmm: str) -> datetime:
@@ -37,15 +30,29 @@ def _at(hhmm: str) -> datetime:
     return ELECTION_DAY + timedelta(hours=h, minutes=m)
 
 
-def first_close(state: str) -> datetime:
-    return _at(CLOSINGS[state][0])
+def _times(state: str | None) -> tuple[str, str]:
+    return CLOSINGS.get(state) or CLOSINGS_DEFAULT[0]
 
 
-def last_close(state: str) -> datetime:
-    return _at(CLOSINGS[state][1])
+def first_close(state: str | None) -> datetime:
+    return _at(_times(state)[0])
 
 
-def is_closed(state: str, now: datetime) -> bool:
+def last_close(state: str | None) -> datetime:
+    return _at(_times(state)[1])
+
+
+def first_anywhere() -> datetime:
+    """The first polls to close in any place the pack covers."""
+    return min((first_close(st) for st in CLOSINGS), default=first_close(None))
+
+
+def morning_after(hour: int = 8) -> datetime:
+    """The day after election day at this hour, in the pack's timezone: when the night's posts and pulls stop."""
+    return (ELECTION_DAY + timedelta(days=1)).replace(hour=hour)
+
+
+def is_closed(state: str | None, now: datetime) -> bool:
     return now >= first_close(state)
 
 

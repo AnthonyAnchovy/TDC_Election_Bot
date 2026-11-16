@@ -20,6 +20,7 @@ import logging
 import os
 import random
 import re
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -30,22 +31,33 @@ from discord import app_commands
 from discord.ext import tasks
 from dotenv import load_dotenv
 
+import autocaller as AUTO
 import bluesky as BSKY
+import capture
 import competitive as CMP
 import countywatch_run as CWR
 import cw_early as CE
 import cw_feeds as CF
 import cw_model as CM
+import desk as DESK
 import ddhq_grab as DG
 import desk_help as H
+import drinking as DR
+import feeds as FEEDS
 import field as F
+import flavor as FL
 import graphics as G
 import night as N
 import nyt_house as NYT
 import races as R
+import remaining as REM
 import results as LIVE
+import packs
+import picks as P
 import scoring as S
-from store import Store
+import tenancy as TEN
+import trend as TR
+import views as V
 
 HERE = Path(__file__).parent
 COUNTY_CARD = HERE / "assets" / "county_watch_card.png"
@@ -55,21 +67,118 @@ TZ = ZoneInfo(CFG.get("timezone", "America/Chicago"))
 log = logging.getLogger("desk")
 NO_PINGS = discord.AllowedMentions.none()
 
+# Whether a server reads outlets' calls before anyone has said so with /autocalls. DESK_AUTOCALLS=off in .env starts
+# every server quiet, which is what a test server wants: nothing is called by itself until an admin turns it on.
+AUTOCALLS_DEFAULT = os.getenv("DESK_AUTOCALLS", "on").strip().lower() not in ("off", "0", "false", "no")
+
 intents = discord.Intents.default()
 intents.members = True  # needed to know who holds the Election Junkie role
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
-store = Store(str(HERE / "desk.db"))
+# `store` is the records of whichever server the work in hand is for: the server a command came from, each server
+# in turn in the background passes, and the home server (GUILD_ID) otherwise. See tenancy.py.
+store = TEN.store
+
+
+CW_COMMANDS = {"watchstate", "resultsdm", "countyfile", "counties", "needs", "environment", "earlyvote", "countyset",
+               "countyclear", "countytest", "countyfeed", "countyrefresh", "excellink", "trend"}
+
+
+async def _enter_server(interaction: discord.Interaction) -> bool:
+    TEN.enter(interaction.guild_id)
+    name = interaction.command.name if interaction.command else ""
+    if name in CW_COMMANDS and not FEEDS.countywatch() and interaction.type == discord.InteractionType.application_command:
+        await interaction.response.send_message(
+            f"**{packs.active().name}** has no County Watch, so `/{name}` has nothing to read. It needs county "
+            "baselines and feeds in the data pack (docs/data-packs.md).", ephemeral=True)
+        return False
+    return True
+
+
+tree.interaction_check = _enter_server      # every slash command starts in its own server's records
+
+
+class ScopedView(discord.ui.View):
+    """A view whose buttons work on the records of the server they were pressed in."""
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await _enter_server(interaction)
+
+
+async def each_server(work):
+    """Run a background pass once for every server the bot is in, on that server's records. One server's failure
+    doesn't stop the next."""
+    for guild in list(client.guilds):
+        with TEN.scope(guild.id):
+            try:
+                await work(guild)
+            except Exception:
+                log.exception("%s failed in %s", getattr(work, "__name__", "A pass"), guild.name)
+
+
+async def post_everywhere(key: str, **kwargs):
+    """Post the same thing to that channel in every server: what a shared feed found, which is news to all of
+    them. A server without the channel is skipped, and one server's failure doesn't stop the next."""
+    async def one(guild):
+        if find_channel(guild, key):
+            await post(guild, key, **kwargs)
+    await each_server(one)
+
+EXAMPLES = V.examples()            # "e.g. GA-SEN, AZ-GOV, PA-07, HOUSE" in 2026: what a race can be typed as
+
+
+def _cw_kind() -> str:
+    """The kind of race County Watch follows, for command descriptions: "Senate" in 2026."""
+    import feeds
+    for st in feeds.cw_states():
+        r = R.RACES.get(feeds.cw_race(st))
+        if r:
+            return packs.TYPE_LABEL.get(r["type"], r["type"].replace("_", " ").title())
+    return "statewide"
+
+
+CW_KIND = _cw_kind()
 
 PARTY_CHOICES = [
     app_commands.Choice(name="Democrat", value="D"),
     app_commands.Choice(name="Republican", value="R"),
     app_commands.Choice(name="Independent", value="I"),
 ]
+class Pick:
+    """What someone typed for a winner, and the option of the race it names (None if it names none of them)."""
+
+    def __init__(self, value: str | None, raw: str):
+        self.value, self.raw, self.name = value, raw, raw
+
+
+class WinnerOf(app_commands.Transformer):
+    """The `winner` of a command: one of the options of the race typed before it. Discord offers that race's
+    candidates by name; a party letter, a party name or a surname typed by hand works too."""
+
+    @staticmethod
+    def _race(interaction: discord.Interaction) -> str | None:
+        return resolve(str(getattr(interaction.namespace, "race", "") or ""))
+
+    async def transform(self, interaction: discord.Interaction, value: str) -> Pick:
+        rid = self._race(interaction)
+        return Pick(P.resolve_option(rid, value, load_candidates()) if rid else None, value)
+
+    async def autocomplete(self, interaction: discord.Interaction, current: str):
+        rid = self._race(interaction)
+        if not rid:
+            return [app_commands.Choice(name="Pick the race first", value=current or "?")]
+        typed, out = current.strip().lower(), []
+        for key in options_for(rid):
+            name = cand(rid, key)
+            text = f"{name} ({key})" if key in packs.active().options else name
+            if not typed or typed in text.lower() or typed == key.lower():
+                out.append(app_commands.Choice(name=text[:100], value=key))
+        return out[:25]
+
+
+Winner = app_commands.Transform[Pick, WinnerOf]
+
 OUTLETS = ["AP", "Decision Desk HQ", "NYT", "CNN", "NBC", "ABC", "CBS", "Fox News", "Dave Wasserman"]
-# /procall from one of these makes a House seat official. Lower case, without dots, as people actually type them.
-HOUSE_CALLERS = {"ap", "the ap", "associated press", "decision desk hq", "ddhq", "nyt", "new york times",
-                 "the new york times", "dave wasserman", "wasserman"}
 EMBED_COLOR = {"D": 0x2B6CD9, "R": 0xD63A3A, "I": 0x9A5CD6, None: 0x5A5F6B}
 DEFAULT_NAME = {"D": "the Democrat", "R": "the Republican", "I": "the independent"}
 
@@ -87,7 +196,7 @@ def clock(ts: float | datetime) -> str:
 
 
 def load_candidates() -> dict:
-    p = HERE / "candidates.json"
+    p = packs.active().path("candidates.json")
     if not p.exists():
         return {}
     data = json.loads(p.read_text(encoding="utf-8"))
@@ -95,40 +204,36 @@ def load_candidates() -> dict:
 
 
 def cand(rid: str, party: str) -> str:
-    return load_candidates().get(rid, {}).get(party) or DEFAULT_NAME[party]
+    """Who an option is in a race: the name its pack gives it, else the nominee on file, else 'the Democrat'."""
+    return P.name_of(rid, party, load_candidates())
 
 
 def options_for(rid: str) -> list[str]:
-    """Parties offered in the picker: D and R, plus I where candidates.json names one."""
-    return ["D", "R"] + (["I"] if "I" in load_candidates().get(rid, {}) else [])
+    """Who can win a race: the options its pack lists, or D and R plus an independent where one is on file."""
+    return P.options_for(rid, load_candidates())
 
 
 def flavor(kind: str, **fmt) -> str | None:
-    try:
-        lines = json.loads((HERE / "flavor.json").read_text(encoding="utf-8")).get(kind) or []
-    except (OSError, ValueError):
-        return None
-    if not lines:
-        return None
-    line = random.choice(lines)
-    try:
-        return line.format(**fmt)
-    except (KeyError, IndexError, ValueError):
-        return line
+    """A line for a moment that isn't a call ("desk_ahead", "desk_wrong"...), from flavor.json by way of flavor.py,
+    which doesn't hand out the same line twice until the rest have had a turn."""
+    return FL.line(store, kind, **fmt)
 
 
-def race_flavor(rid: str, party: str) -> str | None:
-    """A race-specific line from flavor.json's "races" section, if one exists for this winner."""
-    try:
-        races = json.loads((HERE / "flavor.json").read_text(encoding="utf-8")).get("races") or {}
-    except (OSError, ValueError):
-        return None
-    lines = (races.get(rid) or {}).get(party) or []
-    return random.choice(lines) if lines else None
+def race_names(rid: str) -> dict[str, str]:
+    """Who is in a race, by option: what a flavor line needs to name the winner and the loser."""
+    return {key: cand(rid, key) for key in options_for(rid)}
 
 
 def resolve(race: str) -> str | None:
-    return race if race in R.RACES else R.normalize(race)
+    """The race someone means: its ID, a loose form of it ("tx 15"), or words that fit exactly one race
+    ("georgia senate", "ohio gov")."""
+    if race in R.RACES:
+        return race
+    found = R.normalize(race)
+    if not found and race.strip():
+        hits = R.search(race, 2)
+        found = hits[0] if len(hits) == 1 else None
+    return found
 
 
 def label(rid: str) -> str:
@@ -136,7 +241,7 @@ def label(rid: str) -> str:
 
 
 def race_phrase(rid: str) -> str:
-    return "control of the House" if rid == "US-HOUSE" else f"the {label(rid)} race"
+    return f"control of the {R.chamber_name(rid)}" if R.RACES[rid]["type"] == "control" else f"the {label(rid)} race"
 
 
 def name_of(guild, uid: int) -> str:
@@ -145,7 +250,13 @@ def name_of(guild, uid: int) -> str:
 
 
 def results() -> dict[str, str]:
-    return S.truth(store.all(), store.procalls(), CFG.get("score_against", "pros_then_desk"))
+    """What each race is scored against. A call made before the race's polls closed doesn't count, unless this is a
+    rehearsal on a fake clock, where every call is one of those."""
+    full = store.all_full()
+    return S.truth({rid: c["party"] for rid, c in full.items()}, store.procalls(),
+                   CFG.get("score_against", "pros_then_desk"),
+                   called_at={rid: c["called_at"] for rid, c in full.items()},
+                   finals=store.setting("final_results", {}), gate=not os.getenv("DESK_FAKE_NOW"))
 
 
 # =========================================================================== roles & channels
@@ -182,10 +293,13 @@ def counted_voters(guild) -> set[int]:
     return {m.id for m in guild.members if not m.bot and is_junkie(m)}
 
 
+def roster(guild) -> DESK.Roster:
+    """Who is on the desk right now, in the form desk.py's rules take."""
+    return DESK.Roster(frozenset(junkie_ids(guild)), frozenset(counted_voters(guild)), CFG.get("threshold", "majority"))
+
+
 def votes_needed(guild) -> int:
-    n = max(len(junkie_ids(guild)), 1)
-    thr = CFG.get("threshold", "majority")
-    return n // 2 + 1 if thr == "majority" else max(1, min(int(thr), n))
+    return roster(guild).need()
 
 
 def find_channel(guild, key: str):
@@ -211,7 +325,15 @@ async def post(guild, key: str, fallback=None, **kwargs):
         log.warning("No channel for %s", key)
         return None
     kwargs.setdefault("allowed_mentions", NO_PINGS)
-    return await ch.send(**kwargs)
+    files = [kwargs["file"]] if kwargs.get("file") else list(kwargs.get("files") or [])
+    capture.event("post", channel=key, content=kwargs.get("content"), files=[f.filename for f in files],
+                  embeds=[e.title for e in ([kwargs["embed"]] if kwargs.get("embed") else kwargs.get("embeds") or [])])
+    try:
+        return await ch.send(**kwargs)
+    except discord.HTTPException as exc:        # Discord turned it down or kept failing: keep a record of what was lost
+        capture.event("error", where=f"post to {key}", error=f"{type(exc).__name__}: {exc}"[:300],
+                      content=(kwargs.get("content") or "")[:200])
+        raise
 
 
 def channel_note(guild, key: str) -> str:
@@ -220,16 +342,28 @@ def channel_note(guild, key: str) -> str:
 
 
 # =========================================================================== official calls
-async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File:
-    """The chamber map: the dark tile map for Senate and governors and the House chart, in every card theme. Calls are
-    read here, and the drawing runs in a worker thread."""
+async def map_file(kind: str, calls: dict | None = None, highlight: str | None = None) -> discord.File | None:
+    """The map for a kind of race: a tile map for any statewide race type the pack draws (Senate, governors, a
+    president's states), the House chart for the House. None for races that aren't on a map (a mayor's race).
+    Calls are read here, and the drawing runs in a worker thread."""
     calls = dict(store.all() if calls is None else calls)
     if kind in ("house", "control"):
         render = functools.partial(G.house_chart, calls)
-    else:
+    elif kind in V.statewide_types():
         render = functools.partial(G.tile_map, kind, calls)
+    else:
+        view = next((v for v in V.views() if v["draw"] == "wards" and v["type"] == kind), None)
+        if not view:
+            return None
+        rid = view["races"][0]
+        render = functools.partial(G.ward_map, R.RACES[rid]["state"], rid, calls.get(rid))
     buf = await asyncio.to_thread(render)
     return discord.File(buf, filename=f"{kind}_map.png")
+
+
+def view_file_kind(view: dict) -> str | None:
+    """What map_file draws for a view: its race type for a tile map, "house" for the House chart, None for a list."""
+    return {"tiles": view["type"], "house": "house", "wards": view["type"]}.get(view["draw"])
 
 
 THEME_CHOICES = [app_commands.Choice(name="Wire (halftone poster)", value="wire"),
@@ -247,8 +381,7 @@ async def card_file(rid: str, party: str | None, how: str, *, retracted: bool = 
                     theme: str | None = None) -> discord.File:
     """The call card, with the chamber's seat counts as they stand right now. Counts are read here (SQLite stays
     on this thread); the drawing runs in a worker thread so a slow render never stalls the bot."""
-    kind = R.RACES[rid]["type"]
-    counts = S.chamber_counts("house" if kind in ("house", "control") else kind, store.all())
+    counts = S.chamber_counts(R.chamber(rid), store.all())
     buf = await asyncio.to_thread(
         G.call_card, rid, party, candidate=load_candidates().get(rid, {}).get(party) if party else None, tally=how,
         when=now(), retracted=retracted, counts=counts, theme=theme or card_theme(),
@@ -263,11 +396,18 @@ def house_line() -> str:
 
 
 async def follow_up(guild, rid: str, fallback):
+    """After a call: where its body stands, with the map. What that is comes from the pack's views (views.py)."""
     kind = R.RACES[rid]["type"]
     calls = store.all()
+    view = V.of_race(rid)
     if kind == "house":
         extra = f"\n{S.house_tracker_text(results())}" if rid in CMP.RATING_OF else ""
         await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}{extra}")
+    elif kind == "control" and view and view["draw"] == "tiles":       # control of the Senate, the presidency
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls),
+                   file=await map_file(view["type"], calls))
+    elif kind == "control" and (not view or view["draw"] != "house"):
+        await post(guild, "desk_channel", fallback, content=S.path_text(R.chamber(rid), calls))
     elif kind == "control":
         # the wire and editorial cards already show the House (seat strip / hemicycle), so only classic gets the chart
         if card_theme() == "classic":
@@ -275,16 +415,40 @@ async def follow_up(guild, rid: str, fallback):
                        file=await map_file("house", calls))
         else:
             await post(guild, "desk_channel", fallback, content=f"{house_line()}\n{S.path_text('house', calls)}")
+    elif view and view["draw"] == "list":         # no map: the list, so the post still says where things stand
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls))
     elif CFG.get("post_map_after_call", True):
-        await post(guild, "desk_channel", fallback, content=S.path_text(kind, calls),
+        await post(guild, "desk_channel", fallback, content=V.tally(view, calls) if view else S.path_text(kind, calls),
                    file=await map_file(kind, calls, highlight=rid))
+    await nudge_control(guild, rid, fallback)
+
+
+async def nudge_control(guild, rid: str, fallback):
+    """Once the desk's own calls give a party the Senate or the House, say so on the board, once, with a button to
+    vote on control. In 2026 nobody could call the Senate at all, and the House vote came from someone noticing."""
+    control = ((R.BODIES.get(R.chamber(rid)) or {}).get("control") or "").upper()
+    if control not in R.RACES or R.RACES[rid]["type"] == "control" or store.get(control):
+        return
+    party = S.clinched(R.chamber(control), store.all())
+    key = f"clinch-{control}-{party}"
+    if not party or store.alert_sent(key):
+        return
+    store.mark_alert(key)
+    name = R.chamber_name(control)
+    await post(guild, "board_channel", fallback,
+               content=f"📣 **The {name} math is settled.** The desk's calls give {cand(control, party)} "
+                       f"{S.EMOJI[party]} a majority. Vote to call control of the {name} with the button, "
+                       f"or `/call {name.upper() if R.normalize(name) == control else control}`.",
+               view=ScopedView(timeout=None).add_item(AlsoCall(control, party)))
 
 
 def prediction_check(guild, rid: str, winner: str) -> tuple[list[str], list[str]]:
     """Names of people whose saved prediction for this race was right / wrong."""
     right, wrong = [], []
     for uid in store.predictors():
-        pick = store.user_predictions(uid)[0].get(rid)
+        picks = store.user_predictions(uid)[0]
+        # nobody picks an implied race (control of the Senate, the presidency): it's what their picks add up to
+        pick = S.implied_picks(picks).get(rid) if rid in S.implied_races() else picks.get(rid)
         if pick is None:
             continue
         (right if pick == winner else wrong).append(name_of(guild, uid))
@@ -300,28 +464,18 @@ def prediction_check_text(guild, rid: str, winner: str) -> str | None:
     return "\n".join(parts)
 
 
+# The rules themselves live in desk.py, where they can be replayed and tested without Discord. There's no await in
+# any of them, so when two /call, /realcall or /procall handlers arrive at the same moment, only the first one wins.
 def claim_official(rid: str, party: str, how: str, outlet: str | None = None) -> bool:
-    """Record the official call unless the race is already called. There's no await in here, so when two
-    /call, /realcall or /procall handlers reach it at the same moment, only the first one wins. `outlet` marks a
-    call that follows an outlet's, so /scoreboard doesn't time the desk against it."""
-    if store.get(rid):
-        return False
-    store.call(rid, party, {"how": how, "outlet": outlet} if outlet else {"how": how})
-    return True
+    return DESK.claim_official(store, rid, party, how, outlet)
 
 
-def is_house_caller(outlet: str) -> bool:
-    return outlet.strip().lower().replace(".", "") in HOUSE_CALLERS
-
-
-def is_safe_seat(rid: str) -> bool:
-    """A House seat no rater has as competitive: anything that isn't Likely, Lean, Tilt or Toss-up."""
-    return R.RACES[rid]["type"] == "house" and rid not in CMP.RATING_OF
+is_house_caller = DESK.is_house_caller
+is_safe_seat = DESK.is_safe_seat
 
 
 def queue_safe_seat(rid: str, party: str):
-    """Saved, not held in memory, so a restart can't lose a seat that hasn't been announced yet."""
-    store.set_setting("safe_batch", store.setting("safe_batch", []) + [[rid, party, time.time()]])
+    DESK.queue_safe_seat(store, rid, party)
 
 
 def official_note(guild, rid: str) -> str:
@@ -336,11 +490,10 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None, ou
         return queue_safe_seat(rid, party)
     who = cand(rid, party)
     card = await card_file(rid, party, how)
-    h = S.holder(rid)
     lines = ["🚨 **DECISION DESK PROJECTION**",
-             f"**{who[0].upper() + who[1:]}** {S.EMOJI[party]} {'win' if rid == 'US-HOUSE' else 'wins'} "
+             f"**{who[0].upper() + who[1:]}** {S.EMOJI[party]} {'win' if R.RACES[rid]['type'] == 'control' else 'wins'} "
              f"{race_phrase(rid)} **{S.tag(rid, party)}**",
-             race_flavor(rid, party) or flavor("flip" if h and h != party else "call")]
+             FL.call_line(store, rid, party, race_names(rid))]
     note = S.upset_note(rid, party)
     if note:
         lines.append(note)
@@ -354,6 +507,11 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None, ou
                             lead=S.minutes_text((time.time() - first["ts"]) / 60)))
     elif pros:
         lines.append(f"⚠️ {pros[0]['outlet']} called this for {R.PARTY_NAMES[pros[0]['party']]}.")
+    if DR.is_on(store):
+        said = FL.context(rid, party, race_names(rid))
+        beaten = agree[0]["outlet"] if agree and not outlet else None
+        for event in DR.events_for_call(FL.situation(rid, party), None, beaten):
+            lines.append(DR.line(store, event, outlet=beaten, winner=said["winner"], seat=said["seat"], place=said["place"]))
     if CFG.get("post_prediction_check", True):
         check = prediction_check_text(guild, rid, party)
         if check:
@@ -363,11 +521,13 @@ async def make_official(guild, rid: str, party: str, how: str, fallback=None, ou
 
 
 async def retract_official(guild, rid: str, how: str, fallback=None):
-    prev = store.get(rid)
+    prev = DESK.retract(store, rid, how)
     if not prev:  # a simultaneous retraction already went through
         return
-    store.uncall(rid, {"how": how})
-    text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{flavor('retract') or ''}".strip()
+    text = f"↩️ **CALL RETRACTED:** {label(rid)}\n{FL.retract_line(store, rid) or ''}".strip()
+    drink = DR.line(store, "retract", seat=label(rid))
+    if drink:
+        text += f"\n{drink}"
     extra = {} if is_safe_seat(rid) else {"file": await card_file(rid, prev["party"], how, retracted=True)}
     await post(guild, "desk_channel", fallback, content=text, **extra)
     await follow_up(guild, rid, fallback)
@@ -375,18 +535,14 @@ async def retract_official(guild, rid: str, how: str, fallback=None):
 
 # =========================================================================== autocomplete
 async def race_autocomplete(_interaction: discord.Interaction, current: str):
-    cur = current.strip().upper().replace(" ", "-")
-    calls = store.all()
+    calls, names = store.all(), load_candidates()
     out = []
-    order = ["US-HOUSE"] + [r for r in R.RACES if r != "US-HOUSE"]
-    for rid in order:
-        r = R.RACES[rid]
-        if cur and cur not in rid and cur.replace("-", " ") not in r["label"].upper():
-            continue
+    for rid in R.search(current):
+        who = names.get(rid, {})
+        vs = " v ".join(f"{_surname(who[p])} ({p})" for p in ("D", "R", "I") if who.get(p))
+        vs = f" · {vs}" if vs and R.RACES[rid]["type"] != "control" else ""      # the names tell MS from MO from MT
         extra = f" [called {calls[rid]}]" if rid in calls else ""
-        out.append(app_commands.Choice(name=f"{rid} — {r['label']}{extra}"[:100], value=rid))
-        if len(out) == 25:
-            break
+        out.append(app_commands.Choice(name=f"{rid} — {R.RACES[rid]['label']}{vs}{extra}"[:100], value=rid))
     return out
 
 
@@ -401,14 +557,21 @@ async def outlet_autocomplete(_interaction: discord.Interaction, current: str):
 # =========================================================================== /call, /uncall, /unvote
 @tree.command(name="call", description="Vote to call a race. A majority of Election Junkies makes it official.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, AZ-GOV, PA-07, HOUSE", winner="Who you think won")
+@app_commands.describe(race=EXAMPLES, winner="Who you think won")
 @app_commands.autocomplete(race=race_autocomplete)
-@app_commands.choices(winner=PARTY_CHOICES)
-async def call_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str]):
+async def call_cmd(interaction: discord.Interaction, race: str, winner: Winner):
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    if winner.value not in options_for(rid):
+        return await interaction.response.send_message(no_such_winner(rid, winner.raw), ephemeral=True)
     await cast_call_vote(interaction, rid, winner.value)
+
+
+def no_such_winner(rid: str, typed: str | None) -> str:
+    """What to say when someone names a winner the race doesn't have."""
+    return (f"`{typed}` isn't someone who can win {label(rid)}. It's between "
+            + " and ".join(f"{cand(rid, p)} {S.EMOJI[p]}" for p in options_for(rid)) + ".")
 
 
 async def _drop_button(interaction: discord.Interaction):
@@ -420,7 +583,7 @@ async def _drop_button(interaction: discord.Interaction):
             log.info("Couldn't remove a call button from its post")
 
 
-class AlsoCall(discord.ui.DynamicItem[discord.ui.Button], template=r"alsocall:(?P<rid>[A-Z0-9-]+):(?P<party>[A-Z])"):
+class AlsoCall(discord.ui.DynamicItem[discord.ui.Button], template=r"alsocall:(?P<rid>[A-Z0-9-]+):(?P<party>[A-Z0-9_]+)"):
     """The button on a call vote's post: one click casts the same vote as /call. Its ID holds the race and winner, so
     buttons on older posts keep working after a restart."""
 
@@ -434,8 +597,37 @@ class AlsoCall(discord.ui.DynamicItem[discord.ui.Button], template=r"alsocall:(?
     async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
         return cls(match["rid"], match["party"])
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await _enter_server(interaction)
+
     async def callback(self, interaction: discord.Interaction):
         await cast_call_vote(interaction, self.rid, self.party)
+
+
+async def numbers_line(rid: str, wait: float = 1.5) -> str | None:
+    """What the count says about a race right now, to sit beside a vote on it: for a County Watch Senate race the
+    count, the model's finish and what the trailing side needs of the vote still out; for a seat in a state with a
+    results file, the count. None when the bot has no numbers for the race, or they don't come back within `wait`
+    seconds: a vote is never held up for them. A slow pull is left running, so the next vote finds it ready."""
+    st, kind = R.RACES[rid]["state"], R.RACES[rid]["type"]
+    try:
+        if FEEDS.cw_state_of(rid):
+            job = asyncio.ensure_future(asyncio.to_thread(CWR.projection, st, CWR.live_cache()))
+            p = await asyncio.wait_for(asyncio.shield(job), wait)
+            return REM.headline(REM.breakdown(p), *(_surname(n) for n in CWR.names()[st]))
+        if st and kind != "control" and LIVE.state_cfg(st):
+            job = asyncio.ensure_future(LIVE.race_result(rid))
+            race = await asyncio.wait_for(asyncio.shield(job), wait)
+            return live_line(race) + (" · ⚠️ not refreshing" if race.get("stale") else "") if race else None
+    except asyncio.TimeoutError:
+        log.info("No numbers for %s within %.1fs", rid, wait)
+    except Exception:
+        log.exception("Couldn't get numbers for %s", rid)
+    return None
+
+
+def with_numbers(text: str, numbers: str | None) -> str:
+    return f"{text}\n-# 📊 {numbers}" if numbers else text
 
 
 async def cast_call_vote(interaction: discord.Interaction, rid: str, party: str):
@@ -444,40 +636,36 @@ async def cast_call_vote(interaction: discord.Interaction, rid: str, party: str)
     if not is_junkie(user):
         return await interaction.response.send_message(
             f"You need the **{CFG['junkie_role']}** role to vote on calls.", ephemeral=True)
-    official = store.get(rid)
-    if official:
+    vote = DESK.cast_call_vote(store, roster(guild), user.id, rid, party)    # records the vote, and the call on a majority
+    if vote.status == "already_called":
+        official = vote.official
         msg = (f"{label(rid)} is already called for {cand(rid, official['party'])}."
                if official["party"] == party else
                f"{label(rid)} is already called for {cand(rid, official['party'])}. "
                f"Use `/uncall` if you think the desk got it wrong.")
         await interaction.response.send_message(msg, ephemeral=True)
         return await _drop_button(interaction)
-    prev = store.active_vote(user.id, rid, "call")
-    if prev and prev["party"] == party:
-        return await interaction.response.send_message("You've already voted for that call.", ephemeral=True)
-
-    store.cast(user.id, rid, "call", party)
-    ids = junkie_ids(guild)
-    counted = counted_voters(guild)
-    support = [u for u, p in store.active_votes(rid, "call").items() if p == party and u in counted]
-    need = votes_needed(guild)
+    if vote.status == "duplicate":
+        return await interaction.response.send_message(
+            "You've already voted for that call. If it's settled and the desk is stuck waiting for votes, "
+            "`/forcecall` makes it official right now.", ephemeral=True)
+    prev, need, how, reached = vote.prev, vote.need, vote.how, vote.reached
     await interaction.response.send_message(
         f"Vote recorded: {label(rid)} → {cand(rid, party)}. Posted in {channel_note(guild, 'board_channel')}. "
         f"`/unvote` takes it back.", ephemeral=True)
 
     switched = f" (switched from {S.EMOJI[prev['party']]})" if prev else ""
-    how = f"Called by {len(support)} of {len(ids)} Election Junkies"
-    reached = len(support) >= need and claim_official(rid, party, how)
     text = (f"🗳️ **{user.display_name}** has voted to call {race_phrase(rid)} for "
             f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**{switched}\n"
-            f"-# {min(len(support), need)} of {need} votes needed for an official call")
+            f"-# {min(vote.support, need)} of {need} votes needed for an official call")
+    text = with_numbers(text, await numbers_line(rid))      # so a vote is cast on the count, not on the last vote
     if reached:
         text += f"\n✅ That's a majority. {official_note(guild, rid)}"
     elif store.get(rid):  # another vote completed the majority while this one was being recorded
         text += "\n-# The desk had just called it."
     extra = {}
     if not store.get(rid):      # still open, so the next person can join in with one click
-        extra["view"] = discord.ui.View(timeout=None).add_item(AlsoCall(rid, party))
+        extra["view"] = ScopedView(timeout=None).add_item(AlsoCall(rid, party))
     await post(guild, "board_channel", interaction.channel, content=text, **extra)
     if store.get(rid):
         await _drop_button(interaction)
@@ -504,30 +692,26 @@ async def unvote_cmd(interaction: discord.Interaction, race: str):
 async def uncall_cmd(interaction: discord.Interaction, race: str):
     guild, user = interaction.guild, interaction.user
     rid = resolve(race)
-    official = store.get(rid) if rid else None
-    if not official:
+    if not rid or not store.get(rid):
         return await interaction.response.send_message("That race hasn't been called.", ephemeral=True)
     if not is_junkie(user):
         return await interaction.response.send_message(f"You need the **{CFG['junkie_role']}** role.",
                                                        ephemeral=True)
-    if store.active_vote(user.id, rid, "uncall"):
+    vote = DESK.cast_uncall_vote(store, roster(guild), user.id, rid)
+    if vote.status == "not_called":     # retracted between the check above and here
+        return await interaction.response.send_message("That race hasn't been called.", ephemeral=True)
+    if vote.status == "duplicate":
         return await interaction.response.send_message("You've already voted to retract it.", ephemeral=True)
-    store.cast(user.id, rid, "uncall", official["party"])
-    ids = junkie_ids(guild)
-    counted = counted_voters(guild)
-    support = [u for u in store.active_votes(rid, "uncall") if u in counted]
-    need = votes_needed(guild)
+    official = vote.official
     await interaction.response.send_message("Retraction vote recorded.", ephemeral=True)
     text = (f"🧯 **{user.display_name}** has voted to retract the call in {race_phrase(rid)} "
             f"({cand(rid, official['party'])} {S.EMOJI[official['party']]})\n"
-            f"-# {len(support)} of {need} votes needed to retract")
-    reached = len(support) >= need
-    if reached:
+            f"-# {vote.support} of {vote.need} votes needed to retract")
+    if vote.reached:
         text += "\n↩️ Majority reached. The call is retracted."
     await post(guild, "board_channel", interaction.channel, content=text)
-    if reached:
-        await retract_official(guild, rid, f"Retracted by {len(support)} of {len(ids)} Election Junkies",
-                               interaction.channel)
+    if vote.reached:
+        await retract_official(guild, rid, vote.how, interaction.channel)
 
 
 @tree.command(name="forceuncall", description="Admin only: retract an official call without a vote.")
@@ -563,7 +747,7 @@ def cleared_text(gone: dict) -> str:
 
 @tree.command(name="clearrace", description="Admin: erase one race's call, votes and outlet calls, so it scores nothing.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", confirm="Type CLEAR to confirm")
+@app_commands.describe(race=EXAMPLES, confirm="Type CLEAR to confirm")
 @app_commands.autocomplete(race=race_autocomplete)
 async def clearrace_cmd(interaction: discord.Interaction, race: str, confirm: str):
     refusal = wipe_refusal(interaction, confirm, "CLEAR")
@@ -585,8 +769,19 @@ async def clearrace_cmd(interaction: discord.Interaction, race: str, confirm: st
 @tree.command(name="realcall", description="Make a call official right now, without waiting for a majority.")
 @app_commands.guild_only()
 @app_commands.autocomplete(race=race_autocomplete)
-@app_commands.choices(winner=PARTY_CHOICES)
-async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str]):
+async def realcall_cmd(interaction: discord.Interaction, race: str, winner: Winner):
+    await override_call(interaction, race, winner.value or winner.raw)
+
+
+@tree.command(name="forcecall", description="Make a call official right now, without a vote. The same as /realcall.")
+@app_commands.guild_only()
+@app_commands.autocomplete(race=race_autocomplete)
+async def forcecall_cmd(interaction: discord.Interaction, race: str, winner: Winner):
+    await override_call(interaction, race, winner.value or winner.raw)
+
+
+async def override_call(interaction: discord.Interaction, race: str, party: str):
+    """/realcall and /forcecall: any Election Junkie can make a call official without waiting for a majority."""
     guild, user = interaction.guild, interaction.user
     rid = resolve(race)
     if not rid:
@@ -594,19 +789,18 @@ async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_
     if not is_junkie(user):
         return await interaction.response.send_message(f"You need the **{CFG['junkie_role']}** role.",
                                                        ephemeral=True)
-    party = winner.value
-    how = f"Called by {user.display_name} (override)"
-    if not claim_official(rid, party, how):
+    if party not in options_for(rid):
+        return await interaction.response.send_message(no_such_winner(rid, party), ephemeral=True)
+    how = DESK.realcall(store, user.id, user.display_name, rid, party)      # also counts as this person's call vote
+    if not how:
         return await interaction.response.send_message(
             f"{label(rid)} is already called. `/uncall` it first if the desk got it wrong.", ephemeral=True)
-    # the override counts as this person's call vote too, so the scoreboard credits them
-    if not store.active_vote(user.id, rid, "call") or store.active_vote(user.id, rid, "call")["party"] != party:
-        store.cast(user.id, rid, "call", party)
     await interaction.response.send_message(
         f"Called. {official_note(guild, rid)}", ephemeral=True)
     await post(guild, "board_channel", interaction.channel,
-               content=f"⚡ **{user.display_name}** called {race_phrase(rid)} without waiting for a majority: "
-                       f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**")
+               content=with_numbers(
+                   f"⚡ **{user.display_name}** called {race_phrase(rid)} without waiting for a majority: "
+                   f"**{cand(rid, party)}** {S.EMOJI[party]} **{S.tag(rid, party)}**", await numbers_line(rid)))
     await make_official(guild, rid, party, how, interaction.channel)
 
 
@@ -614,8 +808,7 @@ async def realcall_cmd(interaction: discord.Interaction, race: str, winner: app_
 @app_commands.guild_only()
 @app_commands.describe(outlet="Who made the call")
 @app_commands.autocomplete(race=race_autocomplete, outlet=outlet_autocomplete)
-@app_commands.choices(winner=PARTY_CHOICES)
-async def procall_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str], outlet: str):
+async def procall_cmd(interaction: discord.Interaction, race: str, winner: Winner, outlet: str):
     guild, user = interaction.guild, interaction.user
     rid = resolve(race)
     if not rid:
@@ -627,6 +820,8 @@ async def procall_cmd(interaction: discord.Interaction, race: str, winner: app_c
     if not outlet:
         return await interaction.response.send_message("Who made the call?", ephemeral=True)
     party = winner.value
+    if party not in options_for(rid):
+        return await interaction.response.send_message(no_such_winner(rid, winner.raw), ephemeral=True)
     if any(p["outlet"].lower() == outlet.lower() for p in store.procalls(rid)):
         await interaction.response.send_message(f"Updated {outlet}'s call.", ephemeral=True)
     else:
@@ -636,19 +831,15 @@ async def procall_cmd(interaction: discord.Interaction, race: str, winner: app_c
 
 
 def rival_house_caller(rid: str, party: str) -> str | None:
-    return next((p["outlet"] for p in store.procalls(rid) if p["party"] != party and is_house_caller(p["outlet"])), None)
+    return DESK.rival_house_caller(store, rid, party)
 
 
 async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int, fallback=None, source: str | None = None):
     """Log an outlet's call and post it to the board. From a trusted outlet, it also makes a House seat official."""
-    store.procall(rid, outlet, party, user_id)
-    official = store.get(rid)
+    logged = DESK.outlet_call(store, rid, party, outlet, user_id)
+    official, rival, projected = logged.official, logged.rival, logged.projected
     lines = [f"📡 **{outlet}** has called {race_phrase(rid)} for **{cand(rid, party)}** "
              f"{S.EMOJI[party]} **{S.tag(rid, party)}**"]
-    house_caller = R.RACES[rid]["type"] == "house" and is_house_caller(outlet)
-    rival = rival_house_caller(rid, party) if house_caller else None
-    projected = (house_caller and not rival and
-                 claim_official(rid, party, f"Projected by {outlet}", outlet=outlet))
     if projected:
         lines.append(f"✅ That makes it official. {official_note(guild, rid)}")
     elif official and official["party"] == party and official["detail"].get("outlet"):
@@ -672,7 +863,7 @@ async def log_outlet_call(guild, rid: str, party: str, outlet: str, user_id: int
         lines.append(f"-# {source}")
     await post(guild, "board_channel", fallback, content="\n".join(lines))
     if projected:
-        await make_official(guild, rid, party, f"Projected by {outlet}", fallback, outlet=outlet)
+        await make_official(guild, rid, party, logged.how, fallback, outlet=outlet)
 
 
 # =========================================================================== House calls read automatically
@@ -685,14 +876,8 @@ async def take_auto_call(guild, rid: str, party: str, outlet: str, source: str):
     """A rated seat gets the full projection, and so does any call that disagrees with another. Otherwise it's a Safe
     seat: it joins the next roll-up, and a later outlet agreeing with it is logged without a post. Hundreds of them can
     come in right after polls close, and a post for each would bury the seats people are watching."""
-    if any(p["outlet"] == outlet and p["party"] == party for p in store.procalls(rid)):
-        return      # already logged from this outlet, by hand or from another of its sources
-    official = store.get(rid)
-    if not is_safe_seat(rid) or rival_house_caller(rid, party) or (official and official["party"] != party):
-        return await log_outlet_call(guild, rid, party, outlet, 0, source=source)
-    store.procall(rid, outlet, party, 0)
-    if claim_official(rid, party, f"Projected by {outlet}", outlet=outlet):
-        queue_safe_seat(rid, party)
+    if DESK.auto_call(store, rid, party, outlet) == "post":     # anything else is already logged, with no post to make
+        await log_outlet_call(guild, rid, party, outlet, 0, source=source)
 
 
 async def post_safe_seats(guild, safe: dict[str, list[str]]):
@@ -713,30 +898,31 @@ async def flush_safe_seats(guild):
     queue = store.setting("safe_batch", [])
     if not queue or time.time() - queue[0][2] < 60 * CFG.get("safe_batch_minutes", 5):
         return
+    # Taken off the queue before the post's await, so a second pass running meanwhile can't post the same seats.
+    store.set_setting("safe_batch", [])
     safe: dict[str, list[str]] = {}
     for rid, party, _ts in queue:
         if (store.get(rid) or {}).get("party") == party and rid not in safe.get(party, []):
             safe.setdefault(party, []).append(rid)
-    await post_safe_seats(guild, safe)
-    store.set_setting("safe_batch", store.setting("safe_batch", [])[len(queue):])
+    try:
+        await post_safe_seats(guild, safe)
+    except Exception:
+        store.set_setting("safe_batch", queue + store.setting("safe_batch", []))     # try again on the next pass
+        raise
 
 
 @tasks.loop(seconds=30)
 async def safe_batch_loop():
-    try:
-        guild = main_guild()
-        if guild:
-            await flush_safe_seats(guild)
-    except Exception:
-        log.exception("Safe seat roll-up failed")
+    await each_server(flush_safe_seats)
 
 
-async def bluesky_pass(guild):
-    seen = set(store.setting("bsky_seen", []))
+async def read_bluesky(known: set) -> list[dict] | None:
+    """Every account's new posts, read once for all servers. `known` is the posts every listening server has
+    already dealt with. None, with the failure counted, when an account couldn't be read."""
     posts, error = [], None
     for did in BSKY.SOURCES:
         try:
-            posts += await BSKY.fetch(did, seen)
+            posts += await BSKY.fetch(did, known)
         except Exception as exc:    # one account failing shouldn't hold up the other
             error = f"{BSKY.SOURCES[did]}: {exc}"
             log.warning("Couldn't read %s from Bluesky: %s", BSKY.SOURCES[did], exc)
@@ -744,11 +930,15 @@ async def bluesky_pass(guild):
         _bsky.update(failures=_bsky["failures"] + 1, error=error)
     else:
         _bsky.update(failures=0, warned=False, error=None, checked=time.time())
-    if _bsky["failures"] >= 10 and not _bsky["warned"]:
-        _bsky["warned"] = True
-        await post(guild, "board_channel", content=f"⚠️ I haven't been able to read Bluesky for about 5 minutes ({_bsky['error']}). "
-                                                   "Log House calls by hand with `/procall` until it's back.")
+    return posts
+
+
+async def bluesky_pass(guild, posts: list[dict]):
+    """Act, in this server, on the posts it hasn't dealt with yet."""
+    seen = set(store.setting("bsky_seen", []))
     for p in sorted(posts, key=lambda x: x["when"]):
+        if p["uri"] in seen:
+            continue
         outlet, link = BSKY.SOURCES[p["did"]], BSKY.post_link(p["did"], p["uri"])
         seen.add(p["uri"])
         store.set_setting("bsky_seen", sorted(seen))    # first, so a post that fails here can't be called twice
@@ -767,22 +957,22 @@ async def bluesky_pass(guild):
             log.exception("Couldn't act on Bluesky post %s", link)
 
 
-async def nyt_pass(guild):
-    """Act on seats whose winner is new since the last read. A winner that NYT changes or takes back goes to a person,
-    because the bot doesn't undo a call on its own. Nothing counts until the state's polls have closed, so test data in
-    the file can't make a call."""
+async def read_nyt() -> dict | None:
+    """NYT's House file, read once for all servers. None, with the failure counted, when it couldn't be read."""
     try:
         found = await NYT.fetch()
     except Exception as exc:
         _nyt.update(failures=_nyt["failures"] + 1, error=str(exc)[:200])
         log.warning("Couldn't read NYT's House results: %s", exc)
-        if _nyt["failures"] >= 10 and not _nyt["warned"]:
-            _nyt["warned"] = True
-            await post(guild, "board_channel", content=f"⚠️ I haven't been able to read NYT's House results for about 5 "
-                                                       f"minutes ({_nyt['error']}). Log House calls by hand with `/procall` "
-                                                       "until it's back.")
-        return
+        return None
     _nyt.update(failures=0, warned=False, error=None, checked=time.time())
+    return found
+
+
+async def nyt_pass(guild, found: dict):
+    """Act, in this server, on seats whose winner is new since its last read. A winner that NYT changes or takes back
+    goes to a person, because the bot doesn't undo a call on its own. Nothing counts until the state's polls have
+    closed, so test data in the file can't make a call."""
     seen = store.setting("nyt_seen", {})
     check = []
     for rid in [rid for rid in seen if rid not in found]:
@@ -818,7 +1008,7 @@ async def take_ddhq_file(guild, res: dict):
     if res.get("error"):
         return await post(guild, "board_channel", content=f"⚠️ Didn't use the DDHQ grab `{res.get('file')}`: {res['error']}.")
     _ddhq["checked"] = time.time()
-    if not store.setting("autocalls", True):
+    if not store.setting("autocalls", AUTOCALLS_DEFAULT):
         return await post(guild, "board_channel", content="DDHQ grab ignored, because `/autocalls` is off.")
     found, seen, check, new = res["found"], store.setting("ddhq_seen", {}), [], 0
     for rid in [rid for rid in seen if rid not in found]:
@@ -868,24 +1058,69 @@ async def ddhq_loop():
         log.exception("DDHQ grab pass failed")
 
 
+def listening() -> list:
+    """The servers that have automatic calls on."""
+    out = []
+    for guild in list(client.guilds):
+        with TEN.scope(guild.id):
+            if store.setting("autocalls", AUTOCALLS_DEFAULT):
+                out.append(guild)
+    return out
+
+
+async def outlet_trouble(state: dict, what: str, guilds: list):
+    """Tell each listening server, once, that an outlet has been unreadable for about five minutes."""
+    if state["failures"] < 10 or state["warned"]:
+        return
+    state["warned"] = True
+    for guild in guilds:
+        with TEN.scope(guild.id):
+            try:
+                await post(guild, "board_channel", content=f"⚠️ I haven't been able to read {what} for about 5 minutes "
+                           f"({state['error']}). Log House calls by hand with `/procall` until it's back.")
+            except Exception:
+                log.exception("Couldn't warn %s about %s", guild.name, what)
+
+
 @tasks.loop(seconds=30)
 async def nyt_loop():
+    """The file is the same for every server, so it's read once and each server acts on it for itself."""
     # same rule as bluesky_loop: nothing may escape
     try:
-        guild = main_guild()
-        if guild and store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
-            await nyt_pass(guild)
+        guilds = listening()
+        if not guilds or not NYT.urls().get("house") or datetime.now(N.ET) < FEEDS.reading_since():
+            return
+        found = await read_nyt()
+        if found is None:
+            return await outlet_trouble(_nyt, "NYT's House results", guilds)
+
+        async def one(guild):
+            if guild in guilds:
+                await nyt_pass(guild, found)
+        await each_server(one)
     except Exception:
         log.exception("NYT pass failed")
 
 
 @tasks.loop(seconds=30)
 async def bluesky_loop():
+    """Each account is read once, and each server acts on the posts it hasn't dealt with."""
     # an exception escaping here would stop the task loop for the rest of the night, so nothing may
     try:
-        guild = main_guild()
-        if guild and store.setting("autocalls", True) and datetime.now(N.ET) >= BSKY.SINCE:
-            await bluesky_pass(guild)
+        guilds = listening()
+        if not guilds or not BSKY.SOURCES or datetime.now(N.ET) < FEEDS.reading_since():
+            return
+        seen = []
+        for guild in guilds:
+            with TEN.scope(guild.id):
+                seen.append(set(store.setting("bsky_seen", [])))
+        posts = await read_bluesky(set.intersection(*seen))     # skip only what every server has dealt with
+        await outlet_trouble(_bsky, "Bluesky", guilds)
+
+        async def one(guild):
+            if guild in guilds:
+                await bluesky_pass(guild, posts)
+        await each_server(one)
     except Exception:
         log.exception("Bluesky pass failed")
 
@@ -915,9 +1150,8 @@ async def call_nyt_winners(guild, user_id: int, fallback=None) -> dict:
                 await take_auto_call(guild, rid, party, NYT.OUTLET, "Read from NYT's results data (the AP's call).")
                 out["called"].append(rid)
             else:
-                how = f"Projected by {NYT.OUTLET}"
-                store.procall(rid, NYT.OUTLET, party, user_id)
-                if claim_official(rid, party, how, outlet=NYT.OUTLET):
+                how = DESK.follow_outlet(store, rid, party, NYT.OUTLET, user_id)
+                if how:
                     await make_official(guild, rid, party, how, fallback, outlet=NYT.OUTLET)
                     out["called"].append(rid)
         except Exception:
@@ -926,7 +1160,7 @@ async def call_nyt_winners(guild, user_id: int, fallback=None) -> dict:
     return out
 
 
-@tree.command(name="callnyt", description="Admin: make official every House, Senate and governor race NYT has called.")
+@tree.command(name="callnyt", description="Admin: make official every race NYT's results data has called.")
 @app_commands.guild_only()
 async def callnyt_cmd(interaction: discord.Interaction):
     if not is_admin(interaction.user):
@@ -950,11 +1184,15 @@ async def autocalls_cmd(interaction: discord.Interaction, turn: app_commands.Cho
         return await interaction.response.send_message("Admins only.", ephemeral=True)
     if turn:
         store.set_setting("autocalls", turn.value == "on")
-    on = store.setting("autocalls", True)
-    lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: {', '.join(BSKY.SOURCES.values())} on "
-             f"Bluesky, and {NYT.OUTLET}'s results data."]
-    if datetime.now(N.ET) < BSKY.SINCE:
-        lines.append("They start reading at 5 PM ET on Nov 3.")
+    on = store.setting("autocalls", AUTOCALLS_DEFAULT)
+    sources = ([f"{', '.join(BSKY.SOURCES.values())} on Bluesky"] if BSKY.SOURCES else []) + \
+              ([f"{NYT.OUTLET}'s results data"] if NYT.urls().get("house") else [])
+    lines = [f"Automatic House calls are **{'on' if on else 'off'}**. Sources: "
+             + (", and ".join(sources) if sources else f"none. **{packs.active().name}** names no outlets to read, so "
+                                                         "calls are logged by hand with `/procall`") + "."]
+    since = FEEDS.reading_since().astimezone(N.ET)
+    if sources and datetime.now(N.ET) < since:
+        lines.append(f"They start reading at {since:%I %p}".replace(" 0", " ") + f" ET on {since:%b} {since.day}.")
     if _bsky["checked"]:
         lines.append(f"Bluesky last read {S.minutes_text((time.time() - _bsky['checked']) / 60)} ago. Since the last restart: "
                      f"{_bsky['calls']} calls, {_bsky['reviews']} posts sent to a person.")
@@ -979,30 +1217,35 @@ def chunks(seq, n):
 
 
 def build_pages() -> list[dict]:
+    """The picker's pages, from the pack's sections: twenty races to a page, a page of its own for a control pick."""
     pages = []
-    sen = sorted(R.races_of("senate"))
-    for i, part in enumerate(chunks(sen, 20)):
-        pages.append({"title": f"Senate {i + 1}/{len(chunks(sen, 20))}", "races": part, "map": "senate",
-                      "kind": "senate"})
-    pages.append({"title": "House majority", "races": ["US-HOUSE"], "map": None, "kind": "house"})
-    gov = sorted(R.races_of("governor"))
-    for i, part in enumerate(chunks(gov, 20)):
-        pages.append({"title": f"Governors {i + 1}/{len(chunks(gov, 20))} (bonus)", "races": part,
-                      "map": "governor", "kind": "governor"})
-    bg = [rid for rid, _, _ in CMP.BATTLEGROUND if rid in R.RACES]
-    for i, part in enumerate(chunks(bg, 20)):
-        pages.append({"title": f"House battlegrounds {i + 1}/{len(chunks(bg, 20))} (bonus)", "races": part,
-                      "map": None, "kind": "battleground"})
+    for sec in P.sections():
+        rids = [r["id"] for r in sec["races"]]
+        if sec.get("control"):
+            pages.append({"title": f"{sec['name']} majority", "races": [sec["control"]["id"]], "map": None,
+                          "kind": "house", "control": sec["control"]["id"], "required": True})
+        rated = any(rid in CMP.RATING for rid in rids)
+        kind = "battleground" if rated else sec.get("category") or sec["key"]
+        name = f"{sec['name']} battlegrounds" if rated else sec["name"]
+        parts = chunks(rids, 20)
+        for i, part in enumerate(parts):
+            pages.append({"title": name + (f" {i + 1}/{len(parts)}" if len(parts) > 1 else "")
+                          + ("" if sec.get("required") else " (bonus)"), "races": part,
+                          "map": kind if kind in G.MAP_KINDS else None, "kind": kind,
+                          "required": bool(sec.get("required"))})
     return pages
 
 
 PAGES = build_pages()
+# Discord buttons come in blue, red, green and grey: there is no purple. An independent is purple on every map and
+# card, so a green button for one read as something else in 2026. Every picked button now carries its party's dot, and
+# an independent is a grey button with the purple dot, so the button and the map say the same thing.
 STYLE = {None: discord.ButtonStyle.secondary, "D": discord.ButtonStyle.primary,
-         "R": discord.ButtonStyle.danger, "I": discord.ButtonStyle.success}
+         "R": discord.ButtonStyle.danger, "I": discord.ButtonStyle.secondary}
 
 
 def deadline() -> datetime:
-    return datetime.fromisoformat(CFG.get("predictions_deadline", "2026-11-03T18:00:00-05:00"))
+    return packs.active().deadline()      # each data pack sets its own
 
 
 def predictions_open() -> bool:
@@ -1022,22 +1265,55 @@ def predictions_hidden() -> bool:
     return CFG.get("hide_predictions_until_deadline", True) and predictions_open()
 
 
+def body_summary(picks: dict[str, str], body: str) -> str:
+    """What someone's picks add up to in a body: "D 49 · R 50 · I 1 → control depends on the independents"."""
+    b = R.BODIES.get(body) or {}
+    races = [(rid, r) for rid, r in R.RACES.items() if r["type"] != "control" and (r.get("body") == body or r["type"] == body)]
+    tally = {"D": 0, "R": 0, **(b.get("holdover") or {})}
+    unpicked = 0
+    for rid, r in races:
+        if rid in picks:
+            tally[picks[rid]] = tally.get(picks[rid], 0) + r.get("weight", 1)
+        else:
+            unpicked += 1
+    out = " · ".join(f"{k} {n}" for k, n in tally.items() if n or k in ("D", "R"))
+    if unpicked:
+        return out + f" · {unpicked} unpicked"
+    who = S.body_pick(picks, body)
+    if not who:
+        return out + " → control depends on the independents"
+    tied = " (VP tiebreak)" if who == b.get("tie_goes_to") and tally.get(who) == b.get("majority", 0) - 1 else ""
+    return out + f" → **{R.PARTY_NAMES.get(who, who)} control**{tied}"
+
+
 def senate_summary(picks: dict[str, str]) -> str:
-    s = S.senate_from_picks(picks)
-    out = f"D {s['D']} · R {s['R']}" + (f" · I {s['I']}" if s["I"] else "")
-    if s["unpicked"]:
-        return out + f" · {s['unpicked']} unpicked"
-    if s["D"] >= R.SENATE_MAJORITY:
-        return out + " → **Democratic control**"
-    if s["R"] >= 50:
-        return out + " → **Republican control**" + (" (VP tiebreak)" if s["R"] == 50 else "")
-    return out + " → control depends on the independents"
+    return body_summary(picks, "senate")
+
+
+def majority_views() -> list[dict]:
+    """The pack's map views whose picks add up to a majority of something (the Senate, the Electoral College)."""
+    return [v for v in V.views() if v["draw"] == "tiles" and (R.BODIES.get(v["body"]) or {}).get("majority")]
+
+
+def picks_line(picks: dict[str, str]) -> str:
+    """A set of picks in one line: what each body adds up to, and the control picks made directly."""
+    bits = [f"{v['name']} {body_summary(picks, v['body'])}" for v in majority_views()]
+    for v in V.views():
+        if v["control"] and v["control"] not in S.implied_races() and v["draw"] == "house":
+            got = picks.get(v["control"])
+            bits.append(f"{R.chamber_name(v['control'])}: " + (R.PARTY_NAMES.get(got, got) if got else "not picked"))
+    return " · ".join(bits)
 
 
 class PickButton(discord.ui.Button):
     def __init__(self, rid: str, pick: str | None, row: int, kind: str):
-        short = rid if kind == "battleground" else rid.split("-")[0]
-        super().__init__(label=short, style=STYLE[pick], row=row)
+        statewide = kind != "battleground" and R.RACES[rid]["type"] in ("senate", "governor", "president")
+        short = R.STATE_SHORT.get(R.RACES[rid]["state"]) if statewide and len(rid.split("-")[0]) == 2 else None
+        text = short or (rid if kind == "battleground" else R.RACES[rid]["label"])
+        if pick and pick not in packs.active().options:       # a candidate, not a party: say who
+            text = f"{text}: {cand(rid, pick)}"
+        super().__init__(label=text[:80], style=STYLE.get(pick, discord.ButtonStyle.secondary), row=row,
+                         emoji=S.EMOJI[pick] if pick else None)
         self.rid = rid
 
     async def callback(self, interaction: discord.Interaction):
@@ -1054,38 +1330,54 @@ class PickButton(discord.ui.Button):
 
 
 class HouseButton(discord.ui.Button):
-    def __init__(self, party: str, picked: str | None):
-        text = {"D": "Democrats win the House", "R": "Republicans keep the House"}[party]
-        super().__init__(label=text, emoji=S.EMOJI[party], row=0,
-                         style=STYLE[party] if picked == party else discord.ButtonStyle.secondary)
-        self.party = party
+    """One side of a control pick: who wins the House, the Senate, or whatever body the page is for."""
+
+    def __init__(self, rid: str, party: str, picked: str | None):
+        verb = "keep" if S.holder(rid) == party else "win"
+        super().__init__(label=f"{cand(rid, party)} {verb} the {R.chamber_name(rid)}"[:80], emoji=S.EMOJI[party], row=0,
+                         style=STYLE.get(party, discord.ButtonStyle.secondary) if picked == party else discord.ButtonStyle.secondary)
+        self.rid, self.party = rid, party
 
     async def callback(self, interaction: discord.Interaction):
         view: PredictView = self.view
-        if view.picks.get("US-HOUSE") == self.party:
-            view.picks.pop("US-HOUSE")
+        if view.picks.get(self.rid) == self.party:
+            view.picks.pop(self.rid)
         else:
-            view.picks["US-HOUSE"] = self.party
+            view.picks[self.rid] = self.party
         view.note = None
         await view.refresh(interaction)
 
 
+def tiebreak() -> dict:
+    """The pack's tiebreaker question, with the wording Discord has room for: {"label", "name", "min", "max"}. A
+    box's label can be 45 characters, so a longer question becomes "Guess <what it's called>"."""
+    tb = dict(S.GAME.get("tiebreaker") or {})
+    name = tb.get("name") or "the tiebreaker"
+    label = tb.get("label") or f"Guess {name}"
+    return {"name": name, "label": label if len(label) <= 45 else f"Guess {name}"[:45],
+            "min": int(tb.get("min", 0)), "max": int(tb.get("max", 435)), "hint": tb.get("hint", "")}
+
+
 class TiebreakModal(discord.ui.Modal, title="Tiebreaker"):
-    seats = discord.ui.TextInput(label="How many House seats will Democrats win?",
-                                 placeholder="0 to 435", max_length=3)
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await _enter_server(interaction)
 
     def __init__(self, view: "PredictView"):
         super().__init__()
-        self.pv = view
+        self.pv, self.tb = view, tiebreak()
+        self.seats = discord.ui.TextInput(label=self.tb["label"], placeholder=f"{self.tb['min']} to {self.tb['max']}",
+                                          max_length=len(str(self.tb["max"])))
         if view.house_seats is not None:
             self.seats.default = str(view.house_seats)
+        self.add_item(self.seats)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             n = int(str(self.seats.value).strip())
-            assert 0 <= n <= 435
+            assert self.tb["min"] <= n <= self.tb["max"]
         except (ValueError, AssertionError):
-            return await interaction.response.send_message("Enter a whole number from 0 to 435.", ephemeral=True)
+            return await interaction.response.send_message(
+                f"Enter a whole number from {self.tb['min']} to {self.tb['max']}.", ephemeral=True)
         self.pv.house_seats = n
         self.pv.note = None
         await self.pv.refresh(interaction)
@@ -1124,7 +1416,7 @@ class NavButton(discord.ui.Button):
         await view.refresh(interaction)
 
 
-class PredictView(discord.ui.View):
+class PredictView(ScopedView):
     def __init__(self, user: discord.abc.User, picks: dict[str, str], house_seats: int | None, saved: bool):
         super().__init__(timeout=45 * 60)
         self.user = user
@@ -1161,10 +1453,11 @@ class PredictView(discord.ui.View):
         self.clear_items()
         page = PAGES[self.page]
         if page["kind"] == "house":
-            for p in ("D", "R"):
-                self.add_item(HouseButton(p, self.picks.get("US-HOUSE")))
-            self.add_item(NavButton("tiebreak", row=1, label="Tiebreaker: Dem seats", emoji="🔢",
-                                    style=discord.ButtonStyle.secondary))
+            for p in options_for(page["control"]):
+                self.add_item(HouseButton(page["control"], p, self.picks.get(page["control"])))
+            if S.GAME.get("tiebreaker"):
+                self.add_item(NavButton("tiebreak", row=1, label="Tiebreaker", emoji="🔢",
+                                        style=discord.ButtonStyle.secondary))
         else:
             for i, rid in enumerate(page["races"]):
                 self.add_item(PickButton(rid, self.picks.get(rid), i // 5, page["kind"]))
@@ -1186,12 +1479,12 @@ class PredictView(discord.ui.View):
     def embed(self) -> discord.Embed:
         page = PAGES[self.page]
         help_text = {
-            "senate": "Click a state to cycle it: grey → 🔵 → 🔴 (→ 🟢 independent where there's a serious one) → grey.",
+            "senate": "Click a state to cycle it: grey → 🔵 → 🔴 → grey. Where an independent is running, 🟣 comes after 🔴.",
             "house": "Who controls the House? The tiebreaker settles leaderboard ties.",
             "governor": "Optional. Each correct governor pick is bonus points.",
             "battleground": "Optional. Toss-up, Tilt and Lean seats (avg. of Cook, Inside Elections, Sabato); each correct pick is bonus points.",
-        }[page["kind"]]
-        required = page["kind"] in ("senate", "house")
+        }.get(page["kind"], "Click a race to cycle through who can win it. Click once more to clear it.")
+        required = page.get("required", page["kind"] in ("senate", "house"))
         how = ("**Page through with ▶️ Next.** Your clicks carry over between pages, "
                "so you only need to press **💾 Save all** once at the end (or any time to save progress).")
         e = discord.Embed(title=f"Step {self.page + 1} of {len(PAGES)} · {page['title'].replace(' (bonus)', '')}"
@@ -1205,16 +1498,17 @@ class PredictView(discord.ui.View):
                 by_rating.setdefault(CMP.RATING[rid], []).append(rid + (f" {S.EMOJI[pick]}" if pick else ""))
             for rating, rids in by_rating.items():
                 e.add_field(name=rating, value=" · ".join(rids), inline=False)
-        gov_n = sum(1 for r in self.picks if R.RACES[r]["type"] == "governor")
-        bg_n = sum(1 for r in self.picks if r in CMP.RATING)
-        house = self.picks.get("US-HOUSE")
-        e.add_field(name="Your picks so far", inline=False, value="\n".join([
-            f"**Senate:** {senate_summary(self.picks)}",
-            f"**House:** " + (f"{S.EMOJI[house]} {R.PARTY_NAMES[house]}" if house else "not picked")
-            + (f" · tiebreaker D {self.house_seats}" if self.house_seats is not None else ""),
-            f"**Governors (bonus):** {gov_n}/{len(R.races_of('governor'))}",
-            f"**House battlegrounds (bonus):** {bg_n}/{len(CMP.BATTLEGROUND)}",
-        ]))
+        indies = [f"**{R.STATE_NAMES[R.RACES[rid]['state']]}:** {cand(rid, 'I')} 🟣 (against {cand(rid, 'D')} 🔵 "
+                  f"and {cand(rid, 'R')} 🔴)" for rid in page["races"] if "I" in options_for(rid)]
+        if indies:
+            e.add_field(name="Independents on this page (a third click)", value="\n".join(indies)[:1024], inline=False)
+        done = S.completion(self.picks, {"house_dem_seats": self.house_seats})
+        so_far = [f"**{S.PART_NAMES[key][0].upper() + S.PART_NAMES[key][1:]}:** {a}/{b}" for key, (a, b) in done["parts"].items()]
+        so_far[0:0] = [f"**{v['name']} adds up to:** {body_summary(self.picks, v['body'])}" for v in majority_views()]
+        if S.GAME.get("tiebreaker"):
+            so_far.append(f"**Tiebreaker** ({tiebreak()['name']}): "
+                          + (str(self.house_seats) if self.house_seats is not None else "not entered"))
+        e.add_field(name="Your picks so far", inline=False, value="\n".join(so_far)[:1024])
         closes = deadline() if predictions_open() else datetime.fromtimestamp(unlocked_until(self.user.id), TZ)
         e.set_footer(text="Nothing is saved until you press Save all · "
                           f"Picks close {closes.astimezone(TZ).strftime('%b %d, %I:%M %p').replace(' 0', ' ')} "
@@ -1242,13 +1536,18 @@ class PredictView(discord.ui.View):
         if not can_pick(self.user.id):
             return await interaction.response.send_message("Predictions are closed.", ephemeral=True)
         store.save_predictions(self.user.id, self.picks, self.house_seats)
-        missing = []
-        sen_missing = len(R.races_of("senate")) - sum(1 for r in self.picks if R.RACES[r]["type"] == "senate")
-        if sen_missing:
-            missing.append(f"{sen_missing} Senate race{'s' * (sen_missing != 1)}")
-        if "US-HOUSE" not in self.picks:
-            missing.append("House majority")
-        self.note = f"✅ **Saved at {clock(time.time())}.** You can keep editing and save again until picks close."
+        done = S.completion(self.picks, {"house_dem_seats": self.house_seats})
+        required = {c["key"] for c in S.GAME.get("categories") or [] if c.get("required")}
+        missing = [f"{b - a} {S.PART_NAMES[key]}" if b > 1 else S.PART_NAMES[key]
+                   for key, (a, b) in done["parts"].items() if a < b and key in required]
+        if "tiebreak" in done["missing"]:
+            missing.append("the tiebreaker")
+        self.note = (f"✅ **Saved at {clock(time.time())}.** You've filled in **{done['share']:.0%}** of the game. "
+                     "You can keep editing and save again until picks close.")
+        skipped = [f"{b - a} {name}" for key, name in (("governor", "governor races"), ("battleground", "House seats"))
+                   for a, b in [done["parts"].get(key, (0, 0))] if a < b]
+        if skipped:
+            self.note += f"\n-# Bonus points still open: {' and '.join(skipped)}. In 2026 the House seats decided the game."
         if missing:
             self.note += f"\n⚠️ Still missing: {', '.join(missing)}. Missing picks score zero."
         elif self.page < len(PAGES) - 1:
@@ -1260,7 +1559,7 @@ class PredictView(discord.ui.View):
         if not predictions_hidden():
             house = self.picks.get("US-HOUSE")
             text += f"\n-# Senate {senate_summary(self.picks)} · House: " + \
-                    (R.PARTY_NAMES[house] if house else "not picked")
+                    (R.PARTY_NAMES[house] if house else "not picked") + f" · {done['share']:.0%} filled in"
         else:
             text += "\n-# Everyone's picks are revealed when predictions close."
         if predictions_hidden():
@@ -1276,7 +1575,7 @@ def prediction_card_file(name: str, picks: dict, house_seats, marks=None) -> dis
     return discord.File(buf, filename="predictions.png")
 
 
-@tree.command(name="predict", description="Make your 2026 predictions: click states blue or red, then Save.")
+@tree.command(name="predict", description=f"Make your predictions for the {packs.active().name}, then Save."[:100])
 @app_commands.guild_only()
 async def predict_cmd(interaction: discord.Interaction):
     if not can_pick(interaction.user.id):
@@ -1304,6 +1603,35 @@ def grade_text(c: dict) -> str:
     return f"{c['right']}/{decided} right" + (f", {c['pending']} pending" if c["pending"] else "")
 
 
+MARK = {True: " ✅", False: " ❌"}
+
+
+def category_fields(picks: dict[str, str], g: dict) -> list[tuple[str, str, bool]]:
+    """One field per category of the pack's game, as (name, value, full width). A category of one race (who wins the
+    House) shows the pick; one that adds up to a body (Senate seats) shows what it adds up to and whether that's
+    right; the rest show right/wrong counts. Bonus categories say so."""
+    out = []
+    cats = S.GAME.get("categories") or []
+    for c in cats:
+        if c.get("implied_by"):
+            continue
+        key, rids = c["key"], S.category_races(c["key"])
+        name = c.get("name", key)
+        name = (name[0].upper() + name[1:]) + ("" if c.get("required") else " (bonus)")
+        if len(rids) == 1:
+            got = picks.get(rids[0])
+            value = f"{S.EMOJI[got]} {cand(rids[0], got)}{MARK.get(g['marks'].get(rids[0]), '')}" if got else "not picked"
+            out.append((name, value, False))
+            continue
+        lines = []
+        for implied in (x for x in cats if x.get("implied_by") == key):
+            for rid in S.category_races(implied["key"]):
+                lines.append(body_summary(picks, R.RACES[rid].get("body") or "") + MARK.get(g["marks"].get(rid), ""))
+        lines.append(grade_text(g["cats"][key]))
+        out.append((name, "\n".join(lines), bool(len(lines) > 1)))
+    return out
+
+
 @tree.command(name="predictions", description="See someone's predictions (yours by default) and how they're doing.")
 @app_commands.guild_only()
 @app_commands.describe(member="Whose predictions")
@@ -1317,17 +1645,14 @@ async def predictions_cmd(interaction: discord.Interaction, member: discord.Memb
         return await interaction.response.send_message(f"{target.display_name} hasn't saved predictions.",
                                                        ephemeral=True)
     g = S.grade(picks, results(), CFG.get("points"))
-    house = picks.get("US-HOUSE")
-    mark = {True: " ✅", False: " ❌"}.get(g["marks"].get("US-HOUSE"), "")
     e = discord.Embed(title=f"{target.display_name}'s predictions", color=0xFAD63E)
     e.add_field(name="Points", value=f"**{g['points']}**" + (f" · {g['flips']} flip{'s' * (g['flips'] != 1)} called"
                                               if g["flips"] else ""),
                 inline=False)
-    e.add_field(name="Senate", value=f"{senate_summary(picks)}\n{grade_text(g['cats']['senate'])}", inline=False)
-    e.add_field(name="House", value=(f"{S.EMOJI[house]} {R.PARTY_NAMES[house]}{mark}" if house else "not picked")
-                + (f"\nTiebreaker: D {meta['house_dem_seats']}" if meta.get("house_dem_seats") is not None else ""))
-    e.add_field(name="Governors (bonus)", value=grade_text(g["cats"]["governor"]))
-    e.add_field(name="Battlegrounds (bonus)", value=grade_text(g["cats"]["battleground"]))
+    for name, value, wide in category_fields(picks, g):
+        e.add_field(name=name, value=value[:1024], inline=not wide)
+    if meta.get("house_dem_seats") is not None:
+        e.add_field(name="Tiebreaker", value=f"{tiebreak()['name']}: {meta['house_dem_seats']}")
     card = prediction_card_file(target.display_name, picks, meta.get("house_dem_seats"), marks=g["marks"])
     e.set_image(url="attachment://predictions.png")
     e.set_footer(text=f"Saved {datetime.fromtimestamp(meta['saved_at'], TZ).strftime('%b %d %I:%M %p')}"
@@ -1365,6 +1690,26 @@ async def compare_cmd(interaction: discord.Interaction, member: discord.Member,
     await interaction.response.send_message(embed=e)
 
 
+def leaderboard_bits(row: dict) -> list[str]:
+    """One person's standing by category: "Senate 30/35 · Senate control ✅ · House majority ✅ · bonus 41" in 2026.
+    A category of one race shows ✅, ❌ or ⏳; a required one its right/decided; the bonus categories add up."""
+    bits, bonus, has_bonus = [], 0, False
+    for c in S.GAME.get("categories") or []:
+        key, rids = c["key"], S.category_races(c["key"])
+        name = c.get("name", key)
+        name = name[0].upper() + name[1:]
+        if c.get("implied_by") or len(rids) == 1:
+            mark = [row["marks"][rid] for rid in rids if rid in row["marks"]]
+            if mark or len(rids) == 1:
+                bits.append(f"{name} {'✅' if mark and mark[0] else '❌' if mark else '⏳'}")
+        elif c.get("required"):
+            cat = row["cats"][key]
+            bits.append(f"{name} {cat['right']}/{cat['right'] + cat['wrong']}")
+        else:
+            bonus, has_bonus = bonus + row["cats"][key]["right"], True
+    return bits + ([f"bonus {bonus}"] if has_bonus else [])
+
+
 @tree.command(name="leaderboard", description="Prediction game standings.")
 @app_commands.guild_only()
 async def leaderboard_cmd(interaction: discord.Interaction):
@@ -1386,11 +1731,7 @@ async def leaderboard_cmd(interaction: discord.Interaction):
     rows = S.leaderboard(entries, results(), CFG.get("points"), final)
     lines = []
     for i, r in enumerate(rows, 1):
-        c = r["cats"]
-        house = {True: "✅", False: "❌"}.get(r["marks"].get("US-HOUSE"), "⏳")
-        bonus = c["governor"]["right"] + c["battleground"]["right"]
-        bits = [f"Senate {c['senate']['right']}/{c['senate']['right'] + c['senate']['wrong']}",
-                f"House {house}", f"bonus {bonus}"]
+        bits = leaderboard_bits(r)
         if r["flips"]:
             bits.append(f"{r['flips']} flip{'s' * (r['flips'] != 1)}")
         if r["miss"] is not None:
@@ -1398,19 +1739,24 @@ async def leaderboard_cmd(interaction: discord.Interaction):
         lines.append(f"**{i}. {name_of(guild, r['user_id'])}** — **{r['points']}** pts · " + " · ".join(bits))
     pts = {**S.DEFAULT_POINTS, **(CFG.get("points") or {})}
     e = discord.Embed(title="Prediction leaderboard", description="\n".join(lines)[:4000], color=0xFAD63E)
-    e.set_footer(text=f"Senate {pts['senate']} · House control {pts['house_control']} · governor "
-                      f"{pts['governor']} · battleground {pts['battleground']} · +{pts['flip_bonus']} per "
-                      f"correct flip · scored on pro calls, else desk calls")
+    worth = " · ".join(f"{c.get('name', c['key'])} {pts.get(c['key'], 0)}" for c in S.GAME.get("categories") or [])
+    flip = f" · +{pts['flip_bonus']} per correct flip" if pts.get("flip_bonus") else ""
+    e.set_footer(text=f"{worth}{flip} · scored on pro calls, else desk calls"[:2048])
     await interaction.response.send_message(embed=e)
 
 
-@tree.command(name="finalhouse", description="Admin: set the final number of Democratic House seats (tiebreaker).")
+@tree.command(name="finalhouse", description="Admin: set the final number the tiebreaker is settled against.")
 @app_commands.guild_only()
-async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_commands.Range[int, 0, 435]):
+@app_commands.describe(dem_seats=f"The real answer to the tiebreaker: {tiebreak()['name']}"[:100])
+async def finalhouse_cmd(interaction: discord.Interaction, dem_seats: app_commands.Range[int, 0, 1000]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
+    tb = tiebreak()
+    if not tb["min"] <= dem_seats <= tb["max"]:
+        return await interaction.response.send_message(
+            f"The tiebreaker is {tb['name']}, from {tb['min']} to {tb['max']}.", ephemeral=True)
     store.set_setting("final_house_dem", dem_seats)
-    await interaction.response.send_message(f"Final Democratic House seats set to {dem_seats}.")
+    await interaction.response.send_message(f"The tiebreaker's answer ({tb['name']}) is set to {dem_seats}.")
 
 
 @tree.command(name="unlockpicks", description="Admin: let one person use /predict after the deadline, for a set time.")
@@ -1433,6 +1779,125 @@ async def unlockpicks_cmd(interaction: discord.Interaction, member: discord.Memb
 
 
 # =========================================================================== /scoreboard (calling)
+def closeout_embed(guild) -> discord.Embed:
+    entries = {uid: store.user_predictions(uid) for uid in store.predictors()}
+    left = S.open_items(results(), store.setting("final_house_dem"), entries)
+    e = discord.Embed(title="Closing out the night", color=0xFAD63E if not left["closed"] else 0x2E9E5B)
+    for key, title in (("control", "Control"), ("senate", "Senate"), ("governor", "Governors"),
+                       ("battleground", "Rated House seats"), ("other", "Other races")):
+        if left[key]:
+            e.add_field(name=f"{title}: {len(left[key])} with no result", inline=False,
+                        value=_trim(", ".join(f"`{rid}`" for rid in left[key]), 1024))
+    todo = []
+    if left["house_seats"]:
+        todo.append(f"The tiebreaker's answer ({tiebreak()['name']}) isn't in: `/finalhouse` settles it.")
+    if left["no_tiebreak"]:
+        todo.append(f"No tiebreaker guess from: {', '.join(name_of(guild, u) for u in left['no_tiebreak'])}.")
+    if todo:
+        e.add_field(name="Tiebreaker", value="\n".join(todo), inline=False)
+    e.description = ("Everything is settled. `/leaderboard` is final." if left["closed"] else
+                     "Picks on these races still read *pending*. Call each one, or enter its result with "
+                     "`/final race winner`, which outranks every call when scoring.")
+    return e
+
+
+@tree.command(name="closeout", description="What still has to be settled before the leaderboard is final.")
+@app_commands.guild_only()
+async def closeout_cmd(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=closeout_embed(interaction.guild), ephemeral=True)
+
+
+@tree.command(name="final", description="Admin: enter a race's final result for scoring. Leave winner blank to clear it.")
+@app_commands.guild_only()
+@app_commands.autocomplete(race=race_autocomplete)
+async def final_cmd(interaction: discord.Interaction, race: str, winner: Winner | None = None):
+    rid = resolve(race)
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("Admins only.", ephemeral=True)
+    if not rid:
+        return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    finals = dict(store.setting("final_results", {}))
+    if winner and winner.value not in options_for(rid):
+        return await interaction.response.send_message(no_such_winner(rid, winner.raw), ephemeral=True)
+    if winner:
+        finals[rid] = winner.value
+        said = f"Final result entered: {label(rid)} → {cand(rid, winner.value)} {S.EMOJI[winner.value]}."
+    elif finals.pop(rid, None):
+        said = f"Cleared the final result for {label(rid)}. It's scored on calls again."
+    else:
+        return await interaction.response.send_message(f"{label(rid)} has no final result entered.", ephemeral=True)
+    store.set_setting("final_results", finals)
+    left = S.open_items(results(), store.setting("final_house_dem"))
+    open_n = sum(len(left[k]) for k in ("control", "senate", "governor", "battleground", "other"))
+    await interaction.response.send_message(
+        f"{said} The map and the desk's calls are unchanged.\n-# {open_n} races still have no result: `/closeout`.",
+        ephemeral=True)
+
+
+@tree.command(name="globalboard", description="The scoreboard across every server that has joined it. Admins: on or off to join or leave.")
+@app_commands.guild_only()
+@app_commands.choices(join=[app_commands.Choice(name="on: put this server on the global board", value="on"),
+                            app_commands.Choice(name="off: take this server off it", value="off")])
+async def globalboard_cmd(interaction: discord.Interaction, join: app_commands.Choice[str] | None = None):
+    gid = interaction.guild_id
+    if join:
+        if not is_admin(interaction.user):
+            return await interaction.response.send_message("Admins only: you need the Manage Server permission.", ephemeral=True)
+        TEN.set_joined(gid, join.value == "on")
+        return await interaction.response.send_message(
+            "This server is on the global board. Everyone's entry is shared there unless they run `/globalme off`. "
+            "It's scored on outlet calls and final results, not this server's own calls." if join.value == "on" else
+            "This server is off the global board. Nothing of it is shared.", ephemeral=True)
+    if predictions_hidden():
+        return await interaction.response.send_message("The global board opens when predictions close.", ephemeral=True)
+    rows = TEN.global_board(points=CFG.get("points") if packs.active().data.get("shared_files") else None,
+                            gate=not os.getenv("DESK_FAKE_NOW"))
+    servers = TEN.joined_servers()
+    title = {sv: TEN.store_for(sv).setting("server_name") or f"server {sv[-4:]}" for sv in servers}
+    lines = [f"**{i}. {r['name']}** ({title.get(r['server'], r['server'])}) — **{r['points']}** pts"
+             for i, r in enumerate(rows[:25], 1)]
+    e = discord.Embed(title=f"Global board · {packs.active().name}", color=0xFAD63E,
+                      description="\n".join(lines)[:4000] or "Nobody is on it yet.")
+    e.set_footer(text=f"{len(servers)} server{'s' * (len(servers) != 1)} joined · scored on outlet calls and final results"
+                      + ("" if TEN.joined(gid) else " · this server hasn't joined: /globalboard on"))
+    await interaction.response.send_message(embed=e)
+
+
+@tree.command(name="globalme", description="Keep your own entry off the global board, or put it back.")
+@app_commands.guild_only()
+@app_commands.choices(share=[app_commands.Choice(name="on: show my entry on the global board", value="on"),
+                             app_commands.Choice(name="off: keep my entry in this server only", value="off")])
+async def globalme_cmd(interaction: discord.Interaction, share: app_commands.Choice[str]):
+    TEN.set_opted_out(interaction.guild_id, interaction.user.id, share.value == "off")
+    await interaction.response.send_message(
+        "Your entry stays in this server." if share.value == "off" else
+        "Your entry is on the global board" + ("." if TEN.joined(interaction.guild_id) else ", once this server joins it."),
+        ephemeral=True)
+
+
+@tree.command(name="pack", description="Which election the bot is running, and the data packs it could run.")
+@app_commands.guild_only()
+async def pack_cmd(interaction: discord.Interaction, switch_to: str | None = None):
+    now_on = packs.active()
+    if switch_to:
+        if not is_admin(interaction.user):
+            return await interaction.response.send_message("Admins only.", ephemeral=True)
+        try:
+            packs.set_default(switch_to.strip().lower())
+        except packs.PackError as exc:
+            return await interaction.response.send_message(str(exc)[:1900], ephemeral=True)
+        return await interaction.response.send_message(
+            f"The bot will run **{packs.load(switch_to.strip().lower()).name}** the next time it starts. Restart it to "
+            f"switch. It's still on {now_on.name} until then, and each election keeps its own records.", ephemeral=True)
+    lines = []
+    for p in packs.available():
+        kinds = ", ".join(f"{n} {k}" for k, n in sorted(p["types"].items(), key=lambda kv: -kv[1])[:4])
+        lines.append(("▶️ " if p["id"] == now_on.id else "• ") + f"**{p['name']}** `{p['id']}` · {p['election_day']} · {kinds}")
+    e = discord.Embed(title="Data packs", description="\n".join(lines)[:4000], color=EMBED_COLOR[None])
+    e.set_footer(text="▶️ is running now. Admins: /pack switch_to:<id>, then restart the bot.")
+    await interaction.response.send_message(embed=e, ephemeral=True)
+
+
 @tree.command(name="scoreboard", description="Who called races first, and by how much they beat AP, NYT, Wasserman...")
 @app_commands.guild_only()
 async def scoreboard_cmd(interaction: discord.Interaction):
@@ -1486,16 +1951,15 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
     e = discord.Embed(title=f"{'PREVIEW · ' if preview else ''}🕖 Polls closing · {N.fmt(when, TZ)}",
                       description=", ".join(names), color=0xFAD63E)
     lines = []
+    order = {rid: i for i, rid in enumerate(rid for v in V.views() if v["draw"] in ("tiles", "list", "wards") for rid in v["races"])}
     for st in states:
-        for suffix in ("SEN", "GOV"):
-            rid = f"{st}-{suffix}"
-            if rid not in R.RACES:
-                continue
+        for rid in sorted((rid for rid in order if R.RACES[rid]["state"] == st), key=order.get):
             split: dict[str, int] = {}
             for picks in entries:
                 if rid in picks:
                     split[picks[rid]] = split.get(picks[rid], 0) + 1
-            txt = f"**{rid}** ({R.RACES[rid]['holder']}-held)"
+            held = R.RACES[rid]["holder"] or CMP.HOLDER_OF.get(rid)
+            txt = f"**{rid}**" + (f" ({held}-held)" if held else "")
             if split:
                 txt += " · group picked " + " ".join(f"{S.EMOJI[p]}{n}" for p, n in sorted(split.items()))
             if rid in calls:
@@ -1504,7 +1968,8 @@ def wave_embed(when: datetime, states: list[str], preview: bool = False) -> disc
                 txt += f" · {pros[rid]['outlet']} called {pros[rid]['party']}"
             lines.append(txt)
     if lines:
-        e.add_field(name="Senate & governor races", value="\n".join(lines)[:1024], inline=False)
+        e.add_field(name=" & ".join(v["name"] for v in V.views() if v["draw"] == "tiles") + " races"
+                    if V.statewide_types() else "Races", value="\n".join(lines)[:1024], inline=False)
     res = results()
     order = ["Toss-up", "Tilt D", "Tilt R", "Lean D", "Lean R", "Likely D", "Likely R"]
     watch = sorted((rid for rid, _, _ in CMP.RATINGS if rid[:2] in states),
@@ -1532,17 +1997,24 @@ async def send_alert(guild, key: str, **kwargs):
 
 @tasks.loop(seconds=30)
 async def alert_loop():
-    # an exception escaping here would stop the task loop for the rest of the night, so nothing may escape
+    await each_server(alert_pass)
+
+
+async def alert_pass(guild):
+    """Reminders, poll-closing alerts and website saves for one server."""
     try:
-        guild = main_guild()
         if guild is None or not find_channel(guild, "board_channel"):
             return
         t = now()
+        remember_names(guild)
         if t >= deadline() and not store.alert_sent("predictions-locked"):
             n = len(store.predictors())
             await send_alert(guild, "predictions-locked",
                              content=f"🔒 **Predictions are locked.** {n} entr{'y' if n == 1 else 'ies'}. "
                                      f"Use `/predictions` and `/compare` to see everyone's picks.")
+        await picks_reminder(guild, t)
+        await announce_web_saves(guild)
+        await early_vote_digest(guild, t)
         for when, states in N.waves():
             key = f"wave-{when.isoformat()}"
             if t < when or store.alert_sent(key):
@@ -1555,6 +2027,92 @@ async def alert_loop():
         log.exception("Alert loop failed")
 
 
+async def announce_web_saves(guild):
+    """Predictions saved on the website go on the board like ones saved with /predict. The site leaves a note in the
+    database for each save; several saves by one person since the last pass make one post."""
+    saves = store.setting("web_saves", [])
+    if not saves:
+        return
+    store.set_setting("web_saves", [])
+    latest = {}
+    for s in saves:
+        latest[s["uid"]] = {"first": s.get("first") or latest.get(s["uid"], {}).get("first", False)}
+    for uid, s in latest.items():
+        picks, meta = store.user_predictions(uid)
+        name = name_of(guild, uid)
+        text = f"🗳️ **{name}** {'locked in their' if s['first'] else 'updated their'} predictions on the website."
+        try:
+            if predictions_hidden():
+                await post(guild, "board_channel", None, content=text + "\n-# Everyone's picks are revealed when predictions close.")
+            else:
+                done = S.completion(picks, meta)
+                text += f"\n-# {picks_line(picks)} · {done['share']:.0%} filled in".replace("-#  · ", "-# ")
+                await post(guild, "board_channel", None, content=text,
+                           file=prediction_card_file(name, picks, (meta or {}).get("house_dem_seats")))
+        except Exception:
+            log.exception("Couldn't announce a website save by %s", uid)
+
+
+def remember_names(guild):
+    """Keep everyone's server name where the website can read it: it has no other way to turn an ID into a name."""
+    if guild is None:
+        return
+    names = {str(m.id): m.display_name for m in guild.members if not m.bot and (is_junkie(m) or m.id in set(store.predictors()))}
+    if names and names != store.setting("names", {}):
+        store.set_setting("names", {**store.setting("names", {}), **names})
+    if store.setting("server_name") != guild.name:
+        store.set_setting("server_name", guild.name)
+
+
+async def picks_reminder(guild, t: datetime):
+    """A week, a day and three hours before picks close: who has filled in how much, and who hasn't started. In 2026
+    three of six people skipped the House seats, and those seats decided the game."""
+    if not CFG.get("prediction_reminders", True):
+        return
+    sent = {k for k in (f"picks-reminder-{lead}" for lead, _ in S.REMINDERS) if store.alert_sent(k)}
+    due = S.reminder_due(t.timestamp(), deadline().timestamp(), sent)
+    if not due:
+        return
+    key, lead = due
+    rows = []
+    for uid in store.predictors():
+        picks, meta = store.user_predictions(uid)
+        c = S.completion(picks, meta)
+        todo = ", ".join(S.PART_NAMES[m] for m in c["missing"])
+        rows.append((c["share"], f"**{name_of(guild, uid)}** {c['share']:.0%}" + (f" · still open: {todo}" if todo else " ✅")))
+    lines = [text for _share, text in sorted(rows, key=lambda r: -r[0])]
+    absent = sorted(name_of(guild, u) for u in counted_voters(guild) - set(store.predictors()))
+    if absent and not predictions_hidden():
+        lines.append(f"**Not started:** {', '.join(absent)}")
+    e = discord.Embed(title=f"Predictions close in {S.time_left(deadline().timestamp() - t.timestamp(), lead)}", color=0xFAD63E, description=_trim("\n".join(lines), 4000)
+                      or "Nobody has saved predictions yet.")
+    e.set_footer(text="/predict to fill in the rest. Every part scores: Senate, House majority, governors, House seats, "
+                      "and the tiebreaker.")
+    await send_alert(guild, key, embed=e)
+
+
+async def early_vote_digest(guild, t: datetime):
+    """Once a morning until Election Day: the early vote in every Senate state County Watch follows, against 2022,
+    with the change since the last post. The numbers are whatever the six-hourly pull last brought in."""
+    hour = CFG.get("early_vote_digest_hour", 9)
+    et = t.astimezone(N.ET)
+    if hour is None or et.hour < int(hour) or et >= N.ELECTION_DAY.replace(hour=18):
+        return
+    key = f"early-vote-{et.date().isoformat()}"
+    if store.alert_sent(key):
+        return
+    pace = [p for p in (CWR.early_pace() or []) if p[0] in CM.STATES]
+    if not pace:
+        return                      # nothing loaded yet: try again on the next tick rather than post an empty card
+    last = store.setting("early_vote_last", {})
+    days = (N.ELECTION_DAY.date() - et.date()).days
+    e = discord.Embed(title="Early vote so far · " + ("Election Day" if days == 0 else f"{days} day{'s' * (days != 1)} out"),
+                      color=EMBED_COLOR[None], description=_trim("\n".join(CE.digest(pace, last, CM.STATES)), 4000))
+    e.set_footer(text="UF Election Lab early vote tracker. Registration gaps are not votes. /earlyvote for one state.")
+    await send_alert(guild, key, embed=e)
+    store.set_setting("early_vote_last", {st: votes for st, votes, _share, _gap in pace})
+
+
 @tree.command(name="closings", description="Poll closing schedule for election night.")
 @app_commands.guild_only()
 @app_commands.describe(preview="Post the next closing alert now, as a preview")
@@ -1564,8 +2122,9 @@ async def closings_cmd(interaction: discord.Interaction, preview: bool = False):
         upcoming = [(w, s) for w, s in N.waves() if w > t] or N.waves()
         return await interaction.response.send_message(embed=wave_embed(*upcoming[0], preview=True))
     lines = [f"{'✅' if w <= t else '⏳'} **{N.fmt(w, TZ)}** — {', '.join(states)}" for w, states in N.waves()]
-    e = discord.Embed(title="Poll closings, Nov 3", description="\n".join(lines), color=0x2B2D31)
-    e.set_footer(text="When most of each state's polls close. Source: The Green Papers.")
+    e = discord.Embed(title=f"Poll closings, {N.ELECTION_DAY:%b} {N.ELECTION_DAY.day}", description="\n".join(lines),
+                      color=0x2B2D31)
+    e.set_footer(text="When most of each place's polls close, from the data pack's closing times.")
     await interaction.response.send_message(embed=e)
 
 
@@ -1576,7 +2135,7 @@ async def next_cmd(interaction: discord.Interaction):
     calls = store.all()
     pros = {p["race_id"]: p for p in store.procalls()}
     ready = sorted((N.first_close(r["state"]), rid) for rid, r in R.RACES.items()
-                   if r["type"] in ("senate", "governor") or rid in CMP.RATING
+                   if rid in V.watched()
                    if rid not in calls and r["state"] and N.is_closed(r["state"], t))
     lines = []
     for when, rid in ready:
@@ -1604,6 +2163,10 @@ async def next_cmd(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def earlywarning_cmd(interaction: discord.Interaction):
     rows = S.early_watch(results())
+    if not rows:
+        return await interaction.response.send_message(
+            f"**{packs.active().name}** has no early-warning seats: they're the rated House seats in states that "
+            "close first, and this data pack rates none.", ephemeral=True)
     by_time: dict[str, list[str]] = {}
     held = lost = gained = 0
     for rid, rating, fav, won in rows:
@@ -1636,14 +2199,25 @@ async def earlywarning_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=e)
 
 
-@tree.command(name="map", description="Post the current official map.")
+MAP_CHOICES = [app_commands.Choice(name=v["name"][:100], value=v["key"]) for v in V.views()][:25]
+
+
+@tree.command(name="map", description="The current official map, or where the races stand, for any part of this election.")
 @app_commands.guild_only()
-@app_commands.choices(chamber=[app_commands.Choice(name="Senate", value="senate"),
-                               app_commands.Choice(name="Governors", value="governor"),
-                               app_commands.Choice(name="House", value="house")])
+@app_commands.describe(chamber="Which part of the election (the data pack's own sections)")
+@app_commands.choices(chamber=MAP_CHOICES)
 async def map_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str]):
+    view = V.find(chamber.value)
+    if not view:
+        return await interaction.response.send_message("That isn't part of this election any more.", ephemeral=True)
     await interaction.response.defer()
-    await interaction.followup.send(content=S.path_text(chamber.value, store.all()), file=await map_file(chamber.value))
+    calls = store.all()
+    text = V.tally(view, calls)
+    if view["draw"] == "list":
+        e = discord.Embed(title=view["name"], description=text[:4000], color=0x2B2D31)
+        return await interaction.followup.send(embed=e)
+    file = await map_file(view_file_kind(view), calls)
+    await interaction.followup.send(content=text, **({"file": file} if file else {}))
 
 
 @tree.command(name="race", description="Everything about one race: votes, official call, pro calls.")
@@ -1701,7 +2275,7 @@ async def race_cmd(interaction: discord.Interaction, race: str):
 # =========================================================================== seat background & live results
 def load_seat_info() -> dict:
     try:
-        data = json.loads((HERE / "seat_info.json").read_text(encoding="utf-8"))
+        data = json.loads(packs.active().path("seat_info.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {k.upper(): v for k, v in data.items() if not k.startswith("_")}
@@ -1712,28 +2286,40 @@ def _wiki_state(st: str) -> str:
 
 
 def race_links(rid: str) -> list[tuple[str, str]]:
+    """Wikipedia and Ballotpedia for a race, for the pack's year. Only the U.S. races those sites name the same way
+    every cycle get links: a city or other place's race gets none rather than a guess."""
     r = R.RACES[rid]
-    st = r["state"]
+    st, y = r["state"], N.ELECTION_DAY.year
     if not st:
-        return [("Wikipedia", "https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections")]
+        page = {"house": "United_States_House_of_Representatives_elections", "senate": "United_States_Senate_elections",
+                "electoral_college": "United_States_presidential_election"}.get(R.chamber(rid))
+        return [("Wikipedia", f"https://en.wikipedia.org/wiki/{y}_{page}")] if page else []
+    if st not in packs.STATE_NAMES or r["type"] not in ("senate", "governor", "house", "president"):
+        page = LIVE.page_link(st)
+        return [("Official results", page)] if page else []
     name = _wiki_state(st)
+    if r["type"] == "president":
+        links = [("Wikipedia", f"https://en.wikipedia.org/wiki/{y}_United_States_presidential_election_in_{name}"),
+                 ("Ballotpedia", f"https://ballotpedia.org/Presidential_election_in_{name},_{y}")]
+        page = LIVE.page_link(st)
+        return links + ([("Official results", page)] if page else [])
     special = "special_" if r["type"] == "senate" and st in R.SENATE_SPECIAL else ""
     poss = "%27" if name.endswith("s") else "%27s"
     if r["type"] == "senate":
-        wiki = f"https://en.wikipedia.org/wiki/2026_United_States_Senate_{special}election_in_{name}"
-        bp = f"https://ballotpedia.org/United_States_Senate_{special}election_in_{name},_2026"
+        wiki = f"https://en.wikipedia.org/wiki/{y}_United_States_Senate_{special}election_in_{name}"
+        bp = f"https://ballotpedia.org/United_States_Senate_{special}election_in_{name},_{y}"
     elif r["type"] == "governor":
-        wiki = f"https://en.wikipedia.org/wiki/2026_{name}_gubernatorial_election"
-        bp = f"https://ballotpedia.org/{name}_gubernatorial_election,_2026"
+        wiki = f"https://en.wikipedia.org/wiki/{y}_{name}_gubernatorial_election"
+        bp = f"https://ballotpedia.org/{name}_gubernatorial_election,_{y}"
     else:
-        base = f"https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_{name}"
+        base = f"https://en.wikipedia.org/wiki/{y}_United_States_House_of_Representatives_elections_in_{name}"
         if rid.endswith("-AL"):
             wiki = base
-            bp = f"https://ballotpedia.org/{name}{poss}_At-Large_Congressional_District_election,_2026"
+            bp = f"https://ballotpedia.org/{name}{poss}_At-Large_Congressional_District_election,_{y}"
         else:
             n = int(rid.split("-")[1])
             wiki = f"{base}#District_{n}"
-            bp = f"https://ballotpedia.org/{name}{poss}_{R._ordinal(n)}_Congressional_District_election,_2026"
+            bp = f"https://ballotpedia.org/{name}{poss}_{R._ordinal(n)}_Congressional_District_election,_{y}"
     links = [("Wikipedia", wiki), ("Ballotpedia", bp)]
     page = LIVE.page_link(st)
     if page:
@@ -1803,11 +2389,12 @@ def results_embed(rid: str, race: dict) -> discord.Embed:
     official = store.get(rid)
     e.add_field(name="Desk", inline=True, value=(f"Called: {S.EMOJI[official['party']]} {cand(rid, official['party'])}"
                                                 if official else "Not called"))
-    e.set_footer(text=f"{source_name(st)} · fetched {clock(race['fetched_at'])} · unofficial count, not a call")
+    old = " · ⚠️ the site isn't answering, so this is the last count the bot got" if race.get("stale") else ""
+    e.set_footer(text=f"{source_name(st)} · fetched {clock(race['fetched_at'])}{old} · unofficial count, not a call")
     return e
 
 
-class RefreshView(discord.ui.View):
+class RefreshView(ScopedView):
     def __init__(self, rid: str):
         super().__init__(timeout=1800)
         self.rid = rid
@@ -1825,24 +2412,26 @@ class RefreshView(discord.ui.View):
 def feed_error_text(st: str, exc: Exception) -> str:
     msg = str(exc)
     if "404" in msg or "403" in msg:
-        return (f"{R.STATE_NAMES[st]}'s 2026 file isn't up yet ({msg.split(' from ')[0]}). States usually post it "
+        return (f"{R.STATE_NAMES[st]}'s {N.ELECTION_DAY.year} file isn't up yet ({msg.split(' from ')[0]}). States usually post it "
                 f"once polls close at {N.fmt(N.first_close(st), TZ)}.")
     return f"Couldn't read {R.STATE_NAMES[st]}'s results file: {msg[:200]}"
 
 
 @tree.command(name="seat", description="Background on a race: rating, incumbent, nominees, lean, poll close, links.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. FL-13, PA-07, NC-SEN, GA-GOV")
+@app_commands.describe(race=EXAMPLES)
 @app_commands.autocomplete(race=race_autocomplete)
 async def seat_cmd(interaction: discord.Interaction, race: str):
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
     calls, res = store.all(), results()
-    if rid == "US-HOUSE":
-        e = discord.Embed(title="Control of the House", color=EMBED_COLOR[None],
-                          description=f"{S.path_text('house', calls)}\n{S.house_tracker_text(res)}\n\n"
-                                      f"`/earlywarning` lists the first rated seats to watch.")
+    if R.RACES[rid]["type"] == "control":
+        body = R.chamber(rid)
+        extra = (f"\n{S.house_tracker_text(res)}\n\n`/earlywarning` lists the first rated seats to watch."
+                 if body == "house" else "")
+        e = discord.Embed(title=f"Control of the {R.chamber_name(rid)}", color=EMBED_COLOR[None],
+                          description=f"{S.path_text(body, calls)}{extra}")
         return await interaction.response.send_message(embed=e)
     await interaction.response.defer()
     r, info = R.RACES[rid], load_seat_info().get(rid, {})
@@ -1872,7 +2461,7 @@ async def seat_cmd(interaction: discord.Interaction, race: str):
     e.add_field(name="Nominees", inline=True, value="\n".join(
         f"{S.EMOJI.get(p, '')} {n}" for p, n in nominees.items()) if nominees else "Not on file yet (candidates.json)")
     if info.get("pvi"):
-        e.add_field(name="Partisan lean", value=f"{info['pvi']} (Cook PVI, 2026 map)", inline=True)
+        e.add_field(name="Partisan lean", value=f"{info['pvi']} (Cook PVI)", inline=True)
     st = r["state"]
     first, last = N.first_close(st), N.last_close(st)
     e.add_field(name="Polls close", inline=True, value=N.fmt(first, TZ) + (
@@ -1914,14 +2503,15 @@ async def seat_cmd(interaction: discord.Interaction, race: str):
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="results", description="Live vote counts from official state results files (FL, NC, VA).")
+@tree.command(name="results", description=f"Live vote counts from official state results files "
+                                            f"({', '.join(LIVE.supported()) or 'none in this data pack'}).")
 @app_commands.guild_only()
-@app_commands.describe(race="One race, e.g. FL-13 or NC-SEN. Leave blank for every tracked race with votes.")
+@app_commands.describe(race=f"One race ({EXAMPLES}). Leave blank for every tracked race with votes."[:100])
 @app_commands.autocomplete(race=race_autocomplete)
 async def results_cmd(interaction: discord.Interaction, race: str | None = None):
     if race:
         rid = resolve(race)
-        if not rid or rid == "US-HOUSE":
+        if not rid or R.RACES[rid]["type"] == "control":
             return await interaction.response.send_message(f"I don't recognize `{race}` as a single race.",
                                                            ephemeral=True)
         st = R.RACES[rid]["state"]
@@ -1938,7 +2528,7 @@ async def results_cmd(interaction: discord.Interaction, race: str | None = None)
         return await interaction.followup.send(embed=results_embed(rid, data), view=RefreshView(rid))
 
     await interaction.response.defer()
-    tracked = set(CMP.RATING_OF) | {rid for rid, r in R.RACES.items() if r["type"] in ("senate", "governor")}
+    tracked = set(CMP.RATING_OF) | V.watched()
     e = discord.Embed(title="Live counts · tracked races", color=EMBED_COLOR[None])
     for st in LIVE.supported():
         try:
@@ -1956,15 +2546,16 @@ async def results_cmd(interaction: discord.Interaction, race: str | None = None)
             tag = f" ({CMP.RATING_OF[rid]})" if rid in CMP.RATING_OF else ""
             called = " ✅" if store.get(rid) else ""
             rows.append(f"`{rid}`{tag} {live_line(race)}{called}")
-        e.add_field(name=f"{R.STATE_NAMES[st]} · fetched {clock(data['fetched_at'])}", inline=False,
+        old = " ⚠️ not refreshing" if data.get("stale") else ""
+        e.add_field(name=f"{R.STATE_NAMES[st]} · fetched {clock(data['fetched_at'])}{old}", inline=False,
                     value="\n".join(rows)[:1024] if rows else "No votes in the file for tracked races yet.")
     e.set_footer(text="Unofficial counts from state results files · ✅ = desk has called it · /results FL-13 for one race")
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="resultstest", description="Admin: check a state's results reader against its Nov 2024 file.")
+@tree.command(name="resultstest", description="Admin: check a state's results reader against its test file from an earlier election.")
 @app_commands.guild_only()
-@app_commands.choices(state=[app_commands.Choice(name=R.STATE_NAMES[s], value=s) for s in ("FL", "NC", "VA")])
+@app_commands.choices(state=[app_commands.Choice(name=R.STATE_NAMES[s], value=s) for s in LIVE.supported()])
 async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
@@ -1989,7 +2580,7 @@ async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.
         f"✅ **{st}** reader works on the 2024 file ({data['bytes'] / 1e6:.1f} MB).\n"
         f"Found {len(house)} House races" + (f" plus {', '.join(other)}" if other else "") + ".\n"
         f"Sample, {sample_id}: {top}" + (f" · precincts {rep[0]:,}/{rep[1]:,}" if rep else "") +
-        "\n-# 2024 districts, so seat numbers line up with the old maps. The 2026 file appears on election night.",
+        f"\n-# An earlier election's file, so seat numbers follow its maps. The {N.ELECTION_DAY.year} file appears on election night.",
         ephemeral=True)
 
 
@@ -1998,14 +2589,25 @@ async def resultstest_cmd(interaction: discord.Interaction, state: app_commands.
 async def board_cmd(interaction: discord.Interaction):
     calls = store.all()
     e = discord.Embed(title="Decision Desk tally", color=0x2B2D31)
-    for kind, name in (("senate", "Senate"), ("governor", "Governors"), ("house", "House seats")):
+    paths, controls = [], []
+    for v in V.views():
+        if v["draw"] in ("list", "wards"):
+            e.add_field(name=v["name"], value=V.tally(v, calls)[:1024] or "nothing yet", inline=False)
+            continue
+        kind = v["body"] or v["type"]
         c = S.chamber_counts(kind, calls)
-        e.add_field(name=name, value=f"D {c['D']} · R {c['R']}" + (f" · I {c['I']}" if c["I"] else "")
+        name = "House seats" if v["draw"] == "house" else v["name"]
+        e.add_field(name=name, value=" · ".join(f"{k} {n}" for k, n in c.items() if k != "uncalled" and (n or k in "DR"))
                     + f"\n{c['uncalled']} uncalled", inline=True)
-    hc = calls.get("US-HOUSE")
-    e.add_field(name="Path to majority", inline=False,
-                value=f"{S.path_text('senate', calls)}\n{S.path_text('house', calls)}\n{S.house_tracker_text(results())}"
-                      + (f"\nHouse control called: {S.EMOJI[hc]} {R.PARTY_NAMES[hc]}" if hc else ""))
+        if (R.BODIES.get(kind) or {}).get("majority"):
+            paths.append(S.path_text(kind, calls))
+        if v["control"] and calls.get(v["control"]) and v["control"] not in S.implied_races():
+            got = calls[v["control"]]
+            controls.append(f"{R.chamber_name(v['control'])} control called: {S.EMOJI[got]} {R.PARTY_NAMES.get(got, got)}")
+    if CMP.RATING:
+        paths.append(S.house_tracker_text(results()))
+    if paths or controls:
+        e.add_field(name="Path to majority", inline=False, value="\n".join(paths + controls)[:1024])
     recent = store.recent(8)
     if recent:
         e.add_field(name="Recent", inline=False, value="\n".join(
@@ -2027,7 +2629,7 @@ async def deskreset_cmd(interaction: discord.Interaction, confirm: str, include_
     cw = await asyncio.to_thread(CWR.reset_night)
     _cw["dirty"] = True
     await interaction.followup.send(
-        f"Cleared {cleared_text(gone)}, so nobody has points from them. Alerts, the final House seat count and the "
+        f"Cleared {cleared_text(gone)}, so nobody has points from them. Alerts, the tiebreaker's answer and the "
         "field's snapshots are cleared too" + (
             ", along with predictions." if include_predictions else ". Predictions kept.")
         + f" County Watch: {cw}. Numbers typed straight into the workbook's Manual columns stay; clear those by hand."
@@ -2045,23 +2647,26 @@ async def cardtheme_cmd(interaction: discord.Interaction, theme: app_commands.Ch
     store.set_setting("card_theme", theme.value if theme else None)
     store.set_setting("card_art", not theme)        # picking a theme means that look, not the saved art
     await interaction.response.defer(ephemeral=True)
-    sample = await card_file("OH-SEN", "D", "Sample card")
+    rid, key = V.sample_card()
+    sample = await card_file(rid, key, "Sample card")
     note = (f"Call cards now use **{card_theme()}**." if theme else
             f"Back to the saved art in assets/calls, and **{card_theme()}** for races without any.")
-    await interaction.followup.send(f"{note} Here's a sample (OH-SEN, a flip):", file=sample, ephemeral=True)
+    await interaction.followup.send(f"{note} Here's a sample ({label(rid)}, {cand(rid, key)}):", file=sample, ephemeral=True)
 
 
 @tree.command(name="cardpreview", description="See the call card for any race and winner, in any theme. Only you see it.")
 @app_commands.guild_only()
-@app_commands.describe(race="e.g. GA-SEN, PA-07, HOUSE", winner="Who wins on the card",
+@app_commands.describe(race=EXAMPLES, winner="Who wins on the card",
                        theme="Defaults to the current theme", retracted="Show the retraction card instead")
 @app_commands.autocomplete(race=race_autocomplete)
-@app_commands.choices(winner=PARTY_CHOICES, theme=THEME_CHOICES)
-async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: app_commands.Choice[str],
+@app_commands.choices(theme=THEME_CHOICES)
+async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: Winner,
                           theme: app_commands.Choice[str] | None = None, retracted: bool = False):
     rid = resolve(race)
     if not rid:
         return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    if winner.value not in options_for(rid):
+        return await interaction.response.send_message(no_such_winner(rid, winner.raw), ephemeral=True)
     await interaction.response.defer(ephemeral=True)
     how = "Retracted by the desk (preview)" if retracted else "Called by the desk (preview)"
     card = await card_file(rid, winner.value, how, retracted=retracted, theme=theme.value if theme else None)
@@ -2072,6 +2677,16 @@ async def cardpreview_cmd(interaction: discord.Interaction, race: str, winner: a
 # =========================================================================== the field
 FIELD_CHOICES = [app_commands.Choice(name="Senate", value="senate"),
                  app_commands.Choice(name="House battleground", value="house")]
+
+
+def field_refusal(kind: str) -> str | None:
+    """Why this pack can't draw a field, or None. The Senate field is placed by County Watch's projections, and the
+    House one by the pack's ratings."""
+    if kind == "senate" and (not FEEDS.countywatch() or not R.races_of("senate")):
+        return f"**{packs.active().name}** has no Senate field: it needs Senate races and County Watch in the data pack."
+    if kind == "house" and not CMP.RATINGS:
+        return f"**{packs.active().name}** has no House battleground field: the data pack rates no House seats."
+    return None
 FIELD_TEST_CHOICES = [app_commands.Choice(name="Whole simulated night (timelapse)", value="night"),
                       app_commands.Choice(name="One simulated update (30 minutes of movement)", value="update"),
                       app_commands.Choice(name="Right now, real data", value="now")]
@@ -2094,13 +2709,114 @@ def field_file(buf, ext: str, kind: str) -> discord.File:
     return discord.File(buf, filename=f"{kind}_field.{ext}")
 
 
+BOT_OUTLET = "The Bot"
+
+
+async def bot_caller_pass(guild, snap: dict):
+    """The desk's own bot: after each Senate field snapshot, log its call on any race whose projection has held
+    long enough (autocaller.py). It goes on the board like an outlet's call and feeds /scoreboard, and it never
+    makes anything official. Turn it off with "bot_caller": false in config.json."""
+    if guild is None or not CFG.get("bot_caller", True):
+        return
+    try:
+        snaps = await asyncio.to_thread(F.history, "senate")
+        for rid, now_at in snap["races"].items():
+            if now_at[2] != "proj" or any(p["outlet"] == BOT_OUTLET for p in store.procalls(rid)):
+                continue
+            call = AUTO.decide_now(TR.series(snaps, rid), rid)
+            key = (now_at[4] if call.side == "D" else "R") if call else None
+            if key in options_for(rid):
+                await log_outlet_call(guild, rid, key, BOT_OUTLET, 0,
+                                      source=f"The desk's own bot: the projection has held at {abs(call.margin):.1f} points "
+                                             f"for {call.held:.0f} minutes. It's a voice to beat, never an official call.")
+    except Exception:
+        log.exception("The bot caller failed")
+
+
+def desk_marks(rid: str, d_key: str) -> list[tuple[float, str, str | None]]:
+    """Every time the desk called or retracted a race, for the chart: (time, "call" or "uncall", "D" or "R" side)."""
+    rows = store.db.execute("SELECT ts, action, party FROM history WHERE race_id = ? ORDER BY id", (rid,)).fetchall()
+    return [(ts, action, None if action == "uncall" else "D" if party == d_key else "R") for ts, action, party in rows]
+
+
+@tree.command(name="trend", description=f"A {CW_KIND} race through the night as a chart: projected margin, votes counted, the desk's calls."[:100])
+@app_commands.guild_only()
+@app_commands.autocomplete(race=race_autocomplete)
+async def trend_cmd(interaction: discord.Interaction, race: str):
+    rid = resolve(race)
+    if not rid:
+        return await interaction.response.send_message(f"I don't recognize `{race}`.", ephemeral=True)
+    await interaction.response.defer()
+    snaps = await asyncio.to_thread(F.history, "senate")
+    points = TR.series(snaps, rid)
+    d_key = next((s["races"][rid][4] for s in reversed(snaps) if rid in s["races"]), "D")
+    names = (_surname(cand(rid, d_key)), _surname(cand(rid, "R")))
+    bot = AUTO.decide(points, rid)
+    buf = await asyncio.to_thread(TR.render, label(rid), points, names[0], names[1], desk_marks(rid, d_key),
+                                  (bot.at, bot.side) if bot else None)
+    if not buf:
+        return await interaction.followup.send(
+            f"There's no history for {label(rid)} yet. The chart is drawn from the Senate field's snapshots, which "
+            "start when a state's votes do.", ephemeral=True)
+    info = TR.summary(points)
+    await interaction.followup.send(
+        content=f"📈 **{label(rid)}** · projection ranged {TR._lean(info['low'], *names)} to {TR._lean(info['high'], *names)}"
+                + (" and changed sides" if info["changed_sides"] else "") + f" · {info['votes']:,} votes counted",
+        file=discord.File(buf, filename=f"{rid}_trend.png"))
+
+
+REACTIONS = HERE / "assets" / "reactions"
+
+
+def reaction_files() -> dict[str, Path]:
+    """Every image in assets/reactions, by the name it's asked for: its file name without the ending."""
+    kinds = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    return {p.stem.lower().replace("_", " "): p for p in sorted(REACTIONS.glob("*")) if p.suffix.lower() in kinds}
+
+
+async def reaction_autocomplete(_interaction: discord.Interaction, current: str):
+    typed = current.strip().lower()
+    return [app_commands.Choice(name=name, value=name) for name in reaction_files() if typed in name][:25]
+
+
+@tree.command(name="react", description="Post a reaction image from the desk's collection.")
+@app_commands.guild_only()
+@app_commands.autocomplete(image=reaction_autocomplete)
+async def react_cmd(interaction: discord.Interaction, image: str):
+    files = reaction_files()
+    path = files.get(image.strip().lower())
+    if not path:
+        have = ", ".join(files) or "none yet"
+        return await interaction.response.send_message(
+            f"There's no reaction called `{image}`. In the collection: {have[:1500]}.\n"
+            "-# To add one, save an image into `assets/reactions/`. Its file name is what you type here.", ephemeral=True)
+    await interaction.response.send_message(file=discord.File(str(path), filename=path.name))
+
+
+@tree.command(name="drinkinggame", description="Admin: turn drinking-game lines on calls on or off for this server.")
+@app_commands.guild_only()
+@app_commands.choices(mode=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
+async def drinkinggame_cmd(interaction: discord.Interaction, mode: app_commands.Choice[str] | None = None):
+    if mode:
+        if not is_admin(interaction.user):
+            return await interaction.response.send_message("Admins only.", ephemeral=True)
+        store.set_setting(DR.SETTING, mode.value == "on")
+    state = "on" if DR.is_on(store) else "off"
+    rules = "\n".join(f"**{event}:** {lines[0]}" for event, lines in DR.rules().items())
+    await interaction.response.send_message(
+        f"Drinking-game mode is **{state}** for this server." + (f"\n{rules.format(seat='the seat', outlet='an outlet', lead='a while', winner='the winner', place='the state')}"[:1700] if state == "on" else "")
+        + "\n-# Water counts.", ephemeral=not mode)
+
+
 @tree.command(name="field", description="Every race as a circle from safe D to safe R: margin and votes counted.")
-@app_commands.describe(chamber="Senate (default) or the 82 rated House seats",
+@app_commands.describe(chamber=f"Senate (default) or the {len(CMP.RATINGS)} rated House seats",
                        timelapse="Play the whole night so far instead of the latest movement")
 @app_commands.choices(chamber=FIELD_CHOICES)
 async def field_cmd(interaction: discord.Interaction, chamber: app_commands.Choice[str] | None = None,
                     timelapse: bool = False):
     kind = chamber.value if chamber else "senate"
+    if field_refusal(kind):
+        return await interaction.response.send_message(field_refusal(kind), ephemeral=True)
     await interaction.response.defer(ephemeral=True)
     snap = await field_snapshot(kind)
     theme = F.palette(card_theme())
@@ -2166,39 +2882,59 @@ async def fieldposts_cmd(interaction: discord.Interaction, action: app_commands.
 @tasks.loop(seconds=60)
 async def field_loop():
     """On the night: snapshot each field in config's field_auto every minute (kept when something moved, for the
-    timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 AM ET Nov 4, post
+    timelapse), post to the board every field_minutes, or within 5 minutes of a call. After 8 the morning after, post
     the night's timelapse once. /fieldposts pause holds the posts, and the snapshots carry on."""
     try:
+        if not FEEDS.countywatch():
+            return                      # the field is drawn from County Watch's projections
         kinds = [k for k in CFG.get("field_auto", ["senate"]) if k in F.KINDS]
-        paused = store.setting("field_paused", False)
+        home = main_guild()
         if cw_night():
-            for kind in kinds:
-                snap = await field_snapshot(kind)
-                await asyncio.to_thread(F.record, snap)
-                if paused:
-                    continue
-                last = store.setting(f"field_last_{kind}")
-                since = time.time() - store.setting(f"field_at_{kind}", 0)
-                called = lambda s: {rid for rid, v in s["races"].items() if v[3]}
-                due = since >= 60 * CFG.get("field_minutes", 30) or (last and called(last) != called(snap) and since >= 300)
-                if not due or not F.changed(last, snap):
-                    continue
-                buf, ext = await asyncio.to_thread(F.render, snap, F.palette(card_theme()), last)
-                head = f"📊 **{F.TITLE[kind].title()} field** · {snap['clock']}"
-                await post(main_guild(), "board_channel", content=head + (f" · moving since {last['clock']}" if last else ""),
-                           file=field_file(buf, ext, kind))
-                store.set_setting(f"field_last_{kind}", snap)
-                store.set_setting(f"field_at_{kind}", time.time())
-        elif not paused and now() > N.ELECTION_DAY.replace(day=4, hour=8) and not store.setting("field_timelapse_posted"):
-            store.set_setting("field_timelapse_posted", True)
-            for kind in kinds:
-                snaps = F.history(kind)
-                if len(snaps) >= 2:
-                    buf, ext = await asyncio.to_thread(F.timelapse, snaps, F.palette(card_theme()))
-                    await post(main_guild(), "board_channel", content=f"🎞️ **The night on the {F.TITLE[kind].lower()} field**",
-                               file=field_file(buf, ext, kind))
+            await each_server(lambda guild: field_pass(guild, kinds, keep=guild == home))
+        elif now() > N.morning_after():
+            await each_server(lambda guild: field_timelapse(guild, kinds))
     except Exception:
         log.exception("field loop failed")
+
+
+async def field_pass(guild, kinds: list[str], keep: bool, snapshot=None):
+    """One server's field: where every race stands with this server's own calls on it, posted when it's due. The
+    night's history (the timelapse, /trend and the desk's bot read it) is kept from the home server's snapshots, since
+    the projections in it are the same for everyone."""
+    paused = store.setting("field_paused", False)
+    for kind in kinds:
+        snap = await (snapshot or field_snapshot)(kind)     # a simulation hands in the night's own snapshots
+        if keep:
+            await asyncio.to_thread(F.record, snap)
+        if kind == "senate":
+            await bot_caller_pass(guild, snap)
+        if paused:
+            continue
+        last = store.setting(f"field_last_{kind}")
+        since = time.time() - store.setting(f"field_at_{kind}", 0)
+        called = lambda s: {rid for rid, v in s["races"].items() if v[3]}       # noqa: E731
+        due = since >= 60 * CFG.get("field_minutes", 30) or (last and called(last) != called(snap) and since >= 300)
+        if not due or not F.changed(last, snap):
+            continue
+        buf, ext = await asyncio.to_thread(F.render, snap, F.palette(card_theme()), last)
+        head = f"📊 **{F.TITLE[kind].title()} field** · {snap['clock']}"
+        await post(guild, "board_channel", content=head + (f" · moving since {last['clock']}" if last else ""),
+                   file=field_file(buf, ext, kind))
+        store.set_setting(f"field_last_{kind}", snap)
+        store.set_setting(f"field_at_{kind}", time.time())
+
+
+async def field_timelapse(guild, kinds: list[str]):
+    """The morning after, once per server: the night on the field."""
+    if store.setting("field_paused", False) or store.setting("field_timelapse_posted"):
+        return
+    store.set_setting("field_timelapse_posted", True)
+    for kind in kinds:
+        snaps = F.history(kind)
+        if len(snaps) >= 2:
+            buf, ext = await asyncio.to_thread(F.timelapse, snaps, F.palette(card_theme()))
+            await post(guild, "board_channel", content=f"🎞️ **The night on the {F.TITLE[kind].lower()} field**",
+                       file=field_file(buf, ext, kind))
 
 
 def reset_field():
@@ -2216,9 +2952,9 @@ _cw = {"early_at": 0.0, "live_at": 0.0, "status": "not run yet"}
 
 
 def cw_night() -> bool:
-    """Election-night window for live county pulls: from the first poll closings to 8 AM ET Nov 4."""
-    t = now()
-    return N.ELECTION_DAY.replace(hour=18) <= t <= N.ELECTION_DAY.replace(day=4, hour=8)
+    """Election-night window for live county pulls: from the first poll closings to 8 the morning after."""
+    start, end = FEEDS.night_window()
+    return start <= now() <= end
 
 
 @tasks.loop(seconds=10)
@@ -2227,9 +2963,12 @@ async def county_loop():
     refresh_seconds (30 by default), alerts posted the moment numbers move, workbook refreshed every
     workbook_seconds (120) so a slow rebuild never holds up the feeds."""
     try:
+        if not FEEDS.countywatch():
+            return                      # this pack's counties aren't modelled, so there's nothing to pull
         src = CF.load_sources()
         # stops when the first polls close: the NC pull takes ~20 s and would hold up live pulls on the night
-        if time.time() - _cw["early_at"] > 6 * 3600 and now() < N.ELECTION_DAY.replace(hour=18):
+        if (FEEDS.early_vote() and time.time() - _cw["early_at"] > 6 * 3600
+                and now() < N.ELECTION_DAY.replace(hour=18)):
             _cw["early_at"] = time.time()
             await CWR.refresh_early()
             _cw["dirty"] = True
@@ -2237,16 +2976,14 @@ async def county_loop():
             _cw["live_at"] = time.time()
             cache = await CWR.refresh_live()
             for m in CWR.blocked_notices(cache):
-                await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
+                await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
             _start_state_watch(cache)
             if cache.get("changed"):
                 _cw["dirty"] = True
                 if src.get("post_alerts", True):
-                    msgs = await asyncio.to_thread(CWR.alerts, cache, cache["changed"])
-                    g = main_guild()
-                    for m in msgs:
-                        await post(g, "board_channel", content=m, allowed_mentions=NO_PINGS)
-        elif now() > N.ELECTION_DAY.replace(day=4, hour=8):
+                    for m in await asyncio.to_thread(CWR.alerts, cache, cache["changed"]):
+                        await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
+        elif now() > FEEDS.night_window()[1]:
             # After the night, states with late ballots keep updating the workbook and the private /watchstate DMs. Nothing
             # goes to the board: the night's public alerts are over.
             extended = CWR.extended_states(src, now())
@@ -2260,7 +2997,7 @@ async def county_loop():
         for res in loaded:
             await _announce_file(main_guild(), res, "the grab button" if res.get("grab") else "the inbox folder")
         for m in CWR.workbook_notices():
-            await post(main_guild(), "board_channel", content=m, allowed_mentions=NO_PINGS)
+            await post_everywhere("board_channel", content=m, allowed_mentions=NO_PINGS)
         busy = _cw.get("wb_task") and not _cw["wb_task"].done()
         # the shared workbook syncs even when no feed moved, so what people type into it reaches the bot
         if ((_cw.get("dirty") or CWR.CC.enabled()) and not busy
@@ -2273,8 +3010,8 @@ async def county_loop():
                 log.info("County Watch: %s", _cw["status"])
                 dms = _cw.get("dm_task")
                 # one at a time: if sending is still going, the next update's message covers these numbers too
-                if store.setting("results_dm_users") and CWR.workbook_wrote(_cw["status"]) and (not dms or dms.done()):
-                    _cw["dm_task"] = asyncio.create_task(_send_results_dms(cache))
+                if CWR.workbook_wrote(_cw["status"]) and (not dms or dms.done()):
+                    _cw["dm_task"] = asyncio.create_task(each_server(lambda _guild: _send_results_dms(cache)))
             _cw["wb_task"] = asyncio.create_task(_write())   # runs alongside, never delays the next feed check
     except Exception:
         log.exception("County Watch loop failed")
@@ -2284,6 +3021,8 @@ async def _send_results_dms(cache: dict):
     """DM everyone who turned on /resultsdm each county whose numbers just reached the workbook. Runs on its own, so
     trouble here can't touch the workbook or the feeds. Only ever goes to people's DMs, never a channel."""
     try:
+        if not store.setting("results_dm_users"):
+            return
         new = await asyncio.to_thread(CWR.result_snapshot, cache)
         old = store.setting("results_dm_last")
         store.set_setting("results_dm_last", new)
@@ -2303,8 +3042,8 @@ async def _send_results_dms(cache: dict):
 
 def _start_state_watch(cache: dict):
     watch = _cw.get("watch_task")
-    if store.setting("state_watch") and (not watch or watch.done()):
-        _cw["watch_task"] = asyncio.create_task(_send_state_watch(cache))
+    if not watch or watch.done():       # each server's own watchers, from that server's records
+        _cw["watch_task"] = asyncio.create_task(each_server(lambda _guild: _send_state_watch(cache)))
 
 
 async def _send_state_watch(cache: dict):
@@ -2343,7 +3082,7 @@ async def _send_state_watch(cache: dict):
         log.exception("State watch DMs failed")
 
 
-@tree.command(name="watchstate", description="Admin: DM you (and only you) when a state's Senate votes or % in change.")
+@tree.command(name="watchstate", description=f"Admin: DM you (and only you) when a state's {CW_KIND} votes or % in change."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES, turn=[app_commands.Choice(name="on", value="on"), app_commands.Choice(name="off", value="off")])
 async def watchstate_cmd(interaction: discord.Interaction, state: app_commands.Choice[str], turn: app_commands.Choice[str] | None = None):
@@ -2465,7 +3204,7 @@ def _trim(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-@tree.command(name="counties", description="County-by-county read of a Senate race: key counties, swing, projection.")
+@tree.command(name="counties", description=f"County-by-county read of a {CW_KIND} race: key counties, swing, projection."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 async def counties_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
@@ -2511,6 +3250,30 @@ async def counties_cmd(interaction: discord.Interaction, state: app_commands.Cho
     await interaction.followup.send(embed=e)
 
 
+@tree.command(name="needs", description=f"The vote still out in a {CW_KIND} race, county by county, and what the trailing side needs."[:100])
+@app_commands.guild_only()
+@app_commands.choices(state=CW_STATE_CHOICES)
+@app_commands.describe(what_if="Optional: try a different break for the vote still out. Points toward the Democratic "
+                               "side, e.g. 8, or -5 for the Republican side.")
+async def needs_cmd(interaction: discord.Interaction, state: app_commands.Choice[str],
+                    what_if: app_commands.Range[float, -100, 100] | None = None):
+    st = state.value
+    await interaction.response.defer()
+    p = await asyncio.to_thread(CWR.projection, st, CWR.live_cache())
+    dn, rn = CWR.names()[st]
+    b = REM.breakdown(p)
+    lead = b["final"] if b["left"] > 0.5 else b["lead"]
+    e = discord.Embed(title=f"{CM.STATES[st]} Senate · the vote still out",
+                      color=EMBED_COLOR["D" if lead > 0 else "R"] if b["counted"] else EMBED_COLOR[None],
+                      description=_trim("\n".join(REM.lines(b, dn, rn, None if what_if is None else what_if / 100)), 4000))
+    where = REM.county_lines(b, dn, rn)
+    if where:
+        e.add_field(name="Where it is", value=_trim("\n".join(where), 1024), inline=False)
+    e.set_footer(text="The vote still out is County Watch's estimate, from turnout and swing in counties that have "
+                      "finished. Unofficial, and never a call.")
+    await interaction.followup.send(embed=e)
+
+
 @tree.command(name="environment", description="The national read: swing by county type across every counted county, and early vote pace.")
 @app_commands.guild_only()
 async def environment_cmd(interaction: discord.Interaction):
@@ -2528,7 +3291,7 @@ async def environment_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=e)
 
 
-@tree.command(name="earlyvote", description="Early vote so far in a Senate state, compared with 2022.")
+@tree.command(name="earlyvote", description="Early vote so far in a County Watch state, compared with the last comparable election.")
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 async def earlyvote_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
@@ -2558,11 +3321,11 @@ async def county_autocomplete(interaction: discord.Interaction, current: str):
     return [app_commands.Choice(name=("★ " if c["key"] else "") + c["name"], value=c["fips"]) for c in hits]
 
 
-@tree.command(name="countyset", description="Enter a county's Senate vote count by hand (for states without a live feed).")
+@tree.command(name="countyset", description=f"Enter a county's {CW_KIND} vote count by hand (for states without a live feed)."[:100])
 @app_commands.guild_only()
 @app_commands.choices(state=CW_STATE_CHOICES)
 @app_commands.autocomplete(county=county_autocomplete)
-@app_commands.describe(county="Start typing; ★ = key county", dem="Votes for the Democratic side (Osborn in NE)",
+@app_commands.describe(county="Start typing; ★ = key county", dem="Votes for the Democratic side (County Watch's left-hand candidate)",
                        rep="Votes for the Republican", other="Everyone else (optional)",
                        done="Fully counted? Only say yes when every precinct is in")
 async def countyset_cmd(interaction: discord.Interaction, state: app_commands.Choice[str], county: str,
@@ -2651,8 +3414,7 @@ async def county_test_all() -> list[str]:
 @tree.command(name="countytest", description="Admin: check a county feed against an old results file, or all of them at once.")
 @app_commands.guild_only()
 @app_commands.choices(state=[app_commands.Choice(name="All states", value="ALL")] +
-                      [app_commands.Choice(name=CM.STATES[s], value=s)
-                       for s in ("GA", "NC", "MN", "NE", "FL", "VA", "IA", "OH", "TX", "SC", "AK", "MI", "ME", "MS", "NH", "KY", "KS")])
+                      [app_commands.Choice(name=CM.STATES[s], value=s) for s in CM.STATES])
 async def countytest_cmd(interaction: discord.Interaction, state: app_commands.Choice[str]):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("Admins only.", ephemeral=True)
@@ -2709,7 +3471,7 @@ async def countyrefresh_cmd(interaction: discord.Interaction):
 def county_card(link: str) -> dict:
     """send() arguments for the workbook card. A OneDrive link gets no preview in Discord, so this stands in for one.
     The picture is a snapshot from before results (assets/county_watch_card.png), and the footer says so."""
-    e = discord.Embed(title="County Watch 2026: live Senate workbook", url=link, color=0x1F2A44,
+    e = discord.Embed(title=f"County Watch {N.ELECTION_DAY.year}: live workbook", url=link, color=0x1F2A44,
                       description="Live county-by-county numbers for every Senate race we're watching. It updates every couple of "
                                   "minutes once polls close. View only. If you're new to this, read the Start Here tab first.")
     e.set_footer(text="Picture is a preview from before results, based on final polls. Open the workbook for live numbers.")
@@ -2746,7 +3508,7 @@ def help_embed(interaction: discord.Interaction, key: str) -> discord.Embed:
     return e
 
 
-class HelpView(discord.ui.View):
+class HelpView(ScopedView):
     def __init__(self, admin: bool, current: str):
         super().__init__(timeout=30 * 60)
         self.menu.options = [discord.SelectOption(label=label, value=key, description=desc, default=key == current)
@@ -2777,11 +3539,28 @@ async def help_cmd(interaction: discord.Interaction, section: app_commands.Choic
 @tree.error
 async def on_app_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     log.exception("command failed", exc_info=error)
+    cause = getattr(error, "original", error)
+    capture.event("error", where=f"/{interaction.command.name}" if interaction.command else "a command",
+                  user=interaction.user.id, error=f"{type(cause).__name__}: {cause}"[:300])
     msg = "Something went wrong running that command."
-    if interaction.response.is_done():
-        await interaction.followup.send(msg, ephemeral=True)
-    else:
-        await interaction.response.send_message(msg, ephemeral=True)
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except discord.HTTPException:       # the command took too long and Discord dropped it: there's nobody to tell
+        log.warning("Couldn't tell the user their command failed")
+
+
+@client.event
+async def on_interaction(interaction: discord.Interaction):
+    """Every command and button press goes in the capture log with what was typed, so a night can be replayed."""
+    data = interaction.data or {}
+    if interaction.type == discord.InteractionType.application_command:
+        capture.event("command", user=interaction.user.id, name=data.get("name"),
+                      options={o.get("name"): o.get("value") for o in data.get("options", [])})
+    elif interaction.type == discord.InteractionType.component:
+        capture.event("button", user=interaction.user.id, id=data.get("custom_id"))
 
 
 @client.event
@@ -2789,12 +3568,69 @@ async def setup_hook():
     client.add_dynamic_items(AlsoCall)
     gid = os.getenv("GUILD_ID")
     if gid:
-        guild = discord.Object(id=int(gid))
-        tree.copy_global_to(guild=guild)
-        synced = await tree.sync(guild=guild)
+        await sync_commands(discord.Object(id=int(gid)))
     else:
         synced = await tree.sync()
-    log.info("Synced %d commands", len(synced))
+        log.info("Synced %d commands everywhere (Discord can take up to an hour to show them)", len(synced))
+
+
+_synced: set[int] = set()
+
+
+async def sync_commands(guild) -> int:
+    """Give one server the commands, which shows them there at once. With GUILD_ID set, every server the bot is in
+    gets them this way: the home server at startup, the others as the bot finds itself in them."""
+    if guild.id in _synced:
+        return 0
+    _synced.add(guild.id)
+    try:
+        tree.copy_global_to(guild=guild)
+        synced = await tree.sync(guild=guild)
+    except discord.HTTPException as exc:
+        _synced.discard(guild.id)
+        if getattr(exc, "code", None) == 50001:
+            log.warning("Discord won't let the bot add commands to server %s. Either the bot isn't in that server, "
+                        "GUILD_ID is another server's ID, or it was invited without the applications.commands "
+                        "scope: invite it again with both `bot` and `applications.commands` ticked.", guild.id)
+        else:
+            log.warning("Couldn't give the commands to server %s: %s", guild.id, exc)
+        return 0
+    log.info("Synced %d commands to server %s", len(synced), getattr(guild, "name", guild.id))
+    return len(synced)
+
+
+def server_report(guild) -> list[str]:
+    """What this server still needs before the desk can work in it, in words. Empty when it's ready."""
+    out = []
+    me = guild.me
+    for key in ("board_channel", "desk_channel"):
+        ch = find_channel(guild, key)
+        if not ch:
+            out.append(f"no #{CFG.get(key)} channel (create it, or set {key} in config.json)")
+            continue
+        perms = ch.permissions_for(me) if me else None
+        lacking = [name for name, ok in (("View Channel", perms.view_channel), ("Send Messages", perms.send_messages),
+                                         ("Embed Links", perms.embed_links), ("Attach Files", perms.attach_files))
+                   if not ok] if perms else []
+        if lacking:
+            out.append(f"in #{ch.name} the bot can't: {', '.join(lacking)}")
+    role = discord.utils.get(guild.roles, name=CFG["junkie_role"])
+    if not role:
+        out.append(f'no "{CFG["junkie_role"]}" role (only admins can vote on calls until there is one)')
+    elif not role.members:
+        out.append(f'nobody has the "{CFG["junkie_role"]}" role yet')
+    return out
+
+
+@client.event
+async def on_guild_join(guild):
+    if os.getenv("GUILD_ID"):
+        await sync_commands(guild)
+    for line in server_report(guild):
+        log.warning("%s: %s", guild.name, line)
+
+
+_simulation: list = []
 
 
 @client.event
@@ -2807,11 +3643,20 @@ async def on_ready():
                "Remove that line and restart before election night, or nothing will run on time.")
         log.warning(msg)
         real = datetime.now(N.ET)
-        if N.ELECTION_DAY.replace(hour=0) <= real <= N.ELECTION_DAY.replace(day=4, hour=12) and g:
+        if N.ELECTION_DAY.replace(hour=0) <= real <= N.morning_after(12) and g:
             await post(g, "board_channel", content=msg)
-    for key in ("board_channel", "desk_channel"):
-        if g and not find_channel(g, key):
-            log.warning("Channel #%s not found: create it or fix config.json", CFG.get(key))
+    log.info("Running %s. Records: %s. Automatic calls start %s.", packs.active().name, packs.data_root(),
+             "on" if AUTOCALLS_DEFAULT else "off (DESK_AUTOCALLS=off)")
+    for guild in client.guilds:
+        if os.getenv("GUILD_ID"):
+            await sync_commands(guild)
+        problems = server_report(guild)
+        log.info("Server %s (%s): %s", guild.name, guild.id, "ready" if not problems else f"{len(problems)} thing(s) to fix")
+        for line in problems:
+            log.warning("%s: %s", guild.name, line)
+    if os.getenv("DESK_SIMULATE") and not _simulation:
+        import simulate         # a recorded night played into this server: see simulate.py
+        _simulation.append(asyncio.create_task(simulate.start(sys.modules[__name__], g)))
     if not alert_loop.is_running():
         alert_loop.start()
     if not county_loop.is_running():
@@ -2833,7 +3678,15 @@ def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise SystemExit("DISCORD_TOKEN is missing. Copy .env.example to .env and fill it in.")
-    client.run(token, log_handler=None)
+    try:
+        client.run(token, log_handler=None)
+    except discord.PrivilegedIntentsRequired:
+        raise SystemExit("Discord refused the connection: the bot needs the Server Members Intent, to know who holds the "
+                         f"{CFG['junkie_role']} role. On https://discord.com/developers/applications open the bot's "
+                         "application, go to Bot, turn on Server Members Intent, save, and start the bot again.") from None
+    except discord.LoginFailure:
+        raise SystemExit("Discord didn't accept DISCORD_TOKEN. Press Reset Token on the bot's page in the developer "
+                         "portal and paste the new one into .env.") from None
 
 
 if __name__ == "__main__":

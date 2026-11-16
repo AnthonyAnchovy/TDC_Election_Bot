@@ -1,0 +1,111 @@
+{
+ "schema": 1,
+ "id": "2027-chicago-mayor",
+ "name": "Chicago mayoral election, 2027",
+ "draft": true,
+ "example": true,
+ "summary": "A single contest, as a template: one nonpartisan race with several candidates. The names are placeholders. Replace them, and check the date and poll hours, before anyone plays.",
+ "election_day": "2027-02-23",
+ "timezone": "America/Chicago",
+ "predictions_deadline": "2027-02-23T18:00:00-06:00",
+ "jurisdictions": {
+  "CHI": "Chicago"
+ },
+ "options": {},
+ "races": [
+  {
+   "id": "CHI-MAYOR",
+   "type": "mayor",
+   "jurisdiction": "CHI",
+   "level": "local",
+   "label": "Mayor of Chicago",
+   "options": [
+    {
+     "key": "A",
+     "name": "Candidate A"
+    },
+    {
+     "key": "B",
+     "name": "Candidate B"
+    },
+    {
+     "key": "C",
+     "name": "Candidate C"
+    },
+    {
+     "key": "D",
+     "name": "Candidate D"
+    }
+   ]
+  },
+  {
+   "id": "CHI-RUNOFF",
+   "type": "question",
+   "jurisdiction": "CHI",
+   "level": "local",
+   "label": "Does it go to a runoff?",
+   "options": [
+    {
+     "key": "YES",
+     "name": "Yes, nobody clears 50%",
+     "color": "#b45309"
+    },
+    {
+     "key": "NO",
+     "name": "No, it's won outright",
+     "color": "#0f766e"
+    }
+   ]
+  }
+ ],
+ "closings": {
+  "CHI": [
+   "19:00",
+   "19:00"
+  ]
+ },
+ "game": {
+  "categories": [
+   {
+    "key": "mayor",
+    "name": "Mayor",
+    "points": 10,
+    "required": true,
+    "races": {
+     "type": "mayor"
+    }
+   },
+   {
+    "key": "question",
+    "name": "Side bets",
+    "points": 3,
+    "races": {
+     "type": "question"
+    }
+   }
+  ],
+  "flip_bonus": 0,
+  "tiebreaker": {
+   "label": "What share of the vote does the first-place candidate get?",
+   "name": "the leader's share",
+   "short": "tiebreaker",
+   "min": 0,
+   "max": 100,
+   "hint": "A whole number of percent. Closest guess breaks a tie."
+  }
+ },
+ "sections": [
+  {
+   "key": "city",
+   "name": "The race",
+   "kind": "list",
+   "category": "mayor"
+  },
+  {
+   "key": "bets",
+   "name": "Side bets",
+   "kind": "list",
+   "category": "question"
+  }
+ ]
+}

@@ -1,12 +1,13 @@
 """SQLite storage. Everything survives a bot restart."""
 import json
 import sqlite3
-import time
+
+import clock
 
 
 class Store:
-    def __init__(self, path: str = "desk.db"):
-        self.db = sqlite3.connect(path)
+    def __init__(self, path: str = "desk.db", **sqlite):
+        self.db = sqlite3.connect(path, **sqlite)      # the website passes check_same_thread=False
         self.db.executescript(
             """
             -- official desk calls (what the maps show)
@@ -51,7 +52,7 @@ class Store:
         return {r[0]: {"party": r[1], "called_at": r[2], "outlet": json.loads(r[3] or "{}").get("outlet")} for r in rows}
 
     def call(self, race_id: str, party: str, detail: dict | None = None, ts: float | None = None):
-        now = ts or time.time()
+        now = ts or clock.time()
         d = json.dumps(detail or {})
         self.db.execute("INSERT OR REPLACE INTO calls VALUES (?,?,?,?)", (race_id, party, now, d))
         self.db.execute("INSERT INTO history (ts, action, race_id, party, detail) VALUES (?,?,?,?,?)",
@@ -64,7 +65,7 @@ class Store:
         prev = self.get(race_id)
         self.db.execute("DELETE FROM calls WHERE race_id = ?", (race_id,))
         self.db.execute("INSERT INTO history (ts, action, race_id, party, detail) VALUES (?,?,?,?,?)",
-                        (ts or time.time(), "uncall", race_id, prev["party"] if prev else None,
+                        (ts or clock.time(), "uncall", race_id, prev["party"] if prev else None,
                          json.dumps(detail or {})))
         # start the race fresh: all standing votes are cleared (kept for stats)
         self.db.execute("UPDATE desk_votes SET active = 0 WHERE race_id = ?", (race_id,))
@@ -85,7 +86,7 @@ class Store:
         self.db.execute("UPDATE desk_votes SET active=0 WHERE user_id=? AND race_id=? AND kind=?",
                         (user_id, race_id, kind))
         self.db.execute("INSERT INTO desk_votes (user_id, race_id, kind, party, ts) VALUES (?,?,?,?,?)",
-                        (user_id, race_id, kind, party, ts or time.time()))
+                        (user_id, race_id, kind, party, ts or clock.time()))
         self.db.commit()
 
     def withdraw(self, user_id: int, race_id: str) -> bool:
@@ -108,7 +109,7 @@ class Store:
     # ------------------------------------------------------------------ pro calls
     def procall(self, race_id: str, outlet: str, party: str, user_id: int, ts: float | None = None):
         self.db.execute("INSERT OR REPLACE INTO procalls VALUES (?,?,?,?,?)",
-                        (race_id, outlet, party, ts or time.time(), user_id))
+                        (race_id, outlet, party, ts or clock.time(), user_id))
         self.db.commit()
 
     def procalls(self, race_id: str | None = None) -> list[dict]:
@@ -122,7 +123,7 @@ class Store:
 
     # ------------------------------------------------------------------ predictions
     def save_predictions(self, user_id: int, picks: dict[str, str], house_dem_seats: int | None):
-        now = time.time()
+        now = clock.time()
         self.db.execute("DELETE FROM predictions WHERE user_id = ?", (user_id,))
         self.db.executemany("INSERT INTO predictions VALUES (?,?,?,?)",
                             [(user_id, rid, p, now) for rid, p in picks.items()])
@@ -145,7 +146,7 @@ class Store:
         return self.db.execute("SELECT 1 FROM sent_alerts WHERE key = ?", (key,)).fetchone() is not None
 
     def mark_alert(self, key: str):
-        self.db.execute("INSERT OR IGNORE INTO sent_alerts VALUES (?,?)", (key, time.time()))
+        self.db.execute("INSERT OR IGNORE INTO sent_alerts VALUES (?,?)", (key, clock.time()))
         self.db.commit()
 
     # ------------------------------------------------------------------ settings

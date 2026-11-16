@@ -419,7 +419,8 @@ def main(argv):
         elif what == "patch-alaska":
             patch_alaska()
         elif what == "upload":
-            upload(HERE / "County Watch 2026.xlsx", replace="--replace" in argv)
+            import feeds
+            upload(feeds.cw_workbook(), replace="--replace" in argv)
         elif what == "share":
             share(view="--view" in argv)
         elif what == "check":

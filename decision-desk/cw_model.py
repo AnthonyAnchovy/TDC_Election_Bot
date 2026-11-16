@@ -33,16 +33,17 @@ import csv
 import json
 from pathlib import Path
 
+import feeds as FEEDS
+import packs
+
 HERE = Path(__file__).parent
-CW_DIR = HERE / "countywatch"
+CW_DIR = HERE / "countywatch"     # the active pack's County Watch folder: set when a pack becomes active
 AK_TOTAL_22 = 261_705   # Alaska's 2022 Senate votes, first choices
 
-STATES = {"AK": "Alaska", "GA": "Georgia", "IA": "Iowa", "KS": "Kansas", "ME": "Maine", "MI": "Michigan",
-          "MN": "Minnesota", "MS": "Mississippi", "NC": "North Carolina", "NE": "Nebraska", "NH": "New Hampshire",
-          "OH": "Ohio", "SC": "South Carolina", "TX": "Texas", "FL": "Florida",
-          # Bellwethers: safe Senate races in early-closing states, watched for the national swing, not the winner
-          "VA": "Virginia", "KY": "Kentucky"}
-BELLWETHER = {"VA", "KY"}
+# The states the active pack models (its feeds.countywatch block), and its bellwethers: safe races in early-closing
+# states, watched for the national swing, not the winner. Both are empty for a pack with no County Watch.
+STATES: dict[str, str] = {}
+BELLWETHER: set[str] = set()
 TYPES = ["Big metro core", "College suburb/metro", "Mid-size/working metro", "Black Belt", "Hispanic",
          "Native American", "Small town & rural", "Alaska district"]
 MODE_NAMES = {"VA": ("early/mail", "Election Day"), "GA": ("advance", "Election Day"), "NC": ("early", "Election Day"), "IA": ("early/absentee", "Election Day"),
@@ -104,10 +105,30 @@ def short(name: str) -> str:
 _CACHE: dict = {}
 
 
+@packs.on_activate
+def _fill(_pack):
+    global CW_DIR
+    CW_DIR = FEEDS.cw_folder()
+    STATES.clear()
+    STATES.update(FEEDS.cw_states())
+    BELLWETHER.clear()
+    BELLWETHER.update(FEEDS.cw_bellwether())
+    _CACHE.clear()
+
+
+packs.active()      # so the tables are filled however this module is first imported
+
+
 def load() -> dict[str, list[dict]]:
+    """Every county's baseline, by state. Empty for a pack that ships no baseline.csv."""
     if "rows" in _CACHE:
         return _CACHE["rows"]
-    keys = json.loads((CW_DIR / "key_counties.json").read_text(encoding="utf-8"))
+    if not (CW_DIR / "baseline.csv").exists():
+        return _CACHE.setdefault("rows", {})
+    try:
+        keys = json.loads((CW_DIR / "key_counties.json").read_text(encoding="utf-8"))
+    except OSError:
+        keys = {}
     out: dict[str, list[dict]] = {}
     ne24 = {}
     try:      # MIT Election Data + Science Lab, 2024-elections-official, 2024-senate-county.csv (Osborn v Fischer)

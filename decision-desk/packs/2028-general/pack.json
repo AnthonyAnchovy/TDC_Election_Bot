@@ -1,0 +1,1229 @@
+{
+ "schema": 1,
+ "id": "2028-general",
+ "name": "2028 general election",
+ "draft": true,
+ "summary": "President, U.S. Senate, House and governors, November 7, 2028. A skeleton: nominees, Senate and governor holders, ratings and the Senate's holdover seats still need filling in.",
+ "election_day": "2028-11-07",
+ "timezone": "America/New_York",
+ "predictions_deadline": "2028-11-07T18:00:00-05:00",
+ "jurisdictions": {
+  "DC": "District of Columbia"
+ },
+ "options": {
+  "D": {
+   "name": "Democratic",
+   "noun": "Democrat",
+   "plural": "Democrats",
+   "color": "#1f5fbf",
+   "emoji": "🔵"
+  },
+  "R": {
+   "name": "Republican",
+   "noun": "Republican",
+   "plural": "Republicans",
+   "color": "#c8322d",
+   "emoji": "🔴"
+  },
+  "I": {
+   "name": "Independent",
+   "noun": "independent",
+   "plural": "independents",
+   "color": "#7a4fc4",
+   "emoji": "🟣"
+  }
+ },
+ "bodies": {
+  "electoral_college": {
+   "name": "Electoral College",
+   "seats": 538,
+   "majority": 270,
+   "control": "US-PRES"
+  },
+  "senate": {
+   "name": "Senate",
+   "seats": 100,
+   "majority": 51,
+   "control": "US-SENATE",
+   "holdover": {
+    "D": 0,
+    "R": 0
+   },
+   "_todo": "Set holdover to the seats each party holds that aren't up, and tie_goes_to to the sitting Vice President's party if that's how you want a 50-50 Senate called."
+  },
+  "house": {
+   "name": "House",
+   "seats": 435,
+   "majority": 218,
+   "control": "US-HOUSE"
+  },
+  "governor": {
+   "name": "Governors"
+  }
+ },
+ "races": [
+  {
+   "id": "AL-PRES",
+   "type": "president",
+   "jurisdiction": "AL",
+   "body": "electoral_college",
+   "weight": 9,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "AK-PRES",
+   "type": "president",
+   "jurisdiction": "AK",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "AZ-PRES",
+   "type": "president",
+   "jurisdiction": "AZ",
+   "body": "electoral_college",
+   "weight": 11,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "AR-PRES",
+   "type": "president",
+   "jurisdiction": "AR",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "CA-PRES",
+   "type": "president",
+   "jurisdiction": "CA",
+   "body": "electoral_college",
+   "weight": 54,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "CO-PRES",
+   "type": "president",
+   "jurisdiction": "CO",
+   "body": "electoral_college",
+   "weight": 10,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "CT-PRES",
+   "type": "president",
+   "jurisdiction": "CT",
+   "body": "electoral_college",
+   "weight": 7,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "DE-PRES",
+   "type": "president",
+   "jurisdiction": "DE",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "DC-PRES",
+   "type": "president",
+   "jurisdiction": "DC",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "FL-PRES",
+   "type": "president",
+   "jurisdiction": "FL",
+   "body": "electoral_college",
+   "weight": 30,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "GA-PRES",
+   "type": "president",
+   "jurisdiction": "GA",
+   "body": "electoral_college",
+   "weight": 16,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "HI-PRES",
+   "type": "president",
+   "jurisdiction": "HI",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "ID-PRES",
+   "type": "president",
+   "jurisdiction": "ID",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "IL-PRES",
+   "type": "president",
+   "jurisdiction": "IL",
+   "body": "electoral_college",
+   "weight": 19,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "IN-PRES",
+   "type": "president",
+   "jurisdiction": "IN",
+   "body": "electoral_college",
+   "weight": 11,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "IA-PRES",
+   "type": "president",
+   "jurisdiction": "IA",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "KS-PRES",
+   "type": "president",
+   "jurisdiction": "KS",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "KY-PRES",
+   "type": "president",
+   "jurisdiction": "KY",
+   "body": "electoral_college",
+   "weight": 8,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "LA-PRES",
+   "type": "president",
+   "jurisdiction": "LA",
+   "body": "electoral_college",
+   "weight": 8,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "ME-PRES",
+   "type": "president",
+   "jurisdiction": "ME",
+   "body": "electoral_college",
+   "weight": 2,
+   "holder": "D",
+   "level": "federal",
+   "label": "Maine (statewide)"
+  },
+  {
+   "id": "MD-PRES",
+   "type": "president",
+   "jurisdiction": "MD",
+   "body": "electoral_college",
+   "weight": 10,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "MA-PRES",
+   "type": "president",
+   "jurisdiction": "MA",
+   "body": "electoral_college",
+   "weight": 11,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "MI-PRES",
+   "type": "president",
+   "jurisdiction": "MI",
+   "body": "electoral_college",
+   "weight": 15,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "MN-PRES",
+   "type": "president",
+   "jurisdiction": "MN",
+   "body": "electoral_college",
+   "weight": 10,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "MS-PRES",
+   "type": "president",
+   "jurisdiction": "MS",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "MO-PRES",
+   "type": "president",
+   "jurisdiction": "MO",
+   "body": "electoral_college",
+   "weight": 10,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "MT-PRES",
+   "type": "president",
+   "jurisdiction": "MT",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "NE-PRES",
+   "type": "president",
+   "jurisdiction": "NE",
+   "body": "electoral_college",
+   "weight": 2,
+   "holder": "R",
+   "level": "federal",
+   "label": "Nebraska (statewide)"
+  },
+  {
+   "id": "NV-PRES",
+   "type": "president",
+   "jurisdiction": "NV",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "NH-PRES",
+   "type": "president",
+   "jurisdiction": "NH",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "NJ-PRES",
+   "type": "president",
+   "jurisdiction": "NJ",
+   "body": "electoral_college",
+   "weight": 14,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "NM-PRES",
+   "type": "president",
+   "jurisdiction": "NM",
+   "body": "electoral_college",
+   "weight": 5,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "NY-PRES",
+   "type": "president",
+   "jurisdiction": "NY",
+   "body": "electoral_college",
+   "weight": 28,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "NC-PRES",
+   "type": "president",
+   "jurisdiction": "NC",
+   "body": "electoral_college",
+   "weight": 16,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "ND-PRES",
+   "type": "president",
+   "jurisdiction": "ND",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "OH-PRES",
+   "type": "president",
+   "jurisdiction": "OH",
+   "body": "electoral_college",
+   "weight": 17,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "OK-PRES",
+   "type": "president",
+   "jurisdiction": "OK",
+   "body": "electoral_college",
+   "weight": 7,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "OR-PRES",
+   "type": "president",
+   "jurisdiction": "OR",
+   "body": "electoral_college",
+   "weight": 8,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "PA-PRES",
+   "type": "president",
+   "jurisdiction": "PA",
+   "body": "electoral_college",
+   "weight": 19,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "RI-PRES",
+   "type": "president",
+   "jurisdiction": "RI",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "SC-PRES",
+   "type": "president",
+   "jurisdiction": "SC",
+   "body": "electoral_college",
+   "weight": 9,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "SD-PRES",
+   "type": "president",
+   "jurisdiction": "SD",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "TN-PRES",
+   "type": "president",
+   "jurisdiction": "TN",
+   "body": "electoral_college",
+   "weight": 11,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "TX-PRES",
+   "type": "president",
+   "jurisdiction": "TX",
+   "body": "electoral_college",
+   "weight": 40,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "UT-PRES",
+   "type": "president",
+   "jurisdiction": "UT",
+   "body": "electoral_college",
+   "weight": 6,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "VT-PRES",
+   "type": "president",
+   "jurisdiction": "VT",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "VA-PRES",
+   "type": "president",
+   "jurisdiction": "VA",
+   "body": "electoral_college",
+   "weight": 13,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "WA-PRES",
+   "type": "president",
+   "jurisdiction": "WA",
+   "body": "electoral_college",
+   "weight": 12,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "WV-PRES",
+   "type": "president",
+   "jurisdiction": "WV",
+   "body": "electoral_college",
+   "weight": 4,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "WI-PRES",
+   "type": "president",
+   "jurisdiction": "WI",
+   "body": "electoral_college",
+   "weight": 10,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "WY-PRES",
+   "type": "president",
+   "jurisdiction": "WY",
+   "body": "electoral_college",
+   "weight": 3,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "ME1-PRES",
+   "type": "president",
+   "jurisdiction": "ME",
+   "label": "Maine 1st District",
+   "body": "electoral_college",
+   "weight": 1,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "ME2-PRES",
+   "type": "president",
+   "jurisdiction": "ME",
+   "label": "Maine 2nd District",
+   "body": "electoral_college",
+   "weight": 1,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "NE1-PRES",
+   "type": "president",
+   "jurisdiction": "NE",
+   "label": "Nebraska 1st District",
+   "body": "electoral_college",
+   "weight": 1,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "NE2-PRES",
+   "type": "president",
+   "jurisdiction": "NE",
+   "label": "Nebraska 2nd District",
+   "body": "electoral_college",
+   "weight": 1,
+   "holder": "D",
+   "level": "federal"
+  },
+  {
+   "id": "NE3-PRES",
+   "type": "president",
+   "jurisdiction": "NE",
+   "label": "Nebraska 3rd District",
+   "body": "electoral_college",
+   "weight": 1,
+   "holder": "R",
+   "level": "federal"
+  },
+  {
+   "id": "AL-SEN",
+   "type": "senate",
+   "jurisdiction": "AL",
+   "level": "federal"
+  },
+  {
+   "id": "AK-SEN",
+   "type": "senate",
+   "jurisdiction": "AK",
+   "level": "federal"
+  },
+  {
+   "id": "AZ-SEN",
+   "type": "senate",
+   "jurisdiction": "AZ",
+   "level": "federal"
+  },
+  {
+   "id": "AR-SEN",
+   "type": "senate",
+   "jurisdiction": "AR",
+   "level": "federal"
+  },
+  {
+   "id": "CA-SEN",
+   "type": "senate",
+   "jurisdiction": "CA",
+   "level": "federal"
+  },
+  {
+   "id": "CO-SEN",
+   "type": "senate",
+   "jurisdiction": "CO",
+   "level": "federal"
+  },
+  {
+   "id": "CT-SEN",
+   "type": "senate",
+   "jurisdiction": "CT",
+   "level": "federal"
+  },
+  {
+   "id": "FL-SEN",
+   "type": "senate",
+   "jurisdiction": "FL",
+   "level": "federal"
+  },
+  {
+   "id": "GA-SEN",
+   "type": "senate",
+   "jurisdiction": "GA",
+   "level": "federal"
+  },
+  {
+   "id": "HI-SEN",
+   "type": "senate",
+   "jurisdiction": "HI",
+   "level": "federal"
+  },
+  {
+   "id": "ID-SEN",
+   "type": "senate",
+   "jurisdiction": "ID",
+   "level": "federal"
+  },
+  {
+   "id": "IL-SEN",
+   "type": "senate",
+   "jurisdiction": "IL",
+   "level": "federal"
+  },
+  {
+   "id": "IN-SEN",
+   "type": "senate",
+   "jurisdiction": "IN",
+   "level": "federal"
+  },
+  {
+   "id": "IA-SEN",
+   "type": "senate",
+   "jurisdiction": "IA",
+   "level": "federal"
+  },
+  {
+   "id": "KS-SEN",
+   "type": "senate",
+   "jurisdiction": "KS",
+   "level": "federal"
+  },
+  {
+   "id": "KY-SEN",
+   "type": "senate",
+   "jurisdiction": "KY",
+   "level": "federal"
+  },
+  {
+   "id": "LA-SEN",
+   "type": "senate",
+   "jurisdiction": "LA",
+   "level": "federal"
+  },
+  {
+   "id": "MD-SEN",
+   "type": "senate",
+   "jurisdiction": "MD",
+   "level": "federal"
+  },
+  {
+   "id": "MO-SEN",
+   "type": "senate",
+   "jurisdiction": "MO",
+   "level": "federal"
+  },
+  {
+   "id": "NV-SEN",
+   "type": "senate",
+   "jurisdiction": "NV",
+   "level": "federal"
+  },
+  {
+   "id": "NH-SEN",
+   "type": "senate",
+   "jurisdiction": "NH",
+   "level": "federal"
+  },
+  {
+   "id": "NY-SEN",
+   "type": "senate",
+   "jurisdiction": "NY",
+   "level": "federal"
+  },
+  {
+   "id": "NC-SEN",
+   "type": "senate",
+   "jurisdiction": "NC",
+   "level": "federal"
+  },
+  {
+   "id": "ND-SEN",
+   "type": "senate",
+   "jurisdiction": "ND",
+   "level": "federal"
+  },
+  {
+   "id": "OH-SEN",
+   "type": "senate",
+   "jurisdiction": "OH",
+   "level": "federal"
+  },
+  {
+   "id": "OK-SEN",
+   "type": "senate",
+   "jurisdiction": "OK",
+   "level": "federal"
+  },
+  {
+   "id": "OR-SEN",
+   "type": "senate",
+   "jurisdiction": "OR",
+   "level": "federal"
+  },
+  {
+   "id": "PA-SEN",
+   "type": "senate",
+   "jurisdiction": "PA",
+   "level": "federal"
+  },
+  {
+   "id": "SC-SEN",
+   "type": "senate",
+   "jurisdiction": "SC",
+   "level": "federal"
+  },
+  {
+   "id": "SD-SEN",
+   "type": "senate",
+   "jurisdiction": "SD",
+   "level": "federal"
+  },
+  {
+   "id": "UT-SEN",
+   "type": "senate",
+   "jurisdiction": "UT",
+   "level": "federal"
+  },
+  {
+   "id": "VT-SEN",
+   "type": "senate",
+   "jurisdiction": "VT",
+   "level": "federal"
+  },
+  {
+   "id": "WA-SEN",
+   "type": "senate",
+   "jurisdiction": "WA",
+   "level": "federal"
+  },
+  {
+   "id": "WI-SEN",
+   "type": "senate",
+   "jurisdiction": "WI",
+   "level": "federal"
+  },
+  {
+   "id": "DE-GOV",
+   "type": "governor",
+   "jurisdiction": "DE",
+   "level": "state"
+  },
+  {
+   "id": "IN-GOV",
+   "type": "governor",
+   "jurisdiction": "IN",
+   "level": "state"
+  },
+  {
+   "id": "MO-GOV",
+   "type": "governor",
+   "jurisdiction": "MO",
+   "level": "state"
+  },
+  {
+   "id": "MT-GOV",
+   "type": "governor",
+   "jurisdiction": "MT",
+   "level": "state"
+  },
+  {
+   "id": "NH-GOV",
+   "type": "governor",
+   "jurisdiction": "NH",
+   "level": "state"
+  },
+  {
+   "id": "NC-GOV",
+   "type": "governor",
+   "jurisdiction": "NC",
+   "level": "state"
+  },
+  {
+   "id": "ND-GOV",
+   "type": "governor",
+   "jurisdiction": "ND",
+   "level": "state"
+  },
+  {
+   "id": "UT-GOV",
+   "type": "governor",
+   "jurisdiction": "UT",
+   "level": "state"
+  },
+  {
+   "id": "VT-GOV",
+   "type": "governor",
+   "jurisdiction": "VT",
+   "level": "state"
+  },
+  {
+   "id": "WA-GOV",
+   "type": "governor",
+   "jurisdiction": "WA",
+   "level": "state"
+  },
+  {
+   "id": "WV-GOV",
+   "type": "governor",
+   "jurisdiction": "WV",
+   "level": "state"
+  },
+  {
+   "id": "US-PRES",
+   "type": "control",
+   "body": "electoral_college",
+   "label": "The presidency",
+   "holder": "R"
+  },
+  {
+   "id": "US-HOUSE",
+   "type": "control",
+   "body": "house",
+   "label": "Control of the House"
+  },
+  {
+   "id": "US-SENATE",
+   "type": "control",
+   "body": "senate",
+   "label": "Control of the Senate"
+  }
+ ],
+ "house_seats": {
+  "AL": 7,
+  "AK": 1,
+  "AZ": 9,
+  "AR": 4,
+  "CA": 52,
+  "CO": 8,
+  "CT": 5,
+  "DE": 1,
+  "FL": 28,
+  "GA": 14,
+  "HI": 2,
+  "ID": 2,
+  "IL": 17,
+  "IN": 9,
+  "IA": 4,
+  "KS": 4,
+  "KY": 6,
+  "LA": 6,
+  "ME": 2,
+  "MD": 8,
+  "MA": 9,
+  "MI": 13,
+  "MN": 8,
+  "MS": 4,
+  "MO": 8,
+  "MT": 2,
+  "NE": 3,
+  "NV": 4,
+  "NH": 2,
+  "NJ": 12,
+  "NM": 3,
+  "NY": 26,
+  "NC": 14,
+  "ND": 1,
+  "OH": 15,
+  "OK": 5,
+  "OR": 6,
+  "PA": 17,
+  "RI": 2,
+  "SC": 7,
+  "SD": 1,
+  "TN": 9,
+  "TX": 38,
+  "UT": 4,
+  "VT": 1,
+  "VA": 11,
+  "WA": 10,
+  "WV": 2,
+  "WI": 8,
+  "WY": 1
+ },
+ "ratings": {
+  "rated": [],
+  "battleground": [],
+  "safe": {}
+ },
+ "closings": {
+  "AL": [
+   "20:00",
+   "20:00"
+  ],
+  "AK": [
+   "24:00",
+   "25:00"
+  ],
+  "AZ": [
+   "21:00",
+   "21:00"
+  ],
+  "AR": [
+   "20:30",
+   "20:30"
+  ],
+  "CA": [
+   "23:00",
+   "23:00"
+  ],
+  "CO": [
+   "21:00",
+   "21:00"
+  ],
+  "CT": [
+   "20:00",
+   "20:00"
+  ],
+  "DE": [
+   "20:00",
+   "20:00"
+  ],
+  "FL": [
+   "19:00",
+   "20:00"
+  ],
+  "GA": [
+   "19:00",
+   "19:00"
+  ],
+  "HI": [
+   "24:00",
+   "24:00"
+  ],
+  "ID": [
+   "22:00",
+   "23:00"
+  ],
+  "IL": [
+   "20:00",
+   "20:00"
+  ],
+  "IN": [
+   "18:00",
+   "19:00"
+  ],
+  "IA": [
+   "21:00",
+   "21:00"
+  ],
+  "KS": [
+   "20:00",
+   "21:00"
+  ],
+  "KY": [
+   "18:00",
+   "19:00"
+  ],
+  "LA": [
+   "21:00",
+   "21:00"
+  ],
+  "ME": [
+   "20:00",
+   "20:00"
+  ],
+  "MD": [
+   "20:00",
+   "20:00"
+  ],
+  "MA": [
+   "20:00",
+   "20:00"
+  ],
+  "MI": [
+   "20:00",
+   "21:00"
+  ],
+  "MN": [
+   "21:00",
+   "21:00"
+  ],
+  "MS": [
+   "20:00",
+   "20:00"
+  ],
+  "MO": [
+   "20:00",
+   "20:00"
+  ],
+  "MT": [
+   "22:00",
+   "22:00"
+  ],
+  "NE": [
+   "21:00",
+   "21:00"
+  ],
+  "NV": [
+   "22:00",
+   "22:00"
+  ],
+  "NH": [
+   "19:00",
+   "20:00"
+  ],
+  "NJ": [
+   "20:00",
+   "20:00"
+  ],
+  "NM": [
+   "21:00",
+   "21:00"
+  ],
+  "NY": [
+   "21:00",
+   "21:00"
+  ],
+  "NC": [
+   "19:30",
+   "19:30"
+  ],
+  "ND": [
+   "22:00",
+   "23:00"
+  ],
+  "OH": [
+   "19:30",
+   "19:30"
+  ],
+  "OK": [
+   "20:00",
+   "20:00"
+  ],
+  "OR": [
+   "23:00",
+   "23:00"
+  ],
+  "PA": [
+   "20:00",
+   "20:00"
+  ],
+  "RI": [
+   "20:00",
+   "20:00"
+  ],
+  "SC": [
+   "19:00",
+   "19:00"
+  ],
+  "SD": [
+   "20:00",
+   "21:00"
+  ],
+  "TN": [
+   "20:00",
+   "20:00"
+  ],
+  "TX": [
+   "20:00",
+   "21:00"
+  ],
+  "UT": [
+   "22:00",
+   "22:00"
+  ],
+  "VT": [
+   "19:00",
+   "19:00"
+  ],
+  "VA": [
+   "19:00",
+   "19:00"
+  ],
+  "WA": [
+   "23:00",
+   "23:00"
+  ],
+  "WV": [
+   "19:30",
+   "19:30"
+  ],
+  "WI": [
+   "21:00",
+   "21:00"
+  ],
+  "WY": [
+   "21:00",
+   "21:00"
+  ],
+  "DC": [
+   "20:00",
+   "20:00"
+  ]
+ },
+ "feeds": {
+  "bluesky": {
+   "since": "2028-11-07T17:00:00-05:00",
+   "accounts": {
+    "did:plc:catipgdd42lzwcqfsfcc6ype": "Decision Desk HQ",
+    "did:plc:oegdayoj7y4heuqwngwg2d2p": "Dave Wasserman"
+   }
+  }
+ },
+ "game": {
+  "categories": [
+   {
+    "key": "president",
+    "name": "President, state by state",
+    "points": 1,
+    "required": true,
+    "races": {
+     "type": "president"
+    }
+   },
+   {
+    "key": "presidency",
+    "name": "The presidency",
+    "points": 10,
+    "implied_by": "president",
+    "races": {
+     "ids": [
+      "US-PRES"
+     ]
+    }
+   },
+   {
+    "key": "senate",
+    "name": "Senate",
+    "points": 1,
+    "required": true,
+    "races": {
+     "type": "senate"
+    }
+   },
+   {
+    "key": "house_control",
+    "name": "House majority",
+    "points": 5,
+    "required": true,
+    "races": {
+     "ids": [
+      "US-HOUSE"
+     ]
+    }
+   },
+   {
+    "key": "governor",
+    "name": "governors",
+    "points": 1,
+    "races": {
+     "type": "governor"
+    }
+   }
+  ],
+  "flip_bonus": 1,
+  "tiebreaker": {
+   "label": "How many electoral votes does the winner get?",
+   "name": "the winner's electoral votes",
+   "short": "tiebreaker",
+   "min": 270,
+   "max": 538,
+   "hint": "Out of 538. If two people finish level on points, the closer guess wins."
+  }
+ },
+ "sections": [
+  {
+   "key": "president",
+   "name": "President",
+   "kind": "map",
+   "category": "president",
+   "suffix": "PRES",
+   "body": "electoral_college"
+  },
+  {
+   "key": "senate",
+   "name": "Senate",
+   "kind": "map",
+   "category": "senate",
+   "suffix": "SEN"
+  },
+  {
+   "key": "house",
+   "name": "House",
+   "kind": "house",
+   "control": "US-HOUSE"
+  },
+  {
+   "key": "governor",
+   "name": "Governors",
+   "kind": "map",
+   "category": "governor",
+   "suffix": "GOV"
+  }
+ ]
+}

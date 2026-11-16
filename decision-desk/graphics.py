@@ -163,9 +163,34 @@ def _split_name(name):
 _SHAPES = None
 
 
+def place(code: str | None) -> dict | None:
+    """A place the active pack draws itself (a city: its outline and its wards), from the pack's shapes.json."""
+    if not code:
+        return None
+    import packs
+    return ((packs.active().read("shapes.json") or {}).get("places") or {}).get(code)
+
+
+def _area(ring) -> float:
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1])) / 2
+
+
+def holes(rings: list) -> set[int]:
+    """Which rings of a place's outline are holes: wound the other way from its largest ring (Norridge and Harwood
+    Heights, inside Chicago). A state's rings are all filled."""
+    if not rings:
+        return set()
+    big = _area(max(rings, key=lambda r: abs(_area(r))))
+    return {i for i, r in enumerate(rings) if _area(r) * big < 0}
+
+
 def _state_rings(state: str | None):
-    """Polygons (lists of (x, y)) for a state, or the lower 48 when state is None."""
+    """Polygons (lists of (x, y)) for a state, or the lower 48 when state is None. A place the pack draws itself
+    gives its outline (holes included: see holes())."""
     global _SHAPES
+    own = place(state)
+    if own:
+        return [[(x, y) for x, y in r] for r in own.get("outline") or []]
     if _SHAPES is None:
         p = Path(__file__).parent / "state_shapes.json"
         _SHAPES = __import__("json").loads(p.read_text()) if p.exists() else {}
@@ -192,9 +217,10 @@ def _shape_mask(state: str | None, box_w: int, box_h: int) -> Image.Image | None
     h = int((max(ys) - min(ys)) * sc) + 4
     m = Image.new("L", (w * 2, h * 2), 0)  # 2x supersample for smooth edges
     md = ImageDraw.Draw(m)
-    for r in pts:
+    cut = holes(rings) if place(state) else set()
+    for i, r in sorted(enumerate(pts), key=lambda ir: ir[0] in cut):     # holes last, so they cut through
         if len(r) > 2:
-            md.polygon([((x - min(xs)) * sc * 2 + 4, (y - min(ys)) * sc * 2 + 4) for x, y in r], fill=255)
+            md.polygon([((x - min(xs)) * sc * 2 + 4, (y - min(ys)) * sc * 2 + 4) for x, y in r], fill=0 if i in cut else 255)
     return m.resize((w, h), Image.LANCZOS)
 
 
@@ -266,8 +292,9 @@ def _classic_card(race_id: str, party: str, *, candidate: str | None = None,
     """Transparent PNG: a floating glass card with knockout lettering and the state's silhouette."""
     from PIL import ImageFilter
 
+    import colors
     race = R.RACES[race_id]
-    key = "X" if retracted else party
+    key = "X" if retracted else colors.style(race_id, party)
     W, H = 1480, 900
     px0, py0, px1, py1 = 50, 70, W - 130, H - 60         # the glass panel
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -420,15 +447,17 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
              width: int | None = None, brand: bool = True) -> io.BytesIO:
     """calls: race -> party. marks: race -> True (pick right) / False (pick wrong), drawn as badges.
     width: downscale the PNG (used for the fast-updating prediction picker)."""
-    assert kind in ("senate", "governor")
     marks = marks or {}
+    if kind not in ("senate", "governor"):       # a president's states, or any other statewide race a pack has
+        return _weighted_map(kind, calls, title, marks, pending_word, width, brand)
     holders = R.SENATE if kind == "senate" else R.GOVERNOR
     suffix = "SEN" if kind == "senate" else "GOV"
 
     W, H = 1200, 1030
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    title = (title or ("2026 SENATE" if kind == "senate" else "2026 GOVERNORS")).upper()
+    year = __import__("packs").active().election_day().year
+    title = (title or (f"{year} SENATE" if kind == "senate" else f"{year} GOVERNORS")).upper()
     d.text((52, 56), title, font=fit(d, title, W - 400, 48), fill=WHITE, anchor="lm")
     if brand:
         d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
@@ -500,6 +529,159 @@ def tile_map(kind: str, calls: dict[str, str], *, title: str | None = None,
     return to_png(img)
 
 
+MAP_KINDS = ("senate", "governor", "president")
+
+
+def ward_map(code: str, rid: str, called: str | None, *, leaders: dict[str, str] | None = None,
+             title: str | None = None, width: int | None = None) -> io.BytesIO | None:
+    """A city by ward, in the bot's dark map style. Each ward is drawn in the colour of whoever leads it when
+    `leaders` has it ({ward: option}); otherwise the whole city takes the called winner's colour, or stays grey
+    until a call. None when the pack has no wards for the place."""
+    import colors
+    import packs
+    import picks as P
+    own = place(code)
+    parts = (own or {}).get("parts") or {}
+    if not parts:
+        return None
+    leaders = leaders or {}
+    rings = [r for rs in parts.values() for r in rs]
+    lats = [y for r in rings for _, y in r]
+    k = math.cos(math.radians((max(lats) + min(lats)) / 2))
+    xs = [x * k for r in rings for x, _ in r]
+    ys = [-y for r in rings for _, y in r]
+    W, top, bottom = 1100, 130, 150
+    box_h = 1180
+    sc = min((W - 104) / (max(xs) - min(xs)), box_h / (max(ys) - min(ys)))
+    map_w = (max(xs) - min(xs)) * sc
+    H = int(top + (max(ys) - min(ys)) * sc + bottom)
+    x0 = (W - map_w) / 2
+    S = 2
+    img = Image.new("RGB", (W * S, H * S), BG)
+    d = ImageDraw.Draw(img)
+    proj = lambda r: [((x * k - min(xs)) * sc * S + x0 * S, (-y - min(ys)) * sc * S + top * S) for x, y in r]   # noqa: E731
+    fill_of = lambda key: PARTY[colors.style(rid, key)] if key else PENDING                                     # noqa: E731
+    for ward, rs in parts.items():
+        for r in rs:
+            if len(r) > 2:
+                d.polygon(proj(r), fill=fill_of(leaders.get(ward, called)), outline=BG, width=2 * S)
+    for ward, rs in parts.items():
+        biggest = max(rs, key=lambda r: abs(_area(r)))
+        p = proj(biggest)
+        cx, cy = sum(x for x, _ in p) / len(p), sum(y for _, y in p) / len(p)
+        d.text((cx, cy), ward, font=font(15 * S), fill=(255, 255, 255), anchor="mm")
+    name = packs.active().places.get(code, code)
+    title = (title or f"{name} · {R.RACES[rid]['label']}").upper()
+    d.text((52 * S, 56 * S), title, font=fit(d, title, (W - 300) * S, 40 * S), fill=WHITE, anchor="lm")
+    d.text(((W - 52) * S, 56 * S), "DECISION DESK", font=font(22 * S), fill=MUTED, anchor="rm")
+    y = H - bottom + 40
+    if called and not leaders:
+        line = f"CALLED: {P.name_of(rid, called).upper()}"
+        d.text((52 * S, y * S), line, font=font(34 * S), fill=fill_of(called), anchor="lm")
+    else:
+        d.text((52 * S, y * S), "NOT CALLED YET" if not called else "WARD LEADERS", font=font(30 * S), fill=MUTED, anchor="lm")
+    x = 52
+    for key in P.options_for(rid):
+        label = P.name_of(rid, key)
+        d.rounded_rectangle([x * S, (y + 40) * S, (x + 22) * S, (y + 62) * S], radius=4 * S, fill=fill_of(key))
+        d.text(((x + 30) * S, (y + 51) * S), label, font=font(20 * S, False), fill=WHITE, anchor="lm")
+        x += 30 + d.textlength(label, font=font(20 * S, False)) / S + 28
+        if x > W - 200:
+            break
+    d.text(((W - 52) * S, (y + 51) * S), f"{len(parts)} {own.get('parts_name', 'part')}s", font=font(20 * S, False),
+           fill=MUTED, anchor="rm")
+    img = img.resize((W, H), Image.LANCZOS)
+    if width:
+        img = img.resize((width, round(H * width / W)), Image.LANCZOS)
+    return to_png(img)
+EXTRA_TILES = {"DC": (9, 5)}        # drawn only on a map whose races include it
+
+
+def _weighted_map(kind: str, calls: dict[str, str], title, marks: dict, pending_word: str, width, brand: bool) -> io.BytesIO:
+    """The tile map for races that count for more than one each: a president's, where a state is its electoral
+    votes. Every state is still one tile, with its votes written under its name, and the bar adds the votes up.
+    Districts that vote on their own (Maine's and Nebraska's) have no tile: they're listed under the map."""
+    races = {rid: r for rid, r in R.RACES.items() if r["type"] == kind}
+    body = R.BODIES.get(next((r["body"] for r in races.values() if r.get("body")), ""), {})
+    total = body.get("seats") or sum(r["weight"] for r in races.values())
+    need = body.get("majority") or total // 2 + 1
+    tiles = {**TILES, **EXTRA_TILES}
+    by_tile = {rid.split("-")[0]: rid for rid in races if rid.split("-")[0] in tiles}
+    off_map = [rid for rid in races if rid.split("-")[0] not in tiles]
+
+    W, H = 1200, 1030 + (44 if off_map else 0)
+    img = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(img)
+    title = (title or f"{__import__('packs').active().election_day().year} {body.get('name') or kind}").upper()
+    d.text((52, 56), title, font=fit(d, title, W - 400, 48), fill=WHITE, anchor="lm")
+    if brand:
+        d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
+    tile, gap = 84, 8
+    x0, y0 = 52, 112
+    flips = 0
+    for st, (c, r) in tiles.items():
+        rid = by_tile.get(st)
+        if not rid and st in EXTRA_TILES:
+            continue
+        x, y = x0 + c * (tile + gap), y0 + r * (tile + gap)
+        got = calls.get(rid) if rid else None
+        fill, txt = (NO_RACE, (78, 83, 94)) if not rid else (PARTY[got], WHITE) if got else (PENDING, WHITE)
+        d.rounded_rectangle([x, y, x + tile, y + tile], radius=8, fill=fill)
+        if rid and not got:
+            d.rounded_rectangle([x, y, x + tile, y + tile], radius=8, outline=(130, 136, 150), width=2)
+        if got and races[rid].get("holder") and got != races[rid]["holder"]:
+            flips += 1
+            d.polygon([(x + tile - 30, y), (x + tile - 8, y), (x + tile, y + 8), (x + tile, y + 30)], fill=WHITE)
+        d.text((x + tile / 2, y + tile / 2 - (9 if rid and races[rid]["weight"] > 1 else 0)), st, font=font(26), fill=txt, anchor="mm")
+        if rid and races[rid]["weight"] > 1:
+            d.text((x + tile / 2, y + tile / 2 + 20), str(races[rid]["weight"]), font=font(18, False), fill=txt, anchor="mm")
+        if rid in marks:
+            ok = marks[rid]
+            bx, by_ = x + 4, y + tile - 30
+            d.ellipse([bx, by_, bx + 26, by_ + 26], fill=(52, 199, 89) if ok else (20, 20, 20), outline=WHITE, width=2)
+            d.text((bx + 13, by_ + 13), "\u2713" if ok else "\u2717", font=font(18), fill=WHITE, anchor="mm")
+
+    votes = {}
+    for rid, r in races.items():
+        if rid in calls:
+            votes[calls[rid]] = votes.get(calls[rid], 0) + r["weight"]
+    dem, rep = votes.get("D", 0), votes.get("R", 0)
+    other = sum(v for k, v in votes.items() if k not in ("D", "R"))
+    unc = total - dem - rep - other
+    by = y0 + 8 * (tile + gap) + 30
+    if off_map:
+        x = 52
+        d.text((x, by), "DISTRICTS", font=font(20), fill=MUTED, anchor="lm")
+        x += 130
+        for rid in off_map:
+            got = calls.get(rid)
+            text = f"{rid.split('-')[0]} · {races[rid]['weight']}"
+            w = d.textlength(text, font=font(20)) + 24
+            d.rounded_rectangle([x, by - 17, x + w, by + 17], radius=6, fill=PARTY[got] if got else PENDING)
+            d.text((x + w / 2, by), text, font=font(20), fill=WHITE, anchor="mm")
+            x += w + 8
+        by += 44
+    d.text((52, by), f"DEM {dem}", font=font(40), fill=PARTY["D"], anchor="lt")
+    d.text((W - 52, by), f"REP {rep}", font=font(40), fill=PARTY["R"], anchor="rt")
+    mid = f"{unc} {pending_word}" + (f"  ·  OTHER {other}" if other else "") + (f"  ·  {flips} flip{'s' * (flips != 1)}" if flips else "")
+    d.text((W / 2, by + 20), mid, font=font(26, False), fill=MUTED, anchor="mm")
+    bar_y, bar_h, bw = by + 62, 34, W - 104
+    bx = 52
+    for p, n in (("D", dem), ("I", other), ("U", unc), ("R", rep)):
+        w = bw * n / total
+        if w > 0:
+            d.rectangle([bx, bar_y, bx + w, bar_y + bar_h], fill=PENDING if p == "U" else PARTY[p])
+        bx += w
+    cx = 52 + bw / 2
+    d.line([cx, bar_y - 8, cx, bar_y + bar_h + 8], fill=WHITE, width=3)
+    weighted = any(r["weight"] > 1 for r in races.values())
+    d.text((cx, bar_y + bar_h + 26), f"{need} of {total} to win" + ("  ·  the number on a state is its votes" if weighted else ""),
+           font=font(22, False), fill=MUTED, anchor="mm")
+    if width:
+        img = img.resize((width, round(H * width / W)), Image.LANCZOS)
+    return to_png(img)
+
+
 # ---------------------------------------------------------------------------------
 # House hemicycle
 # ---------------------------------------------------------------------------------
@@ -526,7 +708,7 @@ def house_chart(calls: dict[str, str]) -> io.BytesIO:
     W, H = 1200, 760
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    d.text((52, 56), "2026 HOUSE", font=font(48), fill=WHITE, anchor="lm")
+    d.text((52, 56), f"{__import__('packs').active().election_day().year} HOUSE", font=font(48), fill=WHITE, anchor="lm")
     d.text((W - 52, 56), "DECISION DESK", font=font(26), fill=MUTED, anchor="rm")
 
     colors = ([PARTY["D"]] * dem + [PARTY["I"]] * ind + [PENDING] * unc + [PARTY["R"]] * rep)
@@ -613,3 +795,13 @@ def prediction_card(name: str, picks: dict[str, str], house_seats: int | None = 
         label = rid + ((" ✓" if marks[rid] else " ✗") if rid in marks else "")
         d.text((cx + cw / 2, cy + ch / 2), label, font=font(17), fill=WHITE if p else (110, 115, 125), anchor="mm")
     return to_png(img)
+
+
+def _tables():
+    """The party tables also answer for an option that isn't a party, in its pack's colour (colors.py)."""
+    import colors
+    for name, tone in (("PARTY", "base"), ("BG_GRAD", "gradient"), ("PANEL_FILL", "panel"), ("GLASS", "gradient")):
+        globals()[name] = colors.Table(globals()[name], tone)
+
+
+_tables()

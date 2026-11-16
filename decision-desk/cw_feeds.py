@@ -31,12 +31,16 @@ import time
 import zipfile
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
 
 import aiohttp
 
+import capture
+import feeds as FEEDS
+import packs
+
 HERE = Path(__file__).parent
-CW_DIR = HERE / "countywatch"
 UA = "DecisionDeskDiscordBot/1.0 (friend-group election night bot)"
 
 
@@ -54,10 +58,19 @@ def fips_for(state: str, county_name: str) -> str | None:
     global _NAME_INDEX
     if _NAME_INDEX is None:
         _NAME_INDEX = {}
-        with open(CW_DIR / "baseline.csv", encoding="utf-8") as f:
-            for r in csv.DictReader(f):
-                _NAME_INDEX.setdefault(r["state"], {})[_norm(r["county"])] = r["fips"]
+        try:
+            with open(FEEDS.cw_file("baseline.csv"), encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    _NAME_INDEX.setdefault(r["state"], {})[_norm(r["county"])] = r["fips"]
+        except OSError:
+            pass
     return _NAME_INDEX.get(state, {}).get(_norm(county_name))
+
+
+@packs.on_activate
+def _forget_names(_pack):
+    global _NAME_INDEX
+    _NAME_INDEX = None
 
 
 def side(state: str, party: str, name: str, cfg: dict) -> str:
@@ -421,19 +434,22 @@ PARSERS = {"ga_ev": parse_ga, "ga_item": parse_ga_item, "nc_pct": parse_nc, "fl_
 
 
 # ------------------------------------------------------------------ config + fetching
-OVERRIDES = CW_DIR / "feed_overrides.json"
+def overrides_file() -> Path:
+    return FEEDS.cw_state("feed_overrides.json")
 
 
 def load_sources() -> dict:
-    """feeds.json, plus anything set on the night with /countyfeed (kept in feed_overrides.json so an update
-    to feeds.json never wipes it)."""
-    p = CW_DIR / "feeds.json"
+    """The pack's County Watch feeds.json, plus anything set on the night with /countyfeed (kept in
+    feed_overrides.json so an update to feeds.json never wipes it). No feeds at all for a pack without County Watch."""
+    if not FEEDS.countywatch():
+        return {"states": {}}
+    p = FEEDS.cw_file("feeds.json")
     try:
         d = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         d = {"states": {}}
     try:
-        ov = json.loads(OVERRIDES.read_text(encoding="utf-8"))
+        ov = json.loads(overrides_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         ov = {}
     for st, extra in ov.items():
@@ -444,14 +460,14 @@ def load_sources() -> dict:
 def set_override(state: str, values: dict | None):
     """values=None clears the state's override."""
     try:
-        ov = json.loads(OVERRIDES.read_text(encoding="utf-8"))
+        ov = json.loads(overrides_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         ov = {}
     if values is None:
         ov.pop(state, None)
     else:
         ov[state] = {**ov.get(state, {}), **values}
-    OVERRIDES.write_text(json.dumps(ov, indent=2), encoding="utf-8")
+    overrides_file().write_text(json.dumps(ov, indent=2), encoding="utf-8")
 
 
 def clarity_from_link(link: str) -> dict | None:
@@ -521,6 +537,7 @@ async def _get(session, url: str, conditional: bool = False, skip_cache: bool = 
         if r.status == 304:
             raise NotModified()
         body = await r.read()
+        capture.payload(f"county/{urlsplit(url).netloc}", url, r.status, body, dict(r.headers))
         if _is_challenge(r.status, r.headers, body):
             raise BotCheck("the site answered with a bot check instead of data, so the bot can't pull it; "
                            "use the County Watch grab button in your browser")

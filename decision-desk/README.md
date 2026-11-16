@@ -62,12 +62,15 @@ Everyone's picks are visible as soon as they save, so you can compare maps befor
 | `/compare member [other]` | Every race where two people picked differently. |
 | `/leaderboard` | Standings. Points start counting as races are called. |
 | `/finalhouse seats` | Admin. Enter the final Democratic House seat count to settle tiebreakers. |
+| `/closeout` | Anyone. What still has no result before the leaderboard is final: uncalled races, the House seat count, missing tiebreakers. |
+| `/final race [winner]` | Admin. Enter a race's final result for scoring. It outranks every call and leaves the map alone. Leave the winner blank to clear it. |
 | `/unlockpicks member [minutes]` | Admin. Lets one person use `/predict` after the deadline, for 15 minutes unless you say otherwise. Posted on the board. `0` locks them again. They can change any pick, including races already called. |
 
 **Who got it right:** every official call in #decision-desk ends with a prediction check listing who called it and who missed. `/race` shows the same for called races, and who picked what for uncalled ones. Turn it off with `"post_prediction_check": false` in `config.json`.
 
 **Points:**
 - Senate seat: 1
+- Senate control: 5. Nobody picks this separately: it's what your 35 Senate picks add up to.
 - House control: 5
 - Governor: 1 (bonus)
 - Battleground seat: 1 (bonus)
@@ -84,13 +87,14 @@ Change the values under `points` in `config.json`. Picks are scored against outl
 | `/unvote race` | Election Junkie | Withdraws your vote. |
 | `/uncall race` | Election Junkie | A vote to retract an official call, using the same majority rule. |
 | `/realcall race winner` | Election Junkie | Makes the call official right away, without waiting for a majority. It also counts as your vote. |
+| `/forcecall race winner` | Election Junkie | The same as `/realcall`, under the name people looked for on the night. |
 | `/procall race winner outlet` | Election Junkie | Logs a call by AP, NYT, Wasserman and the like. It posts to the board and feeds `/scoreboard`. **House seats:** a call from AP, Decision Desk HQ, NYT or Wasserman makes the seat official, unless another of those four called it the other way. Everything else never changes the desk's map. |
 | `/autocalls [on\|off]` | Admin | House calls read from Bluesky and NYT: turn them on or off, or see how they're doing. |
 | `/forceuncall race` | Admin | Retracts without a vote. Outlet calls stay logged and keep scoring the race. |
 | `/clearrace race CLEAR` | Admin | Erases one race's official call, votes and outlet calls, so it scores nothing. For a test or a call logged by mistake. |
 | `/scoreboard` | Anyone | Per person: right and wrong calls, how often they were first, and the average minutes ahead of each outlet (e.g. "AP +14m · NYT +22m · best: NC-SEN, 41 min before Wasserman"). Also shows the official desk against the pros. |
 | `/next` | Anyone | Races where polls have closed but the desk hasn't called, with vote counts and outlet calls. |
-| `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. |
+| `/board`, `/map`, `/race` | Anyone | Seat counts and path to majority, the current maps, or everything about one race. `/map` offers the data pack's own sections: Senate, House and Governors in 2026, President as well in 2028, and a list for a race with no map. |
 | `/closings` | Anyone | Poll-closing schedule. Alerts post to the board automatically as each wave closes. |
 | `/field [chamber] [timelapse]` | Anyone | The field (below): every race as a circle between safe D and safe R. It animates what moved since the last board post, or plays the whole night with `timelapse`. |
 | `/fieldposts [pause\|resume]` | Admin | Pauses or resumes the field's automatic posts. Snapshots keep saving while paused, and a timelapse that comes due waits until you resume. Blank shows which it is. |
@@ -153,6 +157,7 @@ A county-by-county read of 15 Senate races: the 14 that Cook doesn't rate Solid 
 
 | Command | Who | What it does |
 |---|---|---|
+| `/needs state [what_if]` | Anyone | The vote still out in a Senate race, county by county: how much the model expects, where it is, and the share of it the trailing side needs to tie. `what_if` tries a different break for what's left, in points toward the Democratic side. |
 | `/counties state` | Anyone | Before results: key counties, why they matter, the break-even margin and share of the vote in each. On the night: projection, swing by county type, turnout in Democratic-leaning vs Republican-leaning counties, which key counties are ahead of or behind pace on margin and turnout together, and the biggest movers. |
 | `/earlyvote state` | Anyone | Early vote so far against 2022 turnout, with party, race and age where the state reports them. North Carolina adds a county-by-county comparison with 2022 at the same point, plus a modeled lean. |
 | `/countyset state county dem rep [other] [done]` | Election Junkie | Enter a county's count by hand, from NYT or AP, for states without a feed. Autocomplete puts key counties (★) first. Set `done` only when every precinct is in; fully counted counties feed the projection. |
@@ -244,7 +249,7 @@ If a new version of the bot changes the workbook's layout, run `python countywat
 
 ## Making it yours
 
-- **`flavor.json`**: the lines posted with calls, flips and retractions. These reload instantly, so this is where the in-jokes go.
+- **`flavor.json`**: the lines posted with calls, flips and retractions. These reload instantly, so this is where the in-jokes go. A race's own lines are used first; otherwise the bot picks one for the kind of result (hold, flip, upset, control) and fills in the winner, loser and place. No line repeats until the rest of its pool has been used. Only 16 of 2026's races have lines of their own, so that is the place to add more.
 - **`candidates.json`**: nominee names for all Senate and governor races and the 46 battleground House seats, verified Oct 22. An `I` entry adds the independent option to the picker.
 - **`seat_info.json`**: incumbents, open-seat reasons and Cook PVI for `/seat`. Changes apply live.
 - **`results_sources.json`**: live results file links and official results pages. Changes apply live.
@@ -278,7 +283,92 @@ Things the code can't check for you. Do them on the PC that will run the bot:
 5. **The PC:** plugged in, sleep and automatic updates off until Nov 4, and a second person who knows how to restart `python bot.py` if the window closes.
 
 ## Rehearse
+For a first run, or after big changes, use a private test server with a bot of its own: `docs/live-test.md` is the
+checklist, and `python preflight.py` checks the setup without connecting.
+
 Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and restart. Run through the night: votes, `/realcall`, alerts, `/scoreboard`. The field posts to the board every 30 minutes while the fake time is inside election night. Then remove the line, restart, and run `/deskreset RESET`, which also clears the field's rehearsal snapshots. To see the field without a rehearsal, use `/fieldtest`. Don't rehearse past the deadline with real predictions in place, because the "predictions locked" post only goes out once.
+
+## The desk's own bot, charts and extras
+
+| Command | Who | What it does |
+|---|---|---|
+| `/trend race` | Anyone | A Senate race through the night as a chart: the projected margin, the votes counted, when the desk called or retracted it, and when the desk's own bot would have called it. |
+| `/react image` | Anyone | Posts a reaction image from `assets/reactions/`. Save an image there and its file name is what you type. None are shipped. |
+| `/drinkinggame [on\|off]` | Admin to change | Drinking-game lines on calls: a flip, an upset, a retraction, an outlet beating the desk. Off by default, per server. Rules are in `drinking.py`, or a pack's `drinking.json`. |
+
+**The Bot.** On the night the bot makes its own calls on Senate races from the projection alone, and posts them to the
+board as an outlet called "The Bot". They feed `/scoreboard`, so the desk is timed against it, and they never make
+anything official. It calls when the projected lead has held on one side, by enough, for long enough: a 15-point lead
+for 20 minutes, 8 points for 40, 4 points for 75, and never under 4. Against 2026 it called 14 of 17 Senate races, none
+wrong, and left Alaska, Florida and Mississippi alone; it was a median 83 minutes slower than the desk. Set
+`"bot_caller": false` in `config.json` to switch it off. The thresholds are at the top of `autocaller.py`.
+
+## Data packs, servers and the global board
+The bot isn't tied to one election. Everything about an election (its races, who can win them, what they add up to,
+when polls close, how predictions score) is a **data pack**: a folder in `packs/` with a `pack.json`. A pack can be a
+whole general election or one contest, such as a mayoral race.
+
+| Command | Who | What it does |
+|---|---|---|
+| `/pack` | Anyone | Which election the bot is running, and the packs it could run. |
+| `/pack switch_to:<id>` | Admin | Sets the pack the bot starts on. Restart the bot to switch. |
+| `/globalboard` | Anyone | The scoreboard across every server that has joined it. |
+| `/globalboard on` / `off` | Admin | Puts this server on the global board, or takes it off. Off by default. |
+| `/globalme on` / `off` | Anyone | Keeps your own entry off the global board, or puts it back. |
+
+- Each pack keeps its own records, and each Discord server its own within a pack, so one bot can run in several
+  servers without their calls, picks or leaderboards mixing.
+- The global board is scored on outlet calls and final results, never on any one server's own calls.
+- A pack also names where its numbers come from (its `feeds` block): the state results files, the outlets read
+  for calls, early vote and County Watch. A pack that names none fetches nothing and is run by hand. 2026's files
+  are where they always were (`results_sources.json`, `countywatch/`).
+- A feed is read once however many servers the bot is in. Each server acts on it for itself: its own automatic
+  calls, field posts and County Watch alerts.
+- `docs/data-packs.md` explains how to write a pack, and what isn't general yet.
+
+## The website
+The same prediction game in a browser: click states on a map or pick candidates by name, call the House, fill in the
+battleground seats, and watch a completion bar. It also has the leaderboard and a page that follows the desk's calls
+on the night. It shares the bot's database, so a pick saved on the site is the pick the bot scores, and the bot posts
+each website save to the board.
+
+```
+pip install -r requirements.txt
+python -m uvicorn web.app:app --port 8026
+```
+
+Run it from this folder, next to the bot. Then:
+
+1. In the [Discord developer portal](https://discord.com/developers/applications), open the bot's application,
+   go to **OAuth2**, copy the **Client ID** and **Client Secret**, and add `https://your-site/auth/callback` under
+   **Redirects**.
+2. Put those in `.env` with `DESK_WEB_URL` (where people reach the site) and `DESK_WEB_SECRET` (any long random
+   string). `.env.example` lists them.
+3. Put the site behind HTTPS (a reverse proxy to port 8026). Sign-in cookies are only sent over HTTPS, except on
+   localhost.
+
+Signing in asks Discord for two things: who you are, and whether you're in the server (`GUILD_ID`). Nobody outside the
+server can sign in. To try it on your own machine without Discord, set `DESK_WEB_DEV=1` and open
+`http://localhost:8026/login?as=1&name=Me`.
+
+The site obeys the same rules as `/predict`: the deadline, `/unlockpicks`, `hide_predictions_until_deadline`, and the
+points in `config.json`. It can't make calls; those stay in Discord.
+
+## Tests and replay
+The rules for votes, overrides, retractions and outlet calls live in `desk.py`, with no Discord in them, so they can be tested. `bot.py` checks who is allowed, calls them, and words the posts.
+
+```
+pip install -r requirements-dev.txt
+python -m pytest
+python replay.py
+```
+
+- `python -m pytest` runs the rule tests and replays election night 2026: the same 877 recorded events have to give the same 482 calls and retractions in the same order, the same tally on all 348 vote posts, and the same leaderboard.
+- `python replay.py` prints where the replayed night ends and whether it matches. `--until 2026-11-03T22:55-06:00` stops partway.
+- `tests/fixtures/2026/` holds the night's real records with people replaced by numbers: the recorded events, the bot's database, County Watch's county counts and the Senate field's snapshots. Every file's name says `.fixture`, the bot refuses to run on one, and tests only ever open copies. `tests/fixtures/README.md` lists them.
+- To rebuild them, or make a set for another night: `python tools/build_night_fixture.py --db desk.db --export <Discord export folder> --field field_history.json --out tests/fixtures/<year>`. The raw database and export hold Discord IDs and names, so they stay out of the repo.
+
+GitHub runs the tests on every pull request.
 
 ## Known limits
 - `/results` live counts cover FL, NC and VA only (County Watch adds county-level feeds for GA, NC, MN and NE). Only Decision Desk HQ's and Wasserman's House calls are read automatically (from Bluesky). Everything else is logged by hand with `/procall`.

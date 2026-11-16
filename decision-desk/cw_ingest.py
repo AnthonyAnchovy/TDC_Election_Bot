@@ -12,6 +12,8 @@ The state comes from the caller, the file name (e.g. TX_results.csv, "Texas resu
 or, failing those, whichever state's county names the file matches best.
 """
 from __future__ import annotations
+import feeds as FEEDS
+import packs
 
 import csv
 import io
@@ -32,7 +34,7 @@ class IngestError(Exception):
 
 def _cands(st: str) -> tuple[str, str]:
     try:
-        c = json.loads((HERE / "candidates.json").read_text(encoding="utf-8")).get(f"{st}-SEN", {})
+        c = json.loads(packs.active().path("candidates.json").read_text(encoding="utf-8")).get(FEEDS.cw_race(st), {})
     except (OSError, ValueError):
         c = {}
     d = c.get("I") if st == "NE" else c.get("D")

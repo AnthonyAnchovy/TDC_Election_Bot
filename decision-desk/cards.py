@@ -16,9 +16,11 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
+import colors as COL
 import competitive as CMP
 import graphics as G
 import night as N
+import packs
 import races as R
 
 FONTS = Path(__file__).parent / "assets" / "fonts"
@@ -31,6 +33,22 @@ PARTY_NOUN = {"D": "Democrat", "R": "Republican", "I": "Independent"}
 SEATS = {"senate": 100, "governor": 50, "house": 435}
 NEEDED = {"senate": 51, "governor": 26, "house": 218}
 CHAMBER_LABEL = {"senate": "SENATE", "governor": "GOVERNORS", "house": "HOUSE"}
+_BUILT_IN = (dict(SEATS), dict(NEEDED), dict(CHAMBER_LABEL))
+
+
+@packs.on_activate
+def _bodies(pack):
+    """Seat totals, majorities and names for the seat strip, from the pack's bodies (538 and 270 for the Electoral
+    College). A race whose body the pack doesn't size gets a card without the strip."""
+    for table, built_in in zip((SEATS, NEEDED, CHAMBER_LABEL), _BUILT_IN):
+        table.clear()
+        table.update(built_in)
+    for key, b in pack.bodies.items():
+        if b.get("seats"):
+            SEATS[key] = b["seats"]
+            CHAMBER_LABEL[key] = str(b.get("name") or key).upper()
+            if b.get("majority"):
+                NEEDED[key] = b["majority"]
 
 _fonts: dict = {}
 
@@ -93,14 +111,20 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
         office = "Governor"
     elif kind == "house":
         office = "At-large district" if race_id.endswith("-AL") else f"{R._ordinal(int(race_id.split('-')[1]))} District"
-    else:
+    elif kind == "control":
         office = "Majority"
+    else:                                   # a pack's own kind of race: "Mayor", "Ballot Measure"
+        office = packs.TYPE_LABEL.get(kind, kind.replace("_", " ").title())
     holder = r.get("holder") or CMP.HOLDER_OF.get(race_id) or CMP.HOLDER.get(race_id)
     when = when or datetime.now(N.ET)
     if when.tzinfo is None:
         when = when.replace(tzinfo=N.ET)
-    return {"rid": race_id, "party": party, "kind": kind, "chamber": "house" if kind in ("house", "control") else kind,
-            "state": st, "state_name": R.STATE_NAMES.get(st, "U.S. House"), "office": office,
+    # "party" is what the themes look colours and party words up by: the party letter, or the option's own colour
+    # for a candidate who isn't a party's (colors.py). "key" stays the option as the pack names it.
+    return {"rid": race_id, "party": COL.style(race_id, party), "key": party, "kind": kind, "chamber": R.chamber(race_id),
+            # the state's outline is only drawn for a state: a city or any other place gets the card without one
+            "state": st if st in packs.STATE_NAMES or G.place(st) else None,
+            "state_name": R.STATE_NAMES.get(st, f"U.S. {R.chamber_name(race_id)}"), "office": office,
             "name": None if kind == "control" else candidate, "holder": holder,
             "flip": bool(holder and party and holder != party and not retracted), "hold": bool(party and holder == party),
             "rating": CMP.RATING_OF.get(race_id), "retracted": retracted, "tally": tally or "",
@@ -110,14 +134,14 @@ def race_facts(race_id: str, party: str | None, candidate: str | None, tally: st
 def status_text(c: dict) -> str:
     if c["retracted"]:
         return "CALL RETRACTED"
-    word = PARTY_WORD[c["party"]].upper()
+    word = PARTY_WORD.get(c["party"], "").upper()        # nothing, for an option that isn't a party
     if c["kind"] == "control":
-        return f"{word} {'HOLD' if c['hold'] else 'TAKEOVER'}"
-    return f"{word} {'PICKUP' if c['flip'] else 'HOLD' if c['hold'] else 'WIN'}"
+        return f"{word} {'HOLD' if c['hold'] else 'TAKEOVER'}".strip()
+    return f"{word} {'PICKUP' if c['flip'] else 'HOLD' if c['hold'] else 'WIN'}".strip()
 
 
 def kicker(c: dict, sep: str) -> str:
-    return "U.S. House" + sep + "Majority" if c["kind"] == "control" else f"{c['state_name']}{sep}{c['office']}"
+    return c["state_name"] + sep + "Majority" if c["kind"] == "control" else f"{c['state_name']}{sep}{c['office']}"
 
 
 def surname(name: str) -> str:
@@ -220,9 +244,10 @@ def state_cutout(state: str, race_id: str | None, bw: int, bh: int, base, hi) ->
         return [((x * k - min(xs)) * sc * S + pad * S, (-y - min(ys)) * sc * S + pad * S) for x, y in r]
     img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    for r in srings:
+    cut = G.holes(srings) if G.place(state) else set()           # a city's enclaves (Norridge, inside Chicago)
+    for i, r in sorted(enumerate(srings), key=lambda ir: ir[0] in cut):
         if len(r) > 2:
-            d.polygon(proj(r), fill=tuple(hi if whole else base) + (255,))
+            d.polygon(proj(r), fill=(0, 0, 0, 0) if i in cut else tuple(hi if whole else base) + (255,))
     if not whole:
         pts = []
         for r in drings:
@@ -315,11 +340,11 @@ def wire(c: dict) -> Image.Image:
     if c["retracted"]:
         word, sub = "UNCALLED", "TOO EARLY TO CALL"
     elif c["kind"] == "control":
-        word, sub = {"D": "DEMOCRATS", "R": "REPUBLICANS", "I": "INDEPENDENTS"}[c["party"]], "HOUSE MAJORITY"
+        word, sub = {"D": "DEMOCRATS", "R": "REPUBLICANS", "I": "INDEPENDENTS"}.get(c["party"], str(c.get("name") or c["party"]).upper()), f"{c['chamber'].upper()} MAJORITY"
     elif c["name"]:
         word, sub = surname(c["name"]).upper(), given(c["name"]).upper()
     else:
-        word, sub = PARTY_NOUN[c["party"]].upper(), "PROJECTED WINNER"
+        word, sub = PARTY_NOUN.get(c["party"], "Winner").upper(), "PROJECTED WINNER"
     big = fit(d, word, 1180, ANTON, 300, 140)
     shadow = Image.new("L", (W, H), 0)
     ImageDraw.Draw(shadow).text((x - 4, 548), word, font=big, fill=255, anchor="ls")
@@ -331,7 +356,7 @@ def wire(c: dict) -> Image.Image:
 
     # flip tag
     if c["flip"]:
-        tag = _flip_tag(d, c["holder"], c["party"], "TAKEOVER" if c["kind"] == "control" else "PICKUP")
+        tag = _flip_tag(d, c["holder"], c["key"], "TAKEOVER" if c["kind"] == "control" else "PICKUP")
         sh = Image.new("L", (W, H), 0)
         sh.paste(255, (W - tag.width - 64, 104, W - 64, 104 + tag.height))
         img.alpha_composite(solid(sh.filter(ImageFilter.GaussianBlur(14)), (0, 0, 0), 0.5))
@@ -343,12 +368,12 @@ def wire(c: dict) -> Image.Image:
     img.alpha_composite(Image.new("RGBA", (W, H - y0 + 30), (0, 0, 0, 120)), (0, y0 - 30))
     d = ImageDraw.Draw(img)
     counts = c["counts"]
-    if counts:
+    if counts and c["chamber"] in SEATS and c["chamber"] in NEEDED:
         ch = c["chamber"]
         total = SEATS[ch]
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))   # own layer so translucent seats blend instead of punching holes
         seat_strip(ImageDraw.Draw(layer), x, y0 + 8, 1000, seat_order(counts, total),
-                   per_row=55 if total == 435 else 25, gap=3 if total == 435 else 6, cols=WIRE_SEAT,
+                   per_row=55 if total > 200 else 25, gap=3 if total > 200 else 6, cols=WIRE_SEAT,
                    highlight=called_index(c, total), ring=YELLOW)
         img.alpha_composite(layer)
         d = ImageDraw.Draw(img)
@@ -415,9 +440,9 @@ def editorial(c: dict) -> Image.Image:
     if c["retracted"]:
         text = "Too early to call"
     elif c["kind"] == "control":
-        text = PARTY_NOUN[c["party"]] + "s"
+        text = PARTY_NOUN.get(c["party"], c.get("name") or c["party"]) + "s"
     else:
-        text = c["name"] or f"The {PARTY_NOUN[c['party']]}"
+        text = c["name"] or f"The {PARTY_NOUN.get(c['party'], 'winner')}"
     hf = fit(d, text, colw, SERIF, 168, 104)
     lines = [text]
     if d.textlength(text, font=hf) > colw and " " in text:
@@ -446,7 +471,7 @@ def editorial(c: dict) -> Image.Image:
 
     # where the chamber stands: strip for the Senate and governors, hemicycle for the House
     counts = c["counts"]
-    if counts:
+    if counts and c["chamber"] in SEATS and c["chamber"] in NEEDED:
         ch = c["chamber"]
         total = SEATS[ch]
         order = seat_order(counts, total)
@@ -480,7 +505,8 @@ def editorial(c: dict) -> Image.Image:
     if c["kind"] == "control":
         loc = us_locator(None, 420, 320, base=col, hi=col, all_hi=True)
     else:
-        loc = us_locator(c["state"], 420, 320, base=(222, 224, 228), hi=col)
+        # a city the pack draws itself is located by the state it's in (Chicago lights up Illinois)
+        loc = us_locator((G.place(c["state"]) or {}).get("state") or c["state"], 420, 320, base=(222, 224, 228), hi=col)
     img.alpha_composite(loc, (int(cx - loc.width / 2), 220))
     d = ImageDraw.Draw(img)
     if c["state"]:
@@ -490,8 +516,10 @@ def editorial(c: dict) -> Image.Image:
         img.alpha_composite(cut, (int(cx - cut.width / 2), sy))
         d = ImageDraw.Draw(img)
         tracked(d, (cx, sy + cut.height + 54), c["rid"], font(FRANKLIN, 30, 700), INK, 0.12, anchor="ms")
-    else:
-        tracked(d, (cx, 220 + loc.height + 70), "218 FOR MAJORITY", font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
+    elif c["chamber"] in NEEDED:
+        tracked(d, (cx, 220 + loc.height + 70), f"{NEEDED[c['chamber']]} FOR MAJORITY", font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
+    else:                                           # a race somewhere that isn't a state: name the place under the map
+        tracked(d, (cx, 220 + loc.height + 70), str(c["state_name"]).upper()[:28], font(FRANKLIN, 28, 700), INK, 0.1, anchor="ms")
     return img
 
 
@@ -790,3 +818,10 @@ def editorial_map(m: dict) -> Image.Image:
 
 
 MAPS = {"wire": wire_map, "editorial": editorial_map}
+
+
+# The tables above are keyed by party. As colors.Table they also answer for an option that isn't one, in the
+# colour its pack gives it, toned the way that table is: the wire field dark, its dots light.
+for _name, _tone in (("WIRE_FIELD", "field"), ("WIRE_DOT", "dot"), ("WIRE_SEAT", "base"), ("ED_COL", "base"),
+                     ("ED_SEAT", "base")):
+    globals()[_name] = COL.Table(globals()[_name], _tone)

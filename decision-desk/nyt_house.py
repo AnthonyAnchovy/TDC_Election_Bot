@@ -12,18 +12,26 @@ from __future__ import annotations
 import asyncio
 import json
 
-import aiohttp
-
+import feeds as FEEDS
+import net as NET
 import races as R
 import results as LIVE
 
-URL = "https://static01.nyt.com/elections-assets/pages/data/2026-11-03/results-house.json"
 OUTLET = "NYT"
 PARTY = {"DEM": "D", "GOP": "R", "IND": "I", "NPA": "I", "UNA": "I"}
-ENOUGH_SEATS = 400     # fewer than this means the file isn't what it used to be, so don't trust it
-SENATE_URL = URL.replace("results-house", "results-senate")
-GOVERNOR_URL = URL.replace("results-house", "results-governor")
-ENOUGH_STATEWIDE = 30  # the same check for those two: there are 35 Senate and 36 governor races this year
+KIND = {"house": "house", "senate": "senate", "governor": "governor"}     # the pack's file name -> the race type
+SUFFIX = {"senate": "SEN", "governor": "GOV"}
+
+
+def urls() -> dict[str, str]:
+    """The files the active pack says to read: {"house": url, "senate": url, "governor": url}, or fewer."""
+    return FEEDS.nyt()
+
+
+def enough(kind: str) -> int:
+    """How many races a file has to hold to be trusted: nine in ten of the pack's races of that kind. Fewer means
+    the file isn't what it used to be (2026: 391 House seats, 31 Senate races, 32 governors)."""
+    return max(1, int(0.9 * sum(1 for r in R.RACES.values() if r["type"] == KIND[kind])))
 
 
 def _seat(race: dict) -> str | None:
@@ -41,7 +49,7 @@ def read(data: dict) -> dict[str, dict]:
     a person should check. Raises RuntimeError when the file doesn't look like it should."""
     seats = {_seat(r): r for r in data.get("races", [])}
     seats.pop(None, None)
-    if len(seats) < ENOUGH_SEATS:
+    if len(seats) < enough("house"):
         raise RuntimeError(f"the NYT file only has {len(seats)} House seats")
     found = {}
     for rid, race in seats.items():
@@ -65,7 +73,7 @@ def read(data: dict) -> dict[str, dict]:
 def read_statewide(data: dict, suffix: str) -> dict[str, dict]:
     """The same result as read(), for the Senate ("SEN") or governor ("GOV") file. A race the bot doesn't track is left out."""
     races = data.get("races", [])
-    if len(races) < ENOUGH_STATEWIDE:
+    if len(races) < enough({v: k for k, v in SUFFIX.items()}[suffix]):
         raise RuntimeError(f"the NYT {suffix} file only has {len(races)} races")
     found: dict[str, dict] = {}
     for race in races:
@@ -91,24 +99,22 @@ def read_statewide(data: dict, suffix: str) -> dict[str, dict]:
 async def fetch_all() -> tuple[dict[str, dict], list[str]]:
     """Every House, Senate and governor race with a winner, and what couldn't be read. One file failing doesn't stop the others."""
     found, problems = {}, []
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40), headers={"User-Agent": LIVE.UA}) as s:
-        for name, url, reader in (("House", URL, read),
-                                  ("Senate", SENATE_URL, lambda d: read_statewide(d, "SEN")),
-                                  ("governor", GOVERNOR_URL, lambda d: read_statewide(d, "GOV"))):
-            try:
-                async with s.get(url) as r:
-                    r.raise_for_status()
-                    raw = await r.read()
-                found.update(await asyncio.to_thread(lambda: reader(json.loads(raw))))
-            except Exception as exc:
-                problems.append(f"NYT's {name} file: {str(exc)[:120] or type(exc).__name__}")
+    readers = {"house": ("House", read), "senate": ("Senate", lambda d: read_statewide(d, "SEN")),
+               "governor": ("governor", lambda d: read_statewide(d, "GOV"))}
+    for kind, url in urls().items():
+        name, reader = readers[kind]
+        try:
+            raw = await NET.fetch(url, source=f"nyt/{name.lower()}", timeout=40)
+            found.update(await asyncio.to_thread(lambda: reader(json.loads(raw))))
+        except Exception as exc:
+            problems.append(f"NYT's {name} file: {str(exc)[:120] or type(exc).__name__}")
     return found, problems
 
 
 async def fetch() -> dict[str, dict]:
     """Every seat with a winner right now, as read() gives them. The file is large, so it's read off the main thread."""
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25), headers={"User-Agent": LIVE.UA}) as s:
-        async with s.get(URL) as r:
-            r.raise_for_status()
-            raw = await r.read()
+    url = urls().get("house")
+    if not url:
+        raise LookupError("this data pack has no NYT House file")
+    raw = await NET.fetch(url, source="nyt/house", timeout=25, tries=2)
     return await asyncio.to_thread(lambda: read(json.loads(raw)))

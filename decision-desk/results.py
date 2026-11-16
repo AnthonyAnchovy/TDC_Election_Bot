@@ -5,7 +5,8 @@ Each supported state publishes a machine-readable file on election night:
   NC  zipped tab-delimited precinct file from the State Board of Elections
   VA  JSON from the Department of Elections
 
-URLs live in results_sources.json so they can be fixed on the night without touching code.
+URLs live in the data pack's results file (feeds.results, results_sources.json for 2026) so they can be fixed on
+the night without touching code. A pack that names no results file has no live counts.
 Every parser returns {race_id: {"cands": [{"name", "party", "votes"}], "reporting": (done, total) | None}}.
 Counts are unofficial and are never treated as a call.
 """
@@ -20,12 +21,11 @@ import time
 import zipfile
 from pathlib import Path
 
-import aiohttp
-
+import feeds as FEEDS
+import net as NET
 import races as R
 
 HERE = Path(__file__).parent
-SOURCES_FILE = HERE / "results_sources.json"
 UA = "DecisionDeskDiscordBot/1.0 (friend-group election night bot)"
 
 _cache: dict[str, tuple[float, dict]] = {}
@@ -34,8 +34,9 @@ _locks: dict[str, asyncio.Lock] = {}
 
 # ------------------------------------------------------------------ config
 def sources() -> dict:
+    path = FEEDS.results_file()
     try:
-        return json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8")) if path else {"states": {}}
     except (OSError, ValueError):
         return {"states": {}}
 
@@ -249,24 +250,21 @@ PARSERS = {"fl_txt": parse_fl, "nc_zip": parse_nc, "va_json": parse_va, "ev_data
 
 
 # ------------------------------------------------------------------ fetching
-async def _download(url: str, skip_cache: bool = False) -> bytes:
+async def _download(url: str, skip_cache: bool = False, source: str = "results") -> bytes:
     """skip_cache adds a changing query string, for sites whose CDN serves hours-old copies of the plain URL (Florida's)."""
-    timeout = aiohttp.ClientTimeout(total=45)
-    async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": UA}) as s:
-        async with s.get(f"{url}?t={int(time.time())}" if skip_cache else url) as r:
-            if r.status != 200:
-                raise RuntimeError(f"HTTP {r.status} from {url}")
-            return await r.read()
+    return await NET.fetch(url, source=source, bust=skip_cache)
 
 
 async def fetch_state(state: str, *, test: bool = False, force: bool = False) -> dict:
-    """{"races": {...}, "fetched_at": ts, "url": str} or raises. Cached for cache_seconds."""
+    """{"races": {...}, "fetched_at": ts, "url": str} or raises. Cached for cache_seconds. When the site can't be
+    reached but an earlier pull worked, that pull comes back with "stale" set to why, so a count that's a few
+    minutes old still shows, marked as such."""
     cfg = state_cfg(state)
     if not cfg:
         raise LookupError(f"No live feed set up for {state}")
     url = cfg.get("test_url") if test else cfg["url"]
     if not url:
-        raise LookupError(f"No test_url for {state} in results_sources.json")
+        raise LookupError(f"No test_url for {state} in the pack's results file")
     ttl = sources().get("cache_seconds", 60)
     key = f"{state}|{url}"
     lock = _locks.setdefault(key, asyncio.Lock())
@@ -274,7 +272,13 @@ async def fetch_state(state: str, *, test: bool = False, force: bool = False) ->
         hit = _cache.get(key)
         if hit and not force and time.time() - hit[0] < ttl:
             return hit[1]
-        raw = await _download(url, skip_cache=bool(cfg.get("skip_cache")))
+        try:
+            raw = await _download(url, skip_cache=bool(cfg.get("skip_cache")),
+                                  source=f"results/{state}" + ("/test" if test else ""))
+        except Exception as exc:
+            if not hit:
+                raise
+            return {**hit[1], "stale": str(exc)[:150] or type(exc).__name__}
         parsed = await asyncio.to_thread(PARSERS[cfg["format"]], raw)
         result = {"races": parsed, "fetched_at": time.time(), "url": url, "bytes": len(raw)}
         _cache[key] = (result["fetched_at"], result)
@@ -287,8 +291,8 @@ async def race_result(rid: str, *, force: bool = False) -> dict | None:
         return None
     data = await fetch_state(st, force=force)
     race = data["races"].get(rid)
-    return {**race, "fetched_at": data["fetched_at"], "url": data["url"]} if race else \
-        {"cands": [], "reporting": None, "fetched_at": data["fetched_at"], "url": data["url"]}
+    race = race or {"cands": [], "reporting": None}
+    return {**race, "fetched_at": data["fetched_at"], "url": data["url"], "stale": data.get("stale")}
 
 
 # ------------------------------------------------------------------ summarising

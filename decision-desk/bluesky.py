@@ -13,10 +13,12 @@ import re
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import aiohttp
 
+import capture
+import feeds as FEEDS
+import packs
 import races as R
 import results as LIVE
 
@@ -24,9 +26,13 @@ HERE = Path(__file__).parent
 API = "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed"
 DDHQ = "Decision Desk HQ"
 WASSERMAN = "Dave Wasserman"
-SOURCES = {"did:plc:catipgdd42lzwcqfsfcc6ype": DDHQ, "did:plc:oegdayoj7y4heuqwngwg2d2p": WASSERMAN}
-# Older posts are ignored: 5 PM ET, an hour before the first polls close
-SINCE = datetime(2026, 11, 3, 17, 0, tzinfo=ZoneInfo("America/New_York"))
+SOURCES: dict[str, str] = {}     # {account ID: outlet}: the accounts the active pack says to read (feeds.bluesky)
+
+
+@packs.on_activate
+def _fill(_pack):
+    SOURCES.clear()
+    SOURCES.update({did: outlet for did, outlet in FEEDS.bluesky_accounts().items() if outlet in (DDHQ, WASSERMAN)})
 
 STATE_BY_NAME = {name.upper(): st for st, name in R.STATE_NAMES.items()}
 _DDHQ_CALL = re.compile(r"^Decision Desk HQ projects\s+(?:that\s+)?(?P<who>.+?)\s+wins the\s+(?:20\d\d\s+)?"
@@ -141,9 +147,10 @@ def _when(stamp: str) -> datetime | None:
     return when if when.tzinfo else None
 
 
-async def fetch(did: str, known: set, since: datetime = SINCE, pages: int = 4) -> list[dict]:
-    """New posts by this account since `since`, oldest first. Paging can hand back a page it already gave, so posts
-    are matched on their IDs and the walk stops at a page with nothing new."""
+async def fetch(did: str, known: set, since: datetime | None = None, pages: int = 4) -> list[dict]:
+    """New posts by this account since `since` (the pack's reading time, unless given), oldest first. Paging can
+    hand back a page it already gave, so posts are matched on their IDs and the walk stops at a page with nothing new."""
+    since = since or FEEDS.reading_since()
     found: dict[str, dict] = {}
     cursor = None
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25),
@@ -153,8 +160,10 @@ async def fetch(did: str, known: set, since: datetime = SINCE, pages: int = 4) -
             if cursor:
                 q["cursor"] = cursor
             async with s.get(API, params=q) as r:
+                raw = await r.read()
+                capture.payload(f"bluesky/{did}", str(r.url), r.status, raw, dict(r.headers))
                 r.raise_for_status()
-                data = await r.json()
+                data = json.loads(raw)
             fresh, older = 0, False
             for item in data.get("feed", []):
                 post, record = item.get("post", {}), item.get("post", {}).get("record", {})

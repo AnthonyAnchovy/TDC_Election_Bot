@@ -1,105 +1,95 @@
-"""2026 race definitions.
+"""The races of the active data pack, under the names the rest of the code has always used.
 
 Race IDs:
   Senate    -> "TX-SEN"
   Governor  -> "TX-GOV"
   House     -> "TX-28", at-large seats -> "AK-AL"
+  Control   -> "US-HOUSE", "US-SENATE"
+  anything else a pack defines -> whatever ID the pack gives it ("CHI-MAYOR")
 
-Holder party = which party currently holds the seat that is up. Used to mark flips.
-Checked against 270toWin / Ballotpedia counts in Oct 2026: 35 Senate seats up
-(22 R, 13 D, incl. FL and OH specials), 36 governorships up (18 R, 18 D).
+Nothing about a particular year lives here any more: packs.py loads it from packs/<id>/pack.json, and this module
+refills itself whenever a pack becomes active. RACES[id] is {"type", "state", "label", "holder", "body", "weight",
+"options"}: `state` is the race's jurisdiction (a state code, or a pack's own place code), `body` is what the race
+counts toward, and `holder` is who holds the seat now, used to mark flips.
 """
+import packs
 
-STATE_NAMES = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
-    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
-    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
-    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
-    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
-    "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
-    "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
-    "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
-    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
-    "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+STATE_NAMES = dict(packs.STATE_NAMES)
+
+# Short state names that can be told apart at a glance. The two-letter codes can't: MS, MO, MT, MI, MN and ME sat
+# side by side in the 2026 picker and people clicked the wrong one. These are the AP's abbreviations.
+STATE_SHORT = {
+    "AL": "Ala.", "AK": "Alaska", "AZ": "Ariz.", "AR": "Ark.", "CA": "Calif.", "CO": "Colo.", "CT": "Conn.",
+    "DE": "Del.", "FL": "Fla.", "GA": "Ga.", "HI": "Hawaii", "ID": "Idaho", "IL": "Ill.", "IN": "Ind.",
+    "IA": "Iowa", "KS": "Kan.", "KY": "Ky.", "LA": "La.", "ME": "Maine", "MD": "Md.", "MA": "Mass.",
+    "MI": "Mich.", "MN": "Minn.", "MS": "Miss.", "MO": "Mo.", "MT": "Mont.", "NE": "Neb.", "NV": "Nev.",
+    "NH": "N.H.", "NJ": "N.J.", "NM": "N.M.", "NY": "N.Y.", "NC": "N.C.", "ND": "N.D.", "OH": "Ohio",
+    "OK": "Okla.", "OR": "Ore.", "PA": "Pa.", "RI": "R.I.", "SC": "S.C.", "SD": "S.D.", "TN": "Tenn.",
+    "TX": "Texas", "UT": "Utah", "VT": "Vt.", "VA": "Va.", "WA": "Wash.", "WV": "W.Va.", "WI": "Wis.",
+    "WY": "Wyo.",
 }
 
-# --- Senate: state -> party holding the seat that's up -------------------------
-SENATE = {
-    "AL": "R", "AK": "R", "AR": "R", "CO": "D", "DE": "D", "FL": "R", "GA": "D", "ID": "R",
-    "IL": "D", "IA": "R", "KS": "R", "KY": "R", "LA": "R", "ME": "R", "MA": "D", "MI": "D",
-    "MN": "D", "MS": "R", "MT": "R", "NE": "R", "NH": "D", "NJ": "D", "NM": "D", "NC": "R",
-    "OH": "R", "OK": "R", "OR": "D", "RI": "D", "SC": "R", "SD": "R", "TN": "R", "TX": "R",
-    "VA": "D", "WV": "R", "WY": "R",
-}
-SENATE_SPECIAL = {"FL", "OH"}
-# Seats NOT up in 2026 (Senate is 53 R / 47 D incl. 2 independents who caucus D)
-SENATE_HOLDOVER = {"D": 34, "R": 31}
-SENATE_MAJORITY = 51  # VP (R) breaks 50-50 ties
 
-# --- Governors: state -> party currently holding the office ---------------------
-GOVERNOR = {
-    "AL": "R", "AK": "R", "AZ": "D", "AR": "R", "CA": "D", "CO": "D", "CT": "D", "FL": "R",
-    "GA": "R", "HI": "D", "ID": "R", "IL": "D", "IA": "R", "KS": "D", "ME": "D", "MD": "D",
-    "MA": "D", "MI": "D", "MN": "D", "NE": "R", "NV": "R", "NH": "R", "NM": "D", "NY": "D",
-    "OH": "R", "OK": "R", "OR": "D", "PA": "D", "RI": "D", "SC": "R", "SD": "R", "TN": "R",
-    "TX": "R", "VT": "R", "WI": "D", "WY": "R",
-}
-# Governorships not up in 2026, so the national tally is complete
-GOVERNOR_NOT_UP = {
-    "DE": "D", "IN": "R", "KY": "D", "LA": "R", "MS": "R", "MO": "R", "MT": "R",
-    "NJ": "D", "NC": "D", "ND": "R", "UT": "R", "VA": "D", "WA": "D", "WV": "R",
-}
+class _Names(dict):
+    """Option names by key. A key the pack doesn't describe (a candidate in a nonpartisan race) reads as itself."""
 
-# --- House: seats per state (2020 apportionment, fixed through 2032) -------------
-HOUSE_SEATS = {
-    "AL": 7, "AK": 1, "AZ": 9, "AR": 4, "CA": 52, "CO": 8, "CT": 5, "DE": 1, "FL": 28, "GA": 14,
-    "HI": 2, "ID": 2, "IL": 17, "IN": 9, "IA": 4, "KS": 4, "KY": 6, "LA": 6, "ME": 2, "MD": 8,
-    "MA": 9, "MI": 13, "MN": 8, "MS": 4, "MO": 8, "MT": 2, "NE": 3, "NV": 4, "NH": 2, "NJ": 12,
-    "NM": 3, "NY": 26, "NC": 14, "ND": 1, "OH": 15, "OK": 5, "OR": 6, "PA": 17, "RI": 2, "SC": 7,
-    "SD": 1, "TN": 9, "TX": 38, "UT": 4, "VT": 1, "VA": 11, "WA": 10, "WV": 2, "WI": 8, "WY": 1,
-}
-HOUSE_TOTAL = 435
-HOUSE_MAJORITY = 218
-
-PARTY_NAMES = {"D": "Democratic", "R": "Republican", "I": "Independent"}
+    def __missing__(self, key):
+        return str(key).title() if key else "Nobody"
 
 
-def _ordinal(n: int) -> str:
-    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
+# Filled from the active pack by _fill() below.
+RACES: dict = {}
+SENATE: dict = {}               # state -> party holding the Senate seat that's up
+SENATE_SPECIAL: set = set()
+SENATE_HOLDOVER: dict = {"D": 0, "R": 0}    # seats not up
+SENATE_MAJORITY = 0             # 0: this pack has no Senate
+GOVERNOR: dict = {}
+GOVERNOR_NOT_UP: dict = {}
+HOUSE_SEATS: dict = {}
+HOUSE_TOTAL = 0
+HOUSE_MAJORITY = 0
+PARTY_NAMES: dict = _Names()
+BODIES: dict = {}
+_ordinal = packs.ordinal
 
 
-def _build():
-    races = {}
-    for st in SENATE:
-        label = f"{STATE_NAMES[st]} Senate" + (" (special)" if st in SENATE_SPECIAL else "")
-        races[f"{st}-SEN"] = {"type": "senate", "state": st, "label": label, "holder": SENATE[st]}
-    for st in GOVERNOR:
-        races[f"{st}-GOV"] = {"type": "governor", "state": st,
-                              "label": f"{STATE_NAMES[st]} Governor", "holder": GOVERNOR[st]}
-    for st, n in HOUSE_SEATS.items():
-        if n == 1:
-            races[f"{st}-AL"] = {"type": "house", "state": st,
-                                 "label": f"{STATE_NAMES[st]} At-Large (House)", "holder": None}
-        else:
-            for d in range(1, n + 1):
-                races[f"{st}-{d:02d}"] = {"type": "house", "state": st,
-                                          "label": f"{STATE_NAMES[st]} {_ordinal(d)} District",
-                                          "holder": None}
-    # Control of the House: called once a party clearly has 218. Republicans hold it now.
-    races["US-HOUSE"] = {"type": "control", "state": None, "label": "Control of the House",
-                         "holder": "R"}
-    return races
+@packs.on_activate
+def _fill(pack: packs.Pack):
+    global RACES, SENATE, SENATE_SPECIAL, SENATE_HOLDOVER, SENATE_MAJORITY, GOVERNOR, GOVERNOR_NOT_UP
+    global HOUSE_SEATS, HOUSE_TOTAL, HOUSE_MAJORITY, PARTY_NAMES, BODIES, STATE_NAMES
+    RACES = pack.races
+    BODIES = pack.bodies
+    STATE_NAMES = pack.places
+    SENATE = {r["state"]: r["holder"] for r in RACES.values() if r["type"] == "senate"}
+    SENATE_SPECIAL = {r["state"] for r in RACES.values() if r["type"] == "senate" and r.get("special")}
+    GOVERNOR = {r["state"]: r["holder"] for r in RACES.values() if r["type"] == "governor"}
+    senate, house, gov = BODIES.get("senate", {}), BODIES.get("house", {}), BODIES.get("governor", {})
+    SENATE_HOLDOVER = dict(senate.get("holdover") or {"D": 0, "R": 0})
+    SENATE_MAJORITY = senate.get("majority", 0)
+    GOVERNOR_NOT_UP = dict(gov.get("not_up") or {})
+    HOUSE_SEATS = dict(pack.data.get("house_seats") or {})
+    HOUSE_TOTAL = house.get("seats", sum(HOUSE_SEATS.values()))
+    HOUSE_MAJORITY = house.get("majority", 0)
+    PARTY_NAMES = _Names({key: o.get("name", key) for key, o in pack.options.items()})
 
 
-RACES = _build()
+def _control_aliases() -> dict[str, str]:
+    """What people type for a control race: HOUSE, HOUSE-CONTROL, US-HOUSE, HOUSE-MAJORITY."""
+    out = {}
+    for rid, r in RACES.items():
+        if r["type"] == "control":
+            word = (r.get("body") or rid.split("-")[-1]).upper().replace("_", "-")
+            for alias in (word, f"{word}-CONTROL", f"{word}-MAJORITY", rid):
+                out[alias] = rid
+    return out
 
 
 def normalize(race_id: str) -> str | None:
-    """Accept loose input like 'tx-sen', 'TX 7', 'tx-07', 'ak al' and return a canonical ID."""
+    """Accept loose input like 'tx-sen', 'TX 7', 'tx-07', 'ak al', 'house' and return a canonical ID."""
     s = race_id.strip().upper().replace(" ", "-").replace("_", "-")
-    if s in ("HOUSE", "HOUSE-CONTROL", "US-HOUSE", "HOUSE-MAJORITY"):
-        return "US-HOUSE"
+    control = _control_aliases()
+    if s in control:
+        return control[s]
     if s in RACES:
         return s
     parts = [p for p in s.split("-") if p]
@@ -117,5 +107,50 @@ def normalize(race_id: str) -> str | None:
     return None
 
 
+def search(text: str, limit: int = 25) -> list[str]:
+    """Race IDs for what someone has typed so far, best match first: "florida gov", "fl gov", "tx 15", "ohio 9th",
+    "senate". Every word typed has to appear in the race's ID, label or place name. With nothing typed, the control
+    races lead."""
+    order = sorted(RACES, key=lambda r: (RACES[r]["type"] != "control", RACES[r]["type"] == "house"))
+    words = text.upper().replace("-", " ").replace("_", " ").split()
+    if not words:
+        return order[:limit]
+    exact = normalize(text)
+    scored = []
+    for i, rid in enumerate(order):
+        r = RACES[rid]
+        parts = rid.split("-")
+        number = str(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else ""
+        hay = f"{rid} {' '.join(parts)} {number} {r['label'].upper()} {STATE_NAMES.get(r['state'], 'US').upper()}"
+        if all(w in hay for w in words):
+            starts = sum(1 for w in words if any(tok.startswith(w) for tok in hay.split()))
+            scored.append((rid != exact, -starts, i, rid))
+    return [rid for *_rank, rid in sorted(scored)][:limit]
+
+
+def chamber(race_id: str) -> str:
+    """What a race counts toward: "senate", "house", "governor", or a pack's own body or race type. A control race
+    belongs to the body it decides."""
+    r = RACES[race_id]
+    if r["type"] == "control":
+        return r.get("body") or ("senate" if race_id == "US-SENATE" else "house")
+    return r.get("body") or r["type"]       # a president's states count toward the Electoral College
+
+
+def chamber_name(race_id: str) -> str:
+    key = chamber(race_id)
+    known = {"senate": "Senate", "house": "House", "governor": "governors"}
+    return known.get(key) or BODIES.get(key, {}).get("name") or key.replace("_", " ").title()
+
+
+def options(race_id: str) -> list[dict] | None:
+    """A race's own choices, when its pack lists them: [{"key", "name", "party", "color"}]. None means the usual
+    parties, with names from candidates.json."""
+    return RACES[race_id].get("options")
+
+
 def races_of(kind: str) -> dict:
     return {rid: r for rid, r in RACES.items() if r["type"] == kind}
+
+
+packs.activate()

@@ -25,12 +25,20 @@ from PIL import Image, ImageDraw
 
 import cards as C
 import competitive as CMP
+import feeds as FEEDS
 import night as N
+import packs
 import races as R
 import scoring as S
 
 HERE = Path(__file__).parent
-HISTORY = HERE / "countywatch" / "field_history.json"
+
+
+def history_file() -> Path:
+    """The night's snapshots, kept with what the pack's County Watch writes."""
+    return FEEDS.cw_state("field_history.json")
+
+
 KINDS = ("senate", "house")
 TITLE = {"senate": "SENATE", "house": "HOUSE BATTLEGROUND"}
 RATING_M = {"Likely D": (8.6, 14.4), "Lean D": (3.6, 7.4), "Tilt D": (1.2, 2.8), "Toss-up": (-1.0, 1.0),
@@ -57,7 +65,7 @@ def palette(card_theme: str) -> str:
 
 def _candidates() -> dict:
     try:
-        data = json.loads((HERE / "candidates.json").read_text(encoding="utf-8"))
+        data = json.loads(packs.active().path("candidates.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {k.upper(): v for k, v in data.items() if not k.startswith("_")}
@@ -167,7 +175,7 @@ def changed(a: dict | None, b: dict) -> bool:
 # ------------------------------------------------------------------ history (for GIFs between posts and the timelapse)
 def _load_history() -> dict:
     try:
-        return json.loads(HISTORY.read_text(encoding="utf-8"))
+        return json.loads(history_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -182,12 +190,11 @@ def record(snap: dict):
     rows = h.setdefault(snap["kind"], [])
     if changed(rows[-1] if rows else None, snap):
         rows.append(snap)
-        HISTORY.parent.mkdir(exist_ok=True)
-        HISTORY.write_text(json.dumps(h), encoding="utf-8")
+        history_file().write_text(json.dumps(h), encoding="utf-8")
 
 
 def clear_history():
-    HISTORY.unlink(missing_ok=True)
+    history_file().unlink(missing_ok=True)
 
 
 # ------------------------------------------------------------------ geometry
