@@ -52,11 +52,11 @@ def test_a_visitor_sees_the_game_but_has_no_entry(site):
 
 
 def test_dev_sign_in_sets_a_signed_cookie_and_remembers_the_name(site):
-    sign_in(site, 42, "Pillow")
+    sign_in(site, 42, "Sam")
     s = site.get("/api/state").json()
-    assert s["me"] == {"id": "42", "name": "Pillow", "avatar": None}
+    assert s["me"] == {"id": "42", "name": "Sam", "avatar": None}
     assert s["entry"]["picks"] == {} and s["entry"]["completion"]["share"] == 0
-    assert WEB.store().setting("names") == {"42": "Pillow"}
+    assert WEB.store().setting("names") == {"42": "Sam"}
 
 
 def test_a_forged_or_expired_cookie_is_nobody(site, monkeypatch):
@@ -89,10 +89,10 @@ def test_discord_sign_in_sends_you_to_discord_and_checks_the_state_on_return(sit
 
     async def member(code, redirect_uri):
         assert (code, redirect_uri) == ("abc", "https://desk.example.com/auth/callback")
-        return {"id": 77, "name": "Anthon", "avatar": "a1b2", "member": True}
+        return {"id": 77, "name": "Alex", "avatar": "a1b2", "member": True}
     monkeypatch.setattr(WEB, "discord_identity", member)
     assert site.get(f"/auth/callback?code=abc&state={state}").status_code == 303
-    assert site.get("/api/state").json()["me"] == {"id": "77", "name": "Anthon", "avatar": "a1b2"}
+    assert site.get("/api/state").json()["me"] == {"id": "77", "name": "Alex", "avatar": "a1b2"}
 
 
 def test_someone_outside_the_server_is_turned_away(site, monkeypatch):

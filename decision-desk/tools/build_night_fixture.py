@@ -94,7 +94,7 @@ def build(db_path: Path, export_dir: Path) -> dict:
     num = {uid: i + 1 for i, uid in enumerate(order)}
 
     def anon_how(how: str) -> tuple[str, int | None]:
-        """'Called by Anthon (override)' -> ('Called by user2 (override)', 2). Majority and outlet wording is left alone."""
+        """'Called by Sam (override)' -> ('Called by user2 (override)', 2). Majority and outlet wording is left alone."""
         m = BY_NAME.match(how or "")
         if not m or m.group(2) not in by_name:
             return how, None
@@ -231,7 +231,7 @@ def fit_counted(night: dict) -> str:
 
 def write_db(src: Path, out: Path, num: dict[int, int], by_name: dict[str, int]):
     """An anonymised copy of the night's database: a new file with the same tables and rows, user IDs replaced by
-    the fixture's numbers and names in "Called by Anthon (override)" replaced the same way. Built fresh, row by row,
+    the fixture's numbers and names in "Called by Sam (override)" replaced the same way. Built fresh, row by row,
     so nothing of the original lingers in unused pages."""
     from store import Store
     for stale in (out, out.with_name(out.name + "-journal")):
