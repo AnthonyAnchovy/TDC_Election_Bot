@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import random
 
+import autocaller as AUTO
 import cw_forecast as CF
 import cw_model as M
 
@@ -44,7 +45,7 @@ HP = {
     "SB_NAT": 0.15,    # tilts are the whole story in a race without parties, so they are left free to be large
     "SB_ST": 0.05,
 }
-CALL_AT = 0.995        # the chance at which a finish counts as settled, as for two-sided races (backtest.CALL_AT)
+CALL_AT = AUTO.CALL_AT      # the chance at which a finish counts as settled, as for two-sided races (autocaller.py)
 
 
 def total(row: dict | None) -> int:

@@ -298,9 +298,10 @@ Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and rest
 
 **The Bot.** On the night the bot makes its own calls on Senate races from the forecast alone, and posts them to the
 board as an outlet called "The Bot". They feed `/scoreboard`, so the desk is timed against it, and they never make
-anything official. It calls when the forecast gives one side a 99.5% chance or better, results (not polls or other
+anything official. It calls when the forecast gives one side a 99% chance or better, results (not polls or other
 states) carry at least half of that forecast, and it has stayed there for 8 minutes. In 960 simulated races across
-five replayed elections that rule made no wrong call (`python backtest.py`). Set `"bot_caller": false` in
+five replayed elections that rule made no wrong call (`python backtest.py`). It called at 99.5% until Nov 2026; on
+the replays no threshold down to 95% made a wrong call, and 99% calls half the races by 41% counted instead of 47%. Set `"bot_caller": false` in
 `config.json` to switch it off. The thresholds are in `autocaller.py`. With `"model": "classic"` the bot goes back to
 2026's rule: a 15-point projected lead held for 20 minutes, 8 points for 40, 4 points for 75.
 
@@ -324,7 +325,7 @@ projection until morning. `cw_forecast.py` now sits on top of every state's proj
 against `project()` alone. Across the five, the average miss falls from 7.9 points to 5.2 before a state's first vote,
 from 4.7 to 2.1 with 15-35% counted, and from 1.9 to 0.9 with 65-90% counted; the wrong side is shown ahead less often
 (22% to 17% before any vote, 14% to 8% with 15-35% counted, 6% to 3% with 65-90% counted). In 960 simulated races
-(12 nights each) the bot's calling rule called 916 and made no wrong call; half of the calls came with under 47% of
+(12 nights each) the bot's calling rule called 918 and made no wrong call; half of the calls came with under 42% of
 the vote counted. Unless a night's county counts were recorded (below), the reporting order is simulated, so the
 replay tests the arithmetic, not the feeds. The field, `/trend`, The Bot and the website use the forecast.
 `/counties`, `/needs`, the alerts and the workbook still show `project()`'s numbers. `"model": "classic"` in

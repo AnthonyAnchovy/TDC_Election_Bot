@@ -45,6 +45,7 @@ from pathlib import Path
 
 import bisect
 
+import autocaller as AUTO
 import cw_forecast as F
 import cw_model as M
 import intake as IN
@@ -486,8 +487,8 @@ def _race_name(st: str, year: int) -> str:
 
 
 Z90 = 1.645
-CALL_AT = 0.995        # the win chance The Bot calls at (autocaller.py reads this)
-CALL_MIN_WEIGHT = 0.5  # and only once results, not the prior, carry at least this much of the forecast
+CALL_AT = AUTO.CALL_AT                  # the win chance The Bot calls at, from autocaller.py
+CALL_MIN_WEIGHT = AUTO.MIN_WEIGHT       # and only once results, not the prior, carry at least this much of the forecast
 
 
 def call_side(q: dict) -> str | None:

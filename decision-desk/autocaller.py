@@ -92,9 +92,10 @@ def decide(series: list[tuple[float, float, int, str]], race: str = "") -> Call 
 # ------------------------------------------------------------------ the forecast's rule
 # With the forecast (cw_forecast) the bot calls on the chance of winning, not on a margin held for a set time: a
 # 12-point lead with 5% counted and a 3-point lead with 98% counted can be equally safe, and the forecast's range
-# knows the difference. Across 960 simulated races in five replayed elections (backtest.py) this rule called 916 and
-# made no wrong call, and half its calls came with under 47% of the vote counted.
-CALL_AT = 0.995        # the chance of winning it calls at
+# knows the difference. On the five replayed elections (backtest.py, 8 nights each) no threshold from 99.5% down to
+# 95% made a wrong call. 99.5% made half its calls by 47% counted; 99% by 41%, 98% by 35%. 99% was chosen: the
+# replays are kinder than a real night (turnout roughly known, no bad files), so it keeps a margin over them.
+CALL_AT = 0.99         # the chance of winning it calls at (was 0.995 until Nov 2026; see above)
 MIN_WEIGHT = 0.5       # results, not the prior (polls and other states), must carry at least this much of the forecast
 HOLD_MINUTES = 8       # and the chance has to have stayed there this long, across at least two snapshots
 

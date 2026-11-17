@@ -120,7 +120,7 @@ def test_a_feed_that_goes_quiet_doesnt_make_its_counties_look_finished():
 
 def test_mississippi_as_the_bot_last_held_it_is_not_a_race_to_call():
     """The desk called Mississippi and took it back. On the same counties the forecast has Colom ahead by under a
-    point and well short of the 99.5% its own rule needs."""
+    point and well short of the 99% its own rule needs."""
     live = RP.load_countywatch()["MS"]
     fc = CF.forecast(all_states({"MS": live}))["MS"]
     assert 0 < fc["proj_m"] < 0.01 and 0.6 < fc["win_prob"] < AUTO.CALL_AT

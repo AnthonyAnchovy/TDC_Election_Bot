@@ -29,6 +29,7 @@ const lastName = (n) => surname(n || "");
 const pts = (m, digits = 1) => (Math.abs(m) * 100).toFixed(digits);
 const lean = (r, m, digits = 1) => (m == null ? "n/a" : Math.abs(m) < 0.0005 ? "Even" : `${esc(lastName(m > 0 ? r.d_name : r.r_name))} +${pts(m, digits)}`);
 const dr = (m, digits = 1) => (m == null ? "n/a" : Math.abs(m) < 0.0005 ? "even" : `${m > 0 ? "D" : "R"}+${pts(m, digits)}`);
+const CALL_AT = 0.99;     // the chance the desk's own bot calls at (autocaller.CALL_AT)
 const pctTxt = (p) => (p == null ? "n/a" : p > 0.995 && p < 1 ? ">99%" : p < 0.005 && p > 0 ? "<1%" : `${Math.round(p * 100)}%`);
 const votesTxt = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e4 ? `${Math.round(v / 1e3)}K` : Math.round(v).toLocaleString());
 const clockTxt = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -135,8 +136,8 @@ function watchList(o) {
       items.push([1, `<b>${esc(r.place)}:</b> the forecast (${dr(r.margin)}) and the classic county projection (${dr(r.classic_m)}) disagree by ${pts(r.classic_m - r.margin)} points, usually a sign that the first votes counted lean one way${r.early_lean != null && Math.abs(r.early_lean) > 0.03 ? ` (early counts are running ${dr(r.early_lean)} against final ones)` : ""}.`]);
     }
   }
-  const callable = live.filter((r) => Math.max(r.win_d, 1 - r.win_d) >= 0.995 && r.data_weight >= 0.5);
-  if (callable.length) items.push([4, `<b>Ready to call on the forecast's rule</b> (99.5% or better, results leading): ${callable.map((r) => `${esc(r.place)} for ${esc(lastName(r.margin > 0 ? r.d_name : r.r_name))}`).join(", ")}.`]);
+  const callable = live.filter((r) => Math.max(r.win_d, 1 - r.win_d) >= CALL_AT && r.data_weight >= 0.5);
+  if (callable.length) items.push([4, `<b>Ready to call on the forecast's rule</b> (99% or better, results leading): ${callable.map((r) => `${esc(r.place)} for ${esc(lastName(r.margin > 0 ? r.d_name : r.r_name))}`).join(", ")}.`]);
   const waiting = o.races.filter((r) => r.stage === "prior" && !r.called);
   if (waiting.length && o.national && o.national.counties) {
     items.push([1, `<b>Still waiting on ${waiting.length} state${waiting.length === 1 ? "" : "s"}:</b> ${waiting.map((r) => `${esc(r.state)} ${dr(r.margin)}`).join(", ")}. Those numbers are each state's poll and baseline moved by tonight's swing elsewhere (${dr(o.national.national_swing)}) and the polls' miss so far (${dr(o.national.poll_miss)}).`]);
@@ -215,7 +216,7 @@ async function deskView() {
   const rows = races.map((r) => {
     const side = Math.max(r.win_d, 1 - r.win_d), lead = r.margin >= 0;
     const need = r.trailer && r.need_share != null ? (r.need_share > 1 ? "out of reach" : `${pctTxt(r.need_share)} / ${pctTxt(r.pace_share)}`) : "";
-    const status = r.called ? `<span class="tag ok">CALLED ${esc(r.called)}</span>` : r.stage === "prior" ? '<span class="tag">PRIOR</span>' : side >= 0.995 && r.data_weight >= 0.5 ? '<span class="tag flip">CALLABLE</span>' : '<span class="tag">LIVE</span>';
+    const status = r.called ? `<span class="tag ok">CALLED ${esc(r.called)}</span>` : r.stage === "prior" ? '<span class="tag">PRIOR</span>' : side >= CALL_AT && r.data_weight >= 0.5 ? '<span class="tag flip">CALLABLE</span>' : '<span class="tag">LIVE</span>';
     return `<tr class="rrow${ox.open === r.id ? " open" : ""}" data-ox-open="${esc(r.id)}" tabindex="0">
       <td><b>${esc(r.place)}</b><span class="meta">${esc(lastName(r.d_name))} v ${esc(lastName(r.r_name))}</span></td>
       <td class="num"><i class="sw" style="background:${esc(sideColor(r, lead))}"></i>${lean(r, r.margin)}</td>
@@ -285,7 +286,7 @@ async function modelView() {
         <li><b>It learns from finished counties.</b> A county that has finished counting shows how far that kind of place moved since last time. Counties are compared by who lives there (race, education, size, how they voted before), across every state at once.</li>
         <li><b>It distrusts early counts.</b> The first votes out of a county are usually one voting method, and lean one way. A half-counted county only moves the forecast as far as it has earned.</li>
         <li><b>It fills in the rest.</b> Every county still counting gets an estimated final result, and they are added up into a statewide margin with a range around it.</li>
-        <li><b>It turns the range into a chance.</b> If the whole range sits on one side, that side is very likely to win. The desk's own bot calls a race when that chance passes 99.5% and results, not the starting guess, are doing the work.</li>
+        <li><b>It turns the range into a chance.</b> If the whole range sits on one side, that side is very likely to win. The desk's own bot calls a race when that chance reaches 99% and results, not the starting guess, are doing the work.</li>
       </ol>
       <h2 class="sect">How it was tested</h2>
       <p>Five elections were replayed county by county: 2018 and 2020 from the 2016 results, 2022 and 2024 from the 2020 results, and 2026 from the county results the bot was holding when the count ended. Nobody recorded which county reported when, so the order is simulated: small counties first, early votes leaning one way, some states without precinct counts. All five have shaped the model, so none is an untouched test.</p>
