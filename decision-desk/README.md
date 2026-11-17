@@ -443,9 +443,10 @@ of that kind of election says otherwise. `feeds.problems` rejects a `forecast` t
 `python feedcheck.py` runs the bot's own readers against every source it uses on the night: each state's county feed
 and every backup in order (it also lists the states that have only one source) against the state's last real election, the results files, the NYT files, the early vote tracker and
 the Bluesky accounts. It prints `ok`, `warn` (can't be checked from here: a site that blocks automated visitors, or a
-file that only exists around election day) or `FAIL` for each, and exits 1 if anything failed. GitHub runs it every
-Monday (`.github/workflows/feeds.yml`): a failure turns the run red and opens an issue titled "Feed check: a results
-source is broken", which closes itself when everything reads again. Run it by hand from the Actions tab too. A push
+file that only exists around election day) or `FAIL` for each, and exits 1 if anything failed. On GitHub
+(`.github/workflows/feeds.yml`) a failure turns the run red and opens an issue titled "Feed check: a results source is
+broken", which closes itself when everything reads again. The weekly Monday run is off between elections: run it by
+hand from the Actions tab, and put the schedule back (the workflow file says how) in the months before one. A push
 that changes a feed reader or the feed settings (`cw_feeds.py`, `results.py`, `feeds.json`, `results_sources.json`,
 a pack's `pack.json`) runs it on that branch as well; only runs on the main branch open or close the issue.
 

@@ -9,7 +9,7 @@ States change their results sites between elections: a new vendor, a renamed fil
 night that looks like a feed that returns nothing, with minutes to fix it. This runs the bot's own readers against
 each state's last real election (the "test" settings in feeds.json and results_sources.json), so a change shows up
 as a failed check here instead. A state with more than one county source has each of them checked, in the order
-the bot trusts them, and the states with only one are listed at the end. GitHub runs it every Monday (.github/workflows/feeds.yml) and opens an issue when
+the bot trusts them, and the states with only one are listed at the end. GitHub runs it (.github/workflows/feeds.yml: by hand, or weekly in election season) and opens an issue when
 something breaks.
 
 Three answers per source:

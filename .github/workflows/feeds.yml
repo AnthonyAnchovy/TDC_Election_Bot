@@ -1,14 +1,16 @@
 name: feeds
 
-# Every Monday, run the bot's own readers against each state's results site and the other sources it uses on
-# election night (decision-desk/feedcheck.py). A state that changed its site shows up here as a red run and an
-# open issue, months before the night, instead of as a feed that returns nothing at 8 PM.
+# Run the bot's own readers against each state's results site and the other sources it uses on election night
+# (decision-desk/feedcheck.py). A state that changed its site shows up here as a red run and an open issue, months
+# before the night, instead of as a feed that returns nothing at 8 PM.
+# The weekly run is off between elections. To turn it back on in the months before one, put this under "on:":
+#   schedule:
+#     - cron: "17 14 * * 1"      # Mondays, 14:17 UTC
+# Until then, run it by hand from the Actions tab (Run workflow).
 # It also runs when a push changes a feed reader or the feed settings, so a change that breaks one shows up on its
 # own branch. Only runs on the default branch open or close the issue.
 
 on:
-  schedule:
-    - cron: "17 14 * * 1"      # Mondays, 14:17 UTC
   workflow_dispatch:
   push:
     paths:
