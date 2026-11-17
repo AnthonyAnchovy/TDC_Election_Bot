@@ -116,7 +116,12 @@ def snapshot(kind: str, calls: dict, *, live: dict | None = None, cw_cache: dict
         import cw_model as M
         cache = cw_cache or CWR.live_cache()
         man, fac = CWR.manual(), CWR.factors()
-        projs = {st: CWR.projection(st, cache, man, fac) for st in M.STATES}
+        # The forecast (cw_forecast) is the default: every state worked out together, with a prior before results.
+        # "model": "classic" in config.json goes back to project() alone, as on election night 2026.
+        import picks as PK
+        use_fc = PK.config().get("model", "forecast") != "classic"
+        projs = CWR.forecasts(cache, man, fac) if use_fc else {st: CWR.projection(st, cache, man, fac) for st in M.STATES}
+        fc = {}
         for rid in race_ids("senate"):
             st = R.RACES[rid]["state"]
             safe = CMP.SAFE.get(rid)
@@ -124,7 +129,14 @@ def snapshot(kind: str, calls: dict, *, live: dict | None = None, cw_cache: dict
             if st in M.STATES:
                 p = projs[st]
                 v = int(p["counted"])
-                if p["proj_m"] is not None:
+                if use_fc:
+                    ready = p["stage"] == "live" and p["data_weight"] >= 0.5       # results, not the prior, lead
+                    state = "proj" if ready else "count" if v else "wait"
+                    if v or not safe:
+                        m = 100 * p["proj_m"]
+                    # [chance the left side wins, sd in points, stage, how much of it is results]
+                    fc[rid] = [round(p["win_prob"], 4), round(100 * p["sd"], 2), p["stage"], round(p["data_weight"], 3)]
+                elif p["proj_m"] is not None:
                     m, state = 100 * p["proj_m"], "proj"
                 elif v:         # no county finished here yet: the votes counted, plus the rest swung like similar counties elsewhere
                     m, state = 100 * M.pooled_est(st, projs), "count"
@@ -146,8 +158,11 @@ def snapshot(kind: str, calls: dict, *, live: dict | None = None, cw_cache: dict
                     state = "proj" if w >= 0.5 else "count"
             out[rid] = [round(m, 2), v, state, calls.get(rid), _side(rid, cands)]
     when = when or datetime.now(N.ET)
-    return {"kind": kind, "ts": when.timestamp(), "clock": _clock(when), "races": out,
+    snap = {"kind": kind, "ts": when.timestamp(), "clock": _clock(when), "races": out,
             "counts": S.chamber_counts(kind, calls)}
+    if kind == "senate" and fc:
+        snap["fc"] = fc
+    return snap
 
 
 def _totals(snap: dict) -> dict:

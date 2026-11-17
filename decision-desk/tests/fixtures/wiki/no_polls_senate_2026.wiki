@@ -1,0 +1,38 @@
+{{legend|#D3D3D3|No election}}
+]]
+Eleven senators—four Democrats and seven Republicans—announced they would not seek reelection. This is the most in a single election cycle since [[1996 United States Senate elections|1996]], when thirteen senators chose not to run again.{{efn|In the [[2010 United States Senate elections|2010 Senate elections]], the [[2010 United States Senate special election in Massachusetts|Massachusetts special election]] was not included in the list and not part in the regular election cycle.}}<ref>{{Cite web |title=House retirements tied for most this century |url=https://www.axios.com/2026/03/02/members-of-congress-retirements-record-high |access-date=March 9, 2026 |website=Axios |date=March 2, 2026 }}</ref>
+
+{| class="wikitable sortable plainrowheaders" style=white-space:nowrap
+|-
+! scope="col" |State
+! scope="col" |Senator
+! scope="col" | Age at <br /> end of term
+! scope="col" | Assumed <br /> office
+! scope="col" | Replaced by
+! scope="col" |{{Abbr|Ref|Reference}}
+|-
+! [[2026 United States Senate election in Alabama|Alabama]]
+| {{Party shading/Republican}} | {{sortname|Tommy|Tuberville}}
+| style="text-align:center" | 72
+| style="text-align:center" | 2021
+| {{Party shading/Republican/Hold}} | {{sortname|Barry|Moore|dab=American politician}}
+| <ref name="Tuberville">{{cite news |last1=Angle |first1=Alex |title=Tuberville to announce run for governor in 2026 |url=https://aldailynews.com/tuberville-to-announce-run-for-governor-in-2026/ |access-date=May 27, 2025 |work=Alabama Daily News |date=May 27, 2025}}</ref>
+|-
+! [[2026 United States Senate election in Illinois|Illinois]]
+| {{Party shading/Democratic}} | {{sortname|Dick|Durbin}}
+| style="text-align:center" | 82
+| style="text-align:center" | 1997
+| {{Party shading/Democratic/Hold}} | {{sortname|Juliana|Stratton}}
+| <ref name="Durbin">{{cite news |last1=Hulse |first1=Carl |title=Durbin, No. 2 Senate Democrat, to Retire After 44 Years in Congress |url=https://www.nytimes.com/2025/04/23/us/dick-durbin-retires-senate.html |access-date=April 23, 2025 |work=The New York Times |date=April 23, 2025}}</ref>
+|-
+! [[2026 United States Senate election in Iowa|Iowa]]
+| {{Party shading/Republican}} | {{sortname|Joni|Ernst}}
+| style="text-align:center" | 56
+| style="text-align:center" | 2015
+| {{Party shading/Democratic/Gain}} | {{sortname|Josh|Turek}}
+| <ref name="ernst">{{cite news |last=Jacobs |first=Jennifer |date=September 2, 2025 |title=Joni Ernst announces retirement from Senate in 2026, pledges ongoing community involvement
+|url=https://cbs2iowa.com/news/local/joni-ernst-announces-retirement-from-senate-in-2026-pledges-ongoing-community-involvement |access-date=September 2, 2025 |publisher=CBS KGAN}}</ref>
+|-
+! [[2026 United States Senate election in Kentucky|Kentucky]]
+| {{Party shading/Republican}} | {{sortname|Mitch|McConnell}}
+| style="text-align:center" | 84

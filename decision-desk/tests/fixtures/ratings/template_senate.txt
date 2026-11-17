@@ -1,0 +1,46 @@
+Text before the table, with a footnote.<ref>{{cite web |url=https://example.org |title=x}}</ref>
+
+<div style="overflow-x:auto;>
+{| class="wikitable sortable"
+|- style="vertical-align:bottom"
+! colspan=2 | Constituency
+! colspan=2 | Incumbent
+! colspan="12" | 2022 election ratings
+|- style="vertical-align:bottom"
+! State
+! [[Cook Partisan Voting Index|PVI]]
+! Senator
+! data-sort-type="number"| Last<br />elec
+! [[Cook Political Report|Cook]]<br />{{Small|Oct 28,<br />2022}}<ref>{{cite web|title=Cook|url=https://example.org}}</ref>
+! [[Inside Elections]]<br />{{Small|Nov 3,<br />2022}}
+! [[Sabato's Crystal Ball|Sabato]]<br />{{Small|Nov 7,<br />2022}}
+! Result
+|-
+! [[#Georgia|Georgia]]
+| {{Party shading/Republican}} | R+3
+| {{Party shading/Democratic}} | [[Raphael Warnock]]
+| 49.4% D
+<!--Cook--> | {{USRaceRating|Tossup}}
+<!--IE--> | {{USRaceRating|Tossup}}
+<!--Sabato--> | {{USRaceRating|Lean|D}}
+| Warnock 51.4% D
+|-
+! [[#Vermont|Vermont]]
+| {{Party shading/Democratic}} | D+16
+| {{Party shading/Democratic}} | [[Patrick Leahy]]
+| 61.3% D
+| {{USRaceRating|Solid|D}}
+| {{USRaceRating|Safe|D}}
+| {{USRaceRating|Safe|D}}
+| Welch 68.5% D
+|-
+! [[#Wisconsin|Wisconsin]]
+| {{Party shading/Republican}} | R+2
+| {{Party shading/Republican}} | [[Ron Johnson]]
+| 50.2% R
+| {{USRaceRating|Tossup}}
+| {{USRaceRating|Tilt|R}}
+| {{USRaceRating|Lean|R|flip}}
+| Johnson 50.4% R
+|}
+</div>

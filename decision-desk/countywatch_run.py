@@ -27,6 +27,7 @@ import cw_feeds as FD
 import cw_model as M
 import cw_workbook as W
 import feeds as FEEDS
+import intake as IN
 import packs
 
 HERE = Path(__file__).parent
@@ -109,23 +110,6 @@ THROTTLE_MAX = 5 * 60       # longest wait between tries of a site that answered
 THROTTLE_WARN = 3 * 60      # how long that goes on before the board hears about it
 
 
-def _suspect_pull(new: dict, old: dict | None, minutes_since_close: float = 999) -> str | None:
-    """Why a freshly parsed file shouldn't replace the numbers we have, or None. Several parsers return nothing
-    (rather than failing) for an error page or an empty download, and a half-downloaded file loses counties."""
-    with_votes = lambda rows: sum(1 for r in (rows or {}).values() if (r.get("D") or 0) + (r.get("R") or 0) > 0)
-    n_new, n_old = with_votes(new), with_votes(old)
-    if not new and old:
-        return "the file came back empty (error page or cut-off download); kept the last numbers"
-    done = sum(1 for r in (new or {}).values() if (r.get("pct_in") or 0) >= 0.999 and (r.get("D") or 0) + (r.get("R") or 0) > 0)
-    if minutes_since_close < 10 and len(new or {}) >= 4 and done > 0.5 * len(new):
-        return (f"{done} of {len(new)} counties already show every precinct in, {minutes_since_close:.0f} minutes after "
-                "polls closed: looks like leftover test data, so it's being ignored for now")
-    if n_old >= 4 and n_new < 0.5 * n_old:
-        return (f"the file had votes in only {n_new} counties, down from {n_old} (probably cut off); "
-                "kept the last numbers")
-    return None
-
-
 def extended_states(sources: dict, when: datetime) -> dict:
     """{state: seconds between pulls} for the feeds that keep running after election night, because their late ballots
     get counted for days (feeds.json's extended_feeds). A bad date leaves that state off rather than stopping anything."""
@@ -187,6 +171,8 @@ def _apply_pulls(todo, results, waiting) -> dict:
     for st, res in zip(todo, results):
         if isinstance(res, Exception):          # one state's outage shouldn't stop the others
             cache["errors"][st] = str(res)[:200] or type(res).__name__
+            if FD.source_report(st):
+                cache.setdefault("sources", {})[st] = FD.source_report(st)
             if isinstance(res, FD.BotCheck):
                 blocked[st] = time.time()
                 throttled.pop(st, None)
@@ -196,21 +182,82 @@ def _apply_pulls(todo, results, waiting) -> dict:
             continue
         blocked.pop(st, None)
         throttled.pop(st, None)
-        bad = _suspect_pull(res["counties"], cache["states"].get(st),
-                            (now_et() - N.first_close(st)).total_seconds() / 60)
-        if bad:                                  # an error page or a cut-off file: keep the last good numbers
-            cache["errors"][st] = bad
+        if res.get("sources"):
+            cache.setdefault("sources", {})[st] = res["sources"]
+        held, notes = cache.setdefault("held", {}), cache.setdefault("notes", {})
+        using = cache.setdefault("using", {})
+        switched = bool(res.get("source")) and using.get(st) not in (None, res.get("source"))
+        v = IN.check(st, res["counties"], cache["states"].get(st), (now_et() - N.first_close(st)).total_seconds() / 60,
+                     {} if switched else held.get(st), res.get("lists_every_county", True), switched)
+        if not v.rejected and res.get("source"):
+            using[st] = res["source"]
+        if v.rejected:                           # an error page or a cut-off file: keep the last good numbers
+            cache["errors"][st] = v.rejected
+            if v.held:                           # intake counts how many pulls a doubted number has lasted
+                held[st] = v.held
             continue
         cache["errors"].pop(st, None)
+        cache.setdefault("answered", {})[st] = time.time()     # the feed answered and was believed (see merged_live)
+        for box, value in ((held, v.held), (notes, "; ".join(v.notes))):
+            if value:
+                box[st] = value
+            else:
+                box.pop(st, None)
         # compare even when the site said "not modified": its numbers come from memory then, and they restore a
         # state whose cache was lost or reset
-        if res["counties"] != cache["states"].get(st):
-            cache["states"][st] = res["counties"]
+        if v.rows != cache["states"].get(st):
+            _note_moved(cache, st, v.rows)
+            cache["states"][st] = v.rows
             cache.get("files", {}).pop(st, None)       # a newer feed pull replaces a hand-loaded file
             cache["changed"].append(st)
+            IN.record(st, feed_view(cache).get(st, {}), time.time(), res.get("source"))
     cache["fetched"] = time.time()
     _save("live.json", cache)
     return cache
+
+
+def _note_moved(cache: dict, st: str, new: dict):
+    """Remember when each county's count last changed. A count that has stopped moving is the only sign a county has
+    finished when its feed has no precinct numbers (cw_forecast.finished)."""
+    old, moved, t = cache["states"].get(st) or {}, cache.setdefault("moved", {}).setdefault(st, {}), time.time()
+    for fips, row in new.items():
+        was = old.get(fips) or {}
+        if (row.get("D"), row.get("R")) != (was.get("D"), was.get("R")):
+            moved[fips] = t
+
+
+def source_report(cache: dict | None = None) -> dict:
+    """{state: its sources in order}: each with when it last answered and last changed, its last error, and whether
+    it's the one in use. A file dropped in the inbox is shown last, and is in use while it's laid over the feed."""
+    cache = cache or live_cache()
+    out = {st: [dict(s) for s in rows] for st, rows in (cache.get("sources") or {}).items()}
+    for st, meta in (cache.get("file_meta") or {}).items():
+        rows = out.setdefault(st, [])
+        using = st in (cache.get("files") or {})
+        if using:
+            for s in rows:
+                s["in_use"] = False
+        rows.append({"name": f"file dropped in the inbox ({meta.get('name')})", "order": len(rows) + 1,
+                     "answered": meta.get("at"), "changed": meta.get("at"), "error": None, "votes": None, "in_use": using})
+    return out
+
+
+def forecasts(cache=None, man=None, fac=None) -> dict:
+    """Every state's forecast at once (cw_forecast): the states inform each other, so they're worked out together."""
+    import cw_forecast as CF
+    cache = cache or live_cache()
+    man, fac = manual() if man is None else man, factors() if fac is None else fac
+    try:
+        early = CF.early_inputs(early_cache())
+    except Exception:                       # early vote sharpens the forecast; it must never be able to stop it
+        log.exception("early vote for the forecast")
+        early = {}
+    projs = {}
+    for st in M.STATES:
+        factor, by_county = CF.turnout_start(st, early, fac.get(st, 1.0))
+        projs[st] = M.project(st, merged_live(st, cache, man), factor, by_county)
+    polls, hp = CF.night_inputs(CF.poll_margins())
+    return CF.forecast(projs, polls, hp, early=early)
 
 
 def national(cache=None) -> dict:
@@ -450,6 +497,7 @@ def load_file(raw: bytes, name: str, state: str | None = None) -> dict:
         cache.setdefault("file_meta", {})[st] = {"name": name, "kind": kind, "at": time.time()}
         cache["changed"] = [st]
         _save("live.json", cache)
+        IN.record(st, feed_view(cache).get(st, {}), time.time(), f"file: {name}")
     return {"state": st, "kind": kind, "counties": len(counties), "of": len(M.load()[st]), "votes": votes,
             "complete": done, "changed": counties != old}
 
@@ -466,6 +514,8 @@ def reset_night() -> str:
                 gone.append(name)
             except FileNotFoundError:
                 pass
+        if IN.set_aside():
+            gone.append("the snapshot logs (moved to a rehearsal folder)")
     return ("cleared " + ", ".join(gone)) if gone else "nothing to clear"
 
 
@@ -521,6 +571,12 @@ def merged_live(st: str, cache: dict | None = None, man: dict | None = None) -> 
     cache = cache or live_cache()
     man = manual() if man is None else man
     live = feed_view(cache).get(st, {})
+    # Minutes a county's count has sat still, measured up to the last time its feed answered, not up to now: a feed
+    # that has gone quiet (blocked, down) says nothing about whether its counties have finished.
+    moved, t = (cache.get("moved") or {}).get(st) or {}, (cache.get("answered") or {}).get(st)
+    for fips, row in live.items():
+        if fips in moved and t:
+            row["idle"] = max(0.0, t - moved[fips]) / 60
     for c in M.load()[st]:
         m = man.get(c["fips"])
         if not isinstance(m, dict) or not m:
@@ -700,9 +756,7 @@ def workbook_wrote(status: str) -> bool:
     return status.startswith(("updated the shared workbook", "updated the open workbook", "rebuilt the workbook"))
 
 
-def _snap_row(r: dict) -> list:
-    """[D, R, other, share in, marked complete], then Alaska's votes still expected by vote type where there are any."""
-    return [r.get("D") or 0, r.get("R") or 0, r.get("O") or 0, r.get("pct_in"), bool(r.get("complete"))] + ([r["rest"]] if r.get("rest") else [])
+_snap_row = IN.pack_row       # [D, R, other, share in, marked complete], plus Alaska's votes still expected
 
 
 def result_snapshot(cache: dict | None = None) -> dict:

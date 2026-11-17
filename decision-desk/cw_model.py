@@ -29,6 +29,7 @@ Turnout, in one scale:
 """
 from __future__ import annotations
 
+import collections
 import csv
 import json
 from pathlib import Path
@@ -104,6 +105,41 @@ def short(name: str) -> str:
 # ------------------------------------------------------------------ baseline
 _CACHE: dict = {}
 
+# What the columns of a pack's baseline.csv mean. A pack says so in its County Watch block:
+#   "contests": {"2024-pres": {"d": "d24", "r": "r24", "total": "t24"}, ...}    a past contest: its two sides' columns
+#                                                                             and the column with everyone's votes
+#   "baseline": {"split": "2024-pres", "turnout": "2022"}     tonight is measured from the first one's margins, at the
+#                                                             second one's turnout
+# A pack that says nothing gets 2026's meaning, which is the file layout this was first written for. Inside the code
+# the baseline keeps its first names whatever the election: d24/r24/t24/m24 are the split contest, t22 the turnout
+# contest's total, and w the two-party vote expected (the split's two-party share of the turnout contest's total).
+CONTESTS_2026 = {"2020-pres": {"d": "d20", "r": "r20", "total": "t20"},
+                 "2022": {"d": "d22", "r": "r22", "total": "t22"},
+                 "2024-pres": {"d": "d24", "r": "r24", "total": "t24"}}
+BASELINE_2026 = {"split": "2024-pres", "turnout": "2022"}
+
+
+def contests() -> dict[str, dict]:
+    """{name: {"d": column, "r": column, "total": column}} for the past contests the active pack's baseline.csv holds."""
+    return dict(FEEDS.countywatch().get("contests") or CONTESTS_2026)
+
+
+def baseline() -> dict[str, str]:
+    """{"split": contest, "turnout": contest}: what tonight is measured from."""
+    cw = FEEDS.countywatch()
+    base = dict(cw.get("baseline") or ({} if cw.get("contests") else BASELINE_2026))
+    if "split" not in base:
+        raise ValueError('the pack lists "contests" for County Watch but no "baseline": {"split": ..., "turnout": ...}')
+    base.setdefault("turnout", base["split"])
+    return base
+
+
+def _num(row: dict, col: str | None) -> int:
+    try:
+        return int(float(row.get(col) or 0)) if col else 0
+    except ValueError:
+        return 0
+
 
 @packs.on_activate
 def _fill(_pack):
@@ -136,17 +172,35 @@ def load() -> dict[str, list[dict]]:
             ne24 = {r["fips"]: (int(r["osborn"]), int(r["fischer"]), int(r["total"])) for r in csv.DictReader(f)}
     except OSError:
         pass
+    past, base = contests(), baseline()
+    wanted = [f["name"] if isinstance(f, dict) else str(f) for f in FEEDS.countywatch().get("features") or []]
+    split, turnout = past[base["split"]], past.get(base["turnout"]) or past[base["split"]]
     with open(CW_DIR / "baseline.csv", encoding="utf-8") as f:
         for r in csv.DictReader(f):
+            r = collections.defaultdict(str, r)         # a pack's file needn't have every column 2026's has
             st = r["state"]
+            d, rr = _num(r, split["d"]), _num(r, split["r"])
+            total = _num(r, split.get("total")) or d + rr
             c = {"state": st, "fips": r["fips"], "county": r["county"], "name": short(r["county"]),
-                 "type": county_type(r), "d24": int(r["d24"]), "r24": int(r["r24"]), "t24": int(r["t24"]),
-                 "d20": int(r["d20"] or 0), "r20": int(r["r20"] or 0), "t22": int(r["t22"] or 0) or int(r["t24"]),
-                 "d22": int(r["d22"] or 0), "r22": int(r["r22"] or 0), "race22": r["race22"],
+                 "type": county_type(r), "d24": d, "r24": rr, "t24": total,
+                 "d20": _num(r, "d20"), "r20": _num(r, "r20"), "t22": _num(r, turnout.get("total")) or total,
+                 "d22": _num(r, "d22"), "r22": _num(r, "r22"), "race22": r["race22"],
                  "pop": int(r["pop23"] or 0), "white": float(r["white"] or 0), "black": float(r["black"] or 0),
                  "hisp": float(r["hisp"] or 0), "ba": float(r["ba"] or 0),
+                 # every declared contest as the file has it, (D, R, everyone), for backtest.py
+                 "past": {name: (_num(r, k["d"]), _num(r, k["r"]), _num(r, k.get("total"))) for name, k in past.items()},
                  "modes22": {k: (float(r[f"{k}22_D"]), float(r[f"{k}22_R"])) for k in ("early", "mail", "eday")
                              if r.get(f"{k}22_D")}}
+            extra = {}
+            for name in wanted:                 # columns only this pack's features use (cw_forecast.features)
+                if name in c or name in past:
+                    continue
+                try:
+                    extra[name] = float(r[name])
+                except ValueError:
+                    pass
+            if extra:
+                c["extra"] = extra
             if st == "NE" and r["fips"] in ne24:
                 # Nebraska's D side is Dan Osborn, so his own 2024 Senate race (vs Fischer) is the baseline, not
                 # Harris-Trump: he ran about 14 points ahead of Harris, most of it in rural counties.
@@ -246,9 +300,16 @@ SURE_MIN = 3    # counties known to be complete (precincts all in, or marked Y) 
 LEAN = 0.10    # counties whose break-even is beyond +/-10 pts count as D-leaning / R-leaning for the turnout read
 
 
-def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
-    """live: {fips: {"D","R","O","pct_in", optional "complete": bool}} (missing counties = nothing counted)."""
-    rows = load()[st]
+def project(st: str, live: dict, turnout_factor: float = 1.0, county_factor: dict | None = None,
+            rows: list[dict] | None = None) -> dict:
+    """live: {fips: {"D","R","O","pct_in", optional "complete": bool}} (missing counties = nothing counted).
+    county_factor: {fips: how many times its 2022-pattern vote a county is expected to cast}, where early vote says
+    (cw_forecast.early_inputs). It scales each county's expected vote before anything else is worked out.
+    rows: the places and their baseline, in place of the pack's own for this state (cw_multi gives each candidate
+    their own starting point this way)."""
+    rows = load()[st] if rows is None else rows
+    if county_factor:
+        rows = [{**c, "w": c["w"] * county_factor.get(c["fips"], 1.0)} for c in rows]
 
     def sure(c):
         """Complete for certain: marked done, or every precinct in with most of the vote. Uses the turnout factor, not
@@ -273,6 +334,8 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
         complete = sure(c)[0] or (pct is None and D + R > 0 and D + R >= DONE_SHARE * exp2)
         lm = m2(D, R)
         out_rows.append({**c, "D": D, "R": R, "O": int(lv.get("O") or 0), "pct_in": pct, "exp2": exp2, "rest": rest,
+                         "sure": sure(c)[0],        # complete beyond doubt, not only because it reached its expected vote
+                         "idle": lv.get("idle"),
                          "complete": complete, "live_m": lm, "swing": (lm - c["m24"]) if complete and lm is not None else None,
                          "est_in": 1.0 if complete else min((D + R) / exp2, 0.99) if exp2 else 0})
 
@@ -306,6 +369,7 @@ def project(st: str, live: dict, turnout_factor: float = 1.0) -> dict:
             type_pace[t] = pace_state + (obs - pace_state) * n / (n + PACE_K)
     PD = PR = 0.0
     for r in out_rows:
+        r["exp_v"] = r["w"] * type_pace.get(r["type"], pace_state)     # the vote expected here at tonight's pace
         if r["complete"]:
             r["proj_m"] = r["live_m"]
             pd, pr = r["D"], r["R"]

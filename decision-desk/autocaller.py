@@ -89,6 +89,37 @@ def decide(series: list[tuple[float, float, int, str]], race: str = "") -> Call 
     return None
 
 
+# ------------------------------------------------------------------ the forecast's rule
+# With the forecast (cw_forecast) the bot calls on the chance of winning, not on a margin held for a set time: a
+# 12-point lead with 5% counted and a 3-point lead with 98% counted can be equally safe, and the forecast's range
+# knows the difference. Across 960 simulated races in five replayed elections (backtest.py) this rule called 916 and
+# made no wrong call, and half its calls came with under 47% of the vote counted.
+CALL_AT = 0.995        # the chance of winning it calls at
+MIN_WEIGHT = 0.5       # results, not the prior (polls and other states), must carry at least this much of the forecast
+HOLD_MINUTES = 8       # and the chance has to have stayed there this long, across at least two snapshots
+
+
+def decide_prob(points: list[tuple[float, float, float]], race: str = "") -> Call | None:
+    """Whether the forecast calls the race at its latest snapshot. points: (time, chance the D side wins, weight of
+    results in the forecast), oldest first."""
+    if len(points) < 2:
+        return None
+
+    def side(wp, weight):
+        return None if weight < MIN_WEIGHT else "D" if wp >= CALL_AT else "R" if wp <= 1 - CALL_AT else None
+    ts, wp, weight = points[-1]
+    now = side(wp, weight)
+    if not now:
+        return None
+    start = len(points) - 1
+    while start > 0 and side(points[start - 1][1], points[start - 1][2]) == now:
+        start -= 1
+    held = (ts - points[start][0]) / 60
+    if start == len(points) - 1 or held < HOLD_MINUTES:
+        return None
+    return Call(race, now, ts, wp, held)
+
+
 def standing(series: list[tuple[float, float, int, str]]) -> str:
     """Why the rule hasn't called a race yet, in a few words."""
     if not series or all(state != "proj" for *_x, state in series):

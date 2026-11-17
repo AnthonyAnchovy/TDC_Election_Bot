@@ -30,7 +30,23 @@
       "race": "{state}-SEN",
       "workbook": "County Watch 2026.xlsx",
       "states": ["AK", "GA", "IA", "KS", "ME", "MI", "MN", "MS", "NC", "NE", "NH", "OH", "SC", "TX", "FL", "VA", "KY"],
-      "bellwether": ["VA", "KY"]
+      "bellwether": ["VA", "KY"],
+      "not_comparable": ["NE"],
+      "contests": {
+        "2016-pres": {"d": "d16", "r": "r16", "total": "t16"},
+        "2020-pres": {"d": "d20", "r": "r20", "total": "t20"},
+        "2018": {"d": "d18", "r": "r18", "total": "t18"},
+        "2022": {"d": "d22", "r": "r22", "total": "t22"},
+        "2024-pres": {"d": "d24", "r": "r24", "total": "t24"}
+      },
+      "baseline": {"split": "2024-pres", "turnout": "2022"},
+      "backtests": [
+        {"name": "2022", "result": "2022", "split": "2020-pres", "turnout": "2020-pres", "polls": "2022"},
+        {"name": "2024", "result": "2024-pres", "split": "2020-pres", "turnout": "2020-pres", "polls": "2024"},
+        {"name": "2018", "result": "2018", "split": "2016-pres", "turnout": "2016-pres"},
+        {"name": "2020", "result": "2020-pres", "split": "2016-pres", "turnout": "2016-pres"},
+        {"name": "2026", "result": "live"}
+      ]
     }
   },
   "options": {

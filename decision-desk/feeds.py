@@ -9,7 +9,19 @@ all runs on what people enter by hand, which is all a one-off city race needs.
     "bluesky":     {"since": "2026-11-03T17:00:00-05:00", "accounts": {"did:plc:...": "Decision Desk HQ"}},
     "early_vote":  {"uf": url, "nc_absentee": url},
     "countywatch": {"folder": "countywatch", "race": "{state}-SEN", "workbook": "County Watch 2026.xlsx",
-                    "states": ["GA", "NC", ...], "bellwether": ["VA", "KY"], "night_ends": "08:00"}
+                    "states": ["GA", "NC", ...], "bellwether": ["VA", "KY"], "night_ends": "08:00",
+                    "not_comparable": ["NE"],          places whose swing says nothing about the others
+                    "contests": {"2024-pres": {"d": "d24", "r": "r24", "total": "t24"}, ...},
+                                                       the past contests in baseline.csv, by column (cw_model)
+                    "baseline": {"split": "2024-pres", "turnout": "2022"},
+                                                       what the night is measured from
+                    "backtests": [{"name": "2024", "result": "2024-pres", "split": "2020-pres",
+                                   "turnout": "2020-pres", "polls": "2024"}, {"name": "2026", "result": "live"}],
+                                                       the elections backtest.py replays
+                    "forecast": {"SE": 0.05},          the forecast's settings for this election (cw_forecast.HP)
+                    "features": ["black", "ba", "2023-runoff"]}
+                                                       what a place is like, for the forecast's tilts: columns of
+                                                       baseline.csv, past contests, "logpop" or "split"
   }
 
 Two kinds of County Watch file are kept apart. What the pack ships (baselines, key counties, feeds.json) is read
@@ -179,6 +191,42 @@ def problems(data: dict) -> list[str]:
             out.append(f'feeds.countywatch: bellwether "{st}" isn\'t one of its states')
     if cw and not cw.get("states"):
         out.append('feeds.countywatch needs its "states"')
+    for st in cw.get("not_comparable") or []:
+        if st not in (cw.get("states") or []):
+            out.append(f'feeds.countywatch: not_comparable "{st}" isn\'t one of its states')
+    past = cw.get("contests")
+    if past is not None:
+        if not isinstance(past, dict) or not past:
+            out.append('feeds.countywatch.contests has to be a block of named contests')
+            past = {}
+        for name, cols in past.items():
+            if not isinstance(cols, dict) or not cols.get("d") or not cols.get("r"):
+                out.append(f'feeds.countywatch.contests: "{name}" needs the columns for its two sides, "d" and "r"')
+        base = cw.get("baseline") or {}
+        if not base.get("split"):
+            out.append('feeds.countywatch: with "contests" it needs "baseline": {"split": a contest, "turnout": a contest}')
+        for key in ("split", "turnout"):
+            if base.get(key) and base[key] not in past:
+                out.append(f'feeds.countywatch.baseline: "{base[key]}" isn\'t one of its contests')
+        for b in cw.get("backtests") or []:
+            if not isinstance(b, dict) or not b.get("name") or not b.get("result"):
+                out.append('feeds.countywatch.backtests: each one needs a "name" and a "result"')
+                continue
+            if b["result"] == "live":           # the pack's own election, from its own baseline
+                continue
+            for key in ("result", "split", "turnout"):
+                if (key != "turnout" or b.get(key)) and b.get(key) not in past:
+                    out.append(f'feeds.countywatch.backtests: "{b["name"]}" names "{b.get(key)}" as its {key}, which isn\'t one of its contests')
+    elif cw.get("backtests") or cw.get("baseline"):
+        out.append('feeds.countywatch: "baseline" and "backtests" need "contests" to say which columns they mean')
+    feats = cw.get("features")
+    if feats is not None and (not isinstance(feats, list) or not all(
+            isinstance(f, str) or (isinstance(f, dict) and isinstance(f.get("name"), str)
+                                   and isinstance(f.get("scale", 1), (int, float)) and f.get("scale", 1) > 0) for f in feats)):
+        out.append('feeds.countywatch.features has to be a list of names, or of {"name": ..., "scale": a number above 0}')
+    extra = cw.get("forecast")
+    if extra is not None and (not isinstance(extra, dict) or not all(isinstance(v, (int, float)) for v in extra.values())):
+        out.append("feeds.countywatch.forecast has to be a block of named numbers, like {\"SE\": 0.05}")
     if cw.get("race") and "{state}" not in cw["race"]:
         out.append('feeds.countywatch.race has to say where the state goes, like "{state}-SEN"')
     return out

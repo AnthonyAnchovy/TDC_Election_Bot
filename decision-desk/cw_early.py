@@ -169,8 +169,12 @@ def lean(counter: collections.Counter, shares: dict) -> float | None:
 
 # ------------------------------------------------------------------ UF Election Lab
 def parse_uf(raw: bytes) -> dict:
+    """The tracker's state table. "turn22" is the turnout of the election it compares with: 2022 in the 2026 file,
+    2020 in the 2024 one (the column is named for the year, turn_2022 or turn_2020)."""
     out = {}
     for r in csv.DictReader(io.StringIO(raw.decode("utf-8-sig", errors="replace"))):
+        if "turn_2022" not in r:
+            r["turn_2022"] = next((v for k, v in r.items() if (k or "").startswith("turn_")), 0)
         def n(k):
             try:
                 return int(float(r.get(k) or 0))
@@ -225,6 +229,15 @@ def digest(pace: list[tuple], last: dict | None = None, names: dict | None = Non
             line += f" · registered {'D' if gap > 0 else 'R'}+{abs(gap) * 100:.0f}"
         out.append(line)
     return out
+
+
+def load_before() -> dict:
+    """The tracker's final file from an earlier election, which a pack can ship as early_before.csv (2026 ships
+    2024's). It's what this year's early vote is compared with. {} when the pack has none."""
+    try:
+        return parse_uf(FEEDS.cw_file("early_before.csv").read_bytes())
+    except (OSError, KeyError, ValueError):
+        return {}
 
 
 def load_json(name: str):

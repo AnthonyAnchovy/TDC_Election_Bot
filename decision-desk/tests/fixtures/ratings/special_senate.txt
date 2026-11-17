@@ -1,0 +1,26 @@
+{| class="wikitable sortable"
+|-
+! State
+! Senator
+! [[Cook Political Report|Cook]]<br />{{small|Nov 2, 2020}}
+! [[Sabato's Crystal Ball|Sabato]]<br />{{small|Nov 2, 2020}}
+! Result
+|-
+! Georgia<br />(regular)
+| [[David Perdue]]
+| {{USRaceRating|Tossup}}
+| {{USRaceRating|Lean|R}}
+| Perdue 49.7% R
+|-
+! Georgia<br />(special)
+| [[Kelly Loeffler]]
+| {{USRaceRating|Tossup}}
+| {{USRaceRating|Lean|R}}
+| Loeffler 25.9% R
+|-
+! Arizona (special)
+| [[Martha McSally]]
+| {{USRaceRating|Lean|D|flip}}
+| {{USRaceRating|Lean|D|flip}}
+| Kelly 51.2% D
+|}

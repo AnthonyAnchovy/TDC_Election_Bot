@@ -15,7 +15,7 @@ Verified against real files (Nov 2024 or the live 2026 setup) on Oct 29, 2026:
   AK  GA_ENR_Precinct_State_of_Alaska.csv (elections.alaska.gov)              precinct -> state House district
   KS  ent.sos.ks.gov county pages                           only through the County Watch grab button
   MI, ME, MS, NH, KY, KS  New York Times results data        county or town; Nov 2024 files read fine, 2026 unconfirmed
-  OH, TX also fall back on that data when their own sites block the bot or have no votes
+  OH, TX, FL, IA, SC also read that data when their own sites block the bot, have no votes, or go stale
 OH, TX, KS (and Florida's early-vote files) sit behind Cloudflare's bot check. A normal request from the bot may
 get a challenge page instead of data; the bot then stops trying that state and says to use the grab button
 (countywatch/grab.js), which saves the same data from your own browser with one click.
@@ -477,7 +477,6 @@ def clarity_from_link(link: str) -> dict | None:
 
 
 _COND: dict = {}        # url -> (etag, last_modified, parsed result)
-_BLOCKED_UNTIL: dict = {}   # state -> when to try its own bot-checked site again, while its fallback covers it
 BLOCK_RETRY = 15 * 60
 THROTTLE_REST = 5 * 60      # how long a state with a fallback leaves its own site alone after a 429 or 403
 _GA_IDS: dict = {}      # (election_date or id, contest) -> (election_id, ballot_item_id)
@@ -618,36 +617,140 @@ def _has_votes(res: dict) -> bool:
     return any((r.get("D") or 0) + (r.get("R") or 0) > 0 for r in res["counties"].values())
 
 
+# ------------------------------------------------------------------ a state's sources, in order
+# A state's entry in feeds.json is its first choice. "fallback" names what to read when that isn't enough: one
+# source, or a list of them in the order they're trusted (state site, then the NYT file, and so on). Each is a full
+# feed entry of its own (format, url, contest, source, test). A file someone drops in the inbox sits outside this
+# list: it is laid over whichever source is in use until a newer pull replaces it (countywatch_run.load_file).
+STALE_AFTER = 10 * 60       # seconds without a change before a source counts as stale
+_STATUS: dict = {}          # state -> one entry per source: when it last answered and last changed, and its last error
+
+
+def source_list(cfg: dict) -> list[dict]:
+    """A state's sources in the order they're trusted, each a feed entry of its own."""
+    more = cfg.get("fallback") or []
+    more = [more] if isinstance(more, dict) else list(more)
+    first = {k: v for k, v in cfg.items() if k != "fallback"}
+    return [first] + [m for m in more if isinstance(m, dict) and m.get("format") in PARSERS]
+
+
+def source_name(src: dict) -> str:
+    """A source's short name: 'Ohio Secretary of State', 'New York Times'."""
+    return (src.get("source") or src.get("format") or "source").split(" (")[0]
+
+
+def _status(state: str, srcs: list[dict]) -> list[dict]:
+    names = [source_name(s) for s in srcs]
+    have = _STATUS.get(state)
+    if not have or [h["name"] for h in have] != names:      # first use, or feeds.json changed under us
+        have = _STATUS[state] = [{"name": n, "order": i + 1, "answered": None, "changed": None, "since": None,
+                                  "error": None, "votes": 0, "sig": None, "in_use": False, "rest_until": 0}
+                                 for i, n in enumerate(names)]
+    return have
+
+
+def _note_answer(entry: dict, res: dict, now: float):
+    """A source answered: remember when, and whether its numbers moved since we last looked."""
+    d = sum(r.get("D") or 0 for r in res["counties"].values())
+    r = sum(r.get("R") or 0 for r in res["counties"].values())
+    sig = [d, r, len(res["counties"])]
+    if entry["sig"] is None:
+        entry["since"] = now                    # first sight: we can't know when these numbers arrived
+    elif sig != entry["sig"]:
+        entry["since"] = entry["changed"] = now
+    entry.update(answered=now, error=None, votes=d + r, sig=sig)
+
+
+def is_stale(entry: dict, now: float, after: float = STALE_AFTER) -> bool:
+    """Its numbers have sat still for `after` seconds while we watched."""
+    return entry.get("since") is not None and now - entry["since"] > after
+
+
+def is_moving(entry: dict, now: float) -> bool:
+    """We have seen its numbers change within the last STALE_AFTER seconds."""
+    return entry.get("changed") is not None and now - entry["changed"] <= STALE_AFTER
+
+
+def choose(status: list[dict], answered: list[int], now: float) -> int | None:
+    """Which source to believe this round. `answered` is the sources that just answered with votes, by position.
+
+    The first of them in the list wins, as a state's own site always has. The exception is the reason this
+    exists: if that one has gone stale while a later source is still moving and has counted more votes, the later
+    one is used until the first moves again."""
+    if not answered:
+        return None
+    order = sorted(answered)
+    pick = order[0]
+    for i in order[1:]:
+        if is_stale(status[pick], now) and is_moving(status[i], now) and status[i]["votes"] > status[pick]["votes"]:
+            pick = i
+    return pick
+
+
+def source_report(state: str) -> list[dict]:
+    """What is known about each of a state's sources, for the website and the feed check."""
+    return [{k: e[k] for k in ("name", "order", "answered", "changed", "error", "votes", "in_use")}
+            for e in _STATUS.get(state, [])]
+
+
+def _wanted(i: int, status: list[dict], got: dict, now: float) -> bool:
+    """Whether a later source is worth a request this round: nothing ahead of it has votes, the source in use is
+    going stale (so it's time to look around), or this is the source in use."""
+    if not any(_has_votes(r) for r in got.values()):
+        return True
+    return status[i]["in_use"] or any(is_stale(status[j], now, STALE_AFTER / 2) for j in got)
+
+
 async def fetch_state(state: str, *, test: bool = False, session=None) -> dict:
-    """{'counties': {fips: row}, 'url': str, 'changed': bool} for one state, or raises. A state with a "fallback" feed
-    uses it when its own feed is blocked, down or has no votes yet. A blocked site is left alone for a while."""
+    """{'counties': {fips: row}, 'url': str, 'changed': bool, 'source': name, 'sources': [...]} for one state, or
+    raises. A state with more than one source reads the first that has votes, and moves down the list when that
+    one is blocked, down, empty or stale while another is moving (choose). A site that blocks or throttles the bot
+    is left alone for a while, as long as there is another source to read."""
     cfg = dict(load_sources().get("states", {}).get(state) or {})
     if not cfg or cfg.get("format") not in PARSERS:
         raise LookupError(f"No live county feed for {state}")
-    cfg["state"] = state
-    backup = cfg.get("fallback")
-    if not backup:
-        return await _pull({**cfg, **cfg.get("test", {})} if test else cfg, test, session)
-    own, failure = None, None
-    if test or time.time() >= _BLOCKED_UNTIL.get(state, 0):
+    srcs = [{**s, "state": state} for s in source_list(cfg)]
+    if test:                                    # /countytest: each source's old file, the first that reads wins
+        failure, empty = None, None
+        for src in srcs:
+            try:
+                res = await _pull({**src, **src.get("test", {})}, True, session)
+            except Exception as exc:
+                failure = failure or exc
+                continue
+            if _has_votes(res):
+                return {**res, "source": source_name(src)}
+            empty = empty or {**res, "source": source_name(src)}
+        if empty:
+            return empty
+        raise failure
+    now = time.time()
+    status = _status(state, srcs)
+    got, failure = {}, None
+    for i, src in enumerate(srcs):
+        entry = status[i]
+        if now < entry["rest_until"] or (i and not _wanted(i, status, got, now)):
+            continue
         try:
-            own = await _pull({**cfg, **cfg.get("test", {})} if test else cfg, test, session)
-            if _has_votes(own):
-                return own
+            got[i] = await _pull(src, False, session)
         except Exception as exc:
-            failure = exc
-            if isinstance(exc, BotCheck):
-                _BLOCKED_UNTIL[state] = time.time() + BLOCK_RETRY
-            elif isinstance(exc, Throttled):
-                _BLOCKED_UNTIL[state] = time.time() + max(exc.wait or 0, THROTTLE_REST)
-    alt = {**backup, "state": state}
-    try:
-        res = await _pull({**alt, **alt.get("test", {})} if test else alt, test, session)
-    except Exception as exc:
-        if own:
-            return own
-        raise (failure or exc) from None
-    return res if _has_votes(res) or not own else own
+            failure = failure or exc
+            entry["error"] = str(exc)[:200] or type(exc).__name__
+            if len(srcs) > 1 and isinstance(exc, BotCheck):
+                entry["rest_until"] = now + BLOCK_RETRY
+            elif len(srcs) > 1 and isinstance(exc, Throttled):
+                entry["rest_until"] = now + max(exc.wait or 0, THROTTLE_REST)
+            continue
+        _note_answer(entry, got[i], now)
+    pick = choose(status, [i for i, r in got.items() if _has_votes(r)], now)
+    if pick is None:
+        if not got:
+            raise failure or RuntimeError(f"every source for {state} is resting after a block; trying again soon")
+        pick = min(got)                         # they answered, but nobody has votes yet
+    for i, entry in enumerate(status):
+        entry["in_use"] = i == pick
+    return {**got[pick], "source": status[pick]["name"], "sources": source_report(state),
+            "lists_every_county": srcs[pick].get("lists_every_county", True)}
 
 
 async def _pull(cfg: dict, test: bool, session) -> dict:
@@ -682,7 +785,8 @@ async def _pull(cfg: dict, test: bool, session) -> dict:
 
 
 def has_fallback(state: str) -> bool:
-    return bool((load_sources().get("states", {}).get(state) or {}).get("fallback"))
+    """Whether a state has more than one source to read."""
+    return len(source_list(load_sources().get("states", {}).get(state) or {})) > 1
 
 
 def feed_states() -> list[str]:

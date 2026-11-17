@@ -1,0 +1,486 @@
+{
+ "_note": "Final polling averages for the County Watch states in 2022 and 2024, so backtest.py can test the forecast's poll prior on those years. Each state's race is the one baseline.csv holds for that year: president in 2024; in 2022 the Senate race, or the governor's race, or (Mississippi, Virginia) the U.S. House vote. d and r are the two candidates' shares in the average, in percent. Every number was read on 2026-11-16 from the 'Aggregate polls' table on the race's Wikipedia page ('page'), which cites each aggregator's own final page. 'source' is the aggregator used: FiveThirtyEight where the table has it, else Silver Bulletin, RealClearPolitics, 270toWin. 'others' holds the other aggregators in the same table as [d, r], for comparison. A state with 'gap' has no number: nothing was guessed or filled in from memory. Averages for safe states (Kansas, Kentucky, Mississippi, Nebraska, South Carolina) mostly were never published; add one by replacing its gap with d, r and source.",
+ "2022": {
+  "election_day": "2022-11-08",
+  "states": {
+   "AK": {
+    "race": "U.S. Senate",
+    "gap": "not collected: backtest.py leaves Alaska out (it is projected by vote type), and its 2022 race was ranked-choice between two Republicans"
+   },
+   "FL": {
+    "race": "U.S. Senate",
+    "d": 43.5,
+    "r": 52.3,
+    "source": "FiveThirtyEight",
+    "polls_dated": "September 18, 2022 - November 4, 2022",
+    "updated": "November 8, 2022",
+    "candidates": "Demings (D) v Rubio (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Florida",
+    "others": {
+     "RealClearPolitics": [
+      43.6,
+      52.4
+     ],
+     "270toWin": [
+      42.4,
+      51.6
+     ]
+    }
+   },
+   "GA": {
+    "race": "U.S. Senate",
+    "d": 46.7,
+    "r": 47.7,
+    "source": "FiveThirtyEight",
+    "polls_dated": "October 13 - November 7, 2022",
+    "updated": "November 7, 2022",
+    "candidates": "Warnock (D) v Walker (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Georgia",
+    "others": {
+     "RealClearPolitics": [
+      47.4,
+      48.8
+     ],
+     "270toWin": [
+      47.3,
+      48.5
+     ]
+    }
+   },
+   "IA": {
+    "race": "U.S. Senate",
+    "d": 42.2,
+    "r": 51.8,
+    "source": "FiveThirtyEight",
+    "polls_dated": "October 2 - November 8, 2022",
+    "updated": "November 8, 2022",
+    "candidates": "Franken (D) v Grassley (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Iowa",
+    "others": {
+     "270toWin": [
+      42.7,
+      53.0
+     ]
+    }
+   },
+   "KS": {
+    "race": "U.S. Senate",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Kansas"
+   },
+   "KY": {
+    "race": "U.S. Senate",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Kentucky"
+   },
+   "ME": {
+    "race": "Governor",
+    "d": 50.0,
+    "r": 43.0,
+    "source": "FiveThirtyEight",
+    "polls_dated": "May 4 - November 6, 2022",
+    "updated": "November 6, 2022",
+    "candidates": "Mills (D) v LePage (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_Maine_gubernatorial_election",
+    "others": {}
+   },
+   "MI": {
+    "race": "Governor",
+    "d": 49.9,
+    "r": 45.1,
+    "source": "FiveThirtyEight",
+    "polls_dated": "January 3 - November 8, 2022",
+    "updated": "November 8, 2022",
+    "candidates": "Whitmer (D) v Dixon (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_Michigan_gubernatorial_election",
+    "others": {
+     "RealClearPolitics": [
+      48.3,
+      47.3
+     ],
+     "270toWin": [
+      50.4,
+      46.4
+     ]
+    }
+   },
+   "MN": {
+    "race": "Governor",
+    "d": 49.7,
+    "r": 40.9,
+    "source": "FiveThirtyEight",
+    "polls_dated": "September 24 - October 30, 2022",
+    "updated": "November 4, 2022",
+    "candidates": "Walz (D) v Jensen (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_Minnesota_gubernatorial_election",
+    "others": {
+     "RealClearPolitics": [
+      48.0,
+      43.7
+     ]
+    }
+   },
+   "MS": {
+    "race": "U.S. House",
+    "gap": "the 2022 baseline here is the statewide U.S. House vote, which nobody polls as one race"
+   },
+   "NC": {
+    "race": "U.S. Senate",
+    "d": 45.2,
+    "r": 49.5,
+    "source": "FiveThirtyEight",
+    "polls_dated": "November 10, 2021 - November 6, 2022",
+    "updated": "November 7, 2022",
+    "candidates": "Beasley (D) v Budd (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_North_Carolina",
+    "others": {
+     "RealClearPolitics": [
+      45.0,
+      51.0
+     ],
+     "270toWin": [
+      45.5,
+      50.5
+     ]
+    }
+   },
+   "NE": {
+    "race": "Governor",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2022_Nebraska_gubernatorial_election"
+   },
+   "NH": {
+    "race": "U.S. Senate",
+    "d": 48.8,
+    "r": 46.6,
+    "source": "FiveThirtyEight",
+    "polls_dated": "September 23 - November 5, 2022",
+    "updated": "November 8, 2022",
+    "candidates": "Hassan (D) v Bolduc (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_New_Hampshire",
+    "others": {
+     "RealClearPolitics": [
+      48.7,
+      47.3
+     ],
+     "270toWin": [
+      49.2,
+      46.0
+     ]
+    }
+   },
+   "OH": {
+    "race": "U.S. Senate",
+    "d": 44.7,
+    "r": 50.9,
+    "source": "FiveThirtyEight",
+    "polls_dated": "October 17 - November 7, 2022",
+    "updated": "November 7, 2022",
+    "candidates": "Ryan (D) v Vance (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_Ohio",
+    "others": {
+     "RealClearPolitics": [
+      43.8,
+      51.8
+     ],
+     "270toWin": [
+      44.2,
+      52.0
+     ]
+    }
+   },
+   "SC": {
+    "race": "U.S. Senate",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2022_United_States_Senate_election_in_South_Carolina"
+   },
+   "TX": {
+    "race": "Governor",
+    "d": 42.9,
+    "r": 51.4,
+    "source": "FiveThirtyEight",
+    "polls_dated": "June 14, 2021 - October 25, 2022",
+    "updated": "October 25, 2022",
+    "candidates": "O'Rourke (D) v Abbott (R)",
+    "page": "https://en.wikipedia.org/wiki/2022_Texas_gubernatorial_election",
+    "others": {
+     "RealClearPolitics": [
+      43.5,
+      52.8
+     ]
+    }
+   },
+   "VA": {
+    "race": "U.S. House",
+    "gap": "the 2022 baseline here is the statewide U.S. House vote, which nobody polls as one race"
+   }
+  }
+ },
+ "2024": {
+  "election_day": "2024-11-05",
+  "states": {
+   "AK": {
+    "race": "President",
+    "gap": "not collected: backtest.py leaves Alaska out (it is projected by vote type)"
+   },
+   "FL": {
+    "race": "President",
+    "d": 44.6,
+    "r": 51.2,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Florida",
+    "others": {
+     "270toWin": [
+      44.6,
+      51.1
+     ],
+     "Silver Bulletin": [
+      44.8,
+      51.3
+     ],
+     "The Hill/DDHQ": [
+      44.9,
+      51.6
+     ]
+    }
+   },
+   "GA": {
+    "race": "President",
+    "d": 47.5,
+    "r": 48.2,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 5, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Georgia",
+    "others": {
+     "270toWin": [
+      47.5,
+      48.7
+     ],
+     "Silver Bulletin": [
+      47.9,
+      48.9
+     ],
+     "The Hill/DDHQ": [
+      47.9,
+      49.6
+     ]
+    }
+   },
+   "IA": {
+    "race": "President",
+    "d": 45.4,
+    "r": 49.8,
+    "source": "Silver Bulletin",
+    "polls_dated": "through November 3, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Iowa",
+    "others": {
+     "270toWin": [
+      45.3,
+      50.0
+     ]
+    }
+   },
+   "KS": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Kansas"
+   },
+   "KY": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Kentucky"
+   },
+   "ME": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Maine"
+   },
+   "MI": {
+    "race": "President",
+    "d": 48.0,
+    "r": 47.0,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Michigan",
+    "others": {
+     "270toWin": [
+      48.6,
+      46.8
+     ],
+     "Silver Bulletin": [
+      48.4,
+      47.2
+     ],
+     "The Hill/DDHQ": [
+      48.7,
+      48.3
+     ]
+    }
+   },
+   "MN": {
+    "race": "President",
+    "d": 50.0,
+    "r": 44.2,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Minnesota",
+    "others": {
+     "270toWin": [
+      49.8,
+      43.6
+     ],
+     "Silver Bulletin": [
+      50.4,
+      43.9
+     ],
+     "The Hill/DDHQ": [
+      49.9,
+      45.5
+     ]
+    }
+   },
+   "MS": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Mississippi"
+   },
+   "NC": {
+    "race": "President",
+    "d": 47.4,
+    "r": 48.3,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 5, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_North_Carolina",
+    "others": {
+     "270toWin": [
+      47.3,
+      48.6
+     ],
+     "Silver Bulletin": [
+      47.7,
+      48.8
+     ],
+     "The Hill/DDHQ": [
+      47.9,
+      49.4
+     ]
+    }
+   },
+   "NE": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Nebraska"
+   },
+   "NH": {
+    "race": "President",
+    "d": 50.3,
+    "r": 45.4,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_New_Hampshire",
+    "others": {
+     "270toWin": [
+      50.5,
+      45.5
+     ],
+     "Silver Bulletin": [
+      50.9,
+      46.3
+     ],
+     "The Hill/DDHQ": [
+      53.3,
+      42.5
+     ]
+    }
+   },
+   "OH": {
+    "race": "President",
+    "d": 43.4,
+    "r": 52.3,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Ohio",
+    "others": {
+     "270toWin": [
+      44.3,
+      52.0
+     ],
+     "The Hill/DDHQ": [
+      44.6,
+      52.2
+     ]
+    }
+   },
+   "SC": {
+    "race": "President",
+    "gap": "no polling average is listed for this race on its Wikipedia page",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_South_Carolina"
+   },
+   "TX": {
+    "race": "President",
+    "d": 43.8,
+    "r": 51.7,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 3, 2024",
+    "updated": "November 3, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Texas",
+    "others": {
+     "270toWin": [
+      44.4,
+      51.8
+     ],
+     "Silver Bulletin": [
+      44.3,
+      51.4
+     ],
+     "The Hill/DDHQ": [
+      44.2,
+      51.8
+     ]
+    }
+   },
+   "VA": {
+    "race": "President",
+    "d": 49.9,
+    "r": 43.7,
+    "source": "FiveThirtyEight",
+    "polls_dated": "through November 4, 2024",
+    "updated": "November 4, 2024",
+    "candidates": "Harris (D) v Trump (R)",
+    "page": "https://en.wikipedia.org/wiki/2024_United_States_presidential_election_in_Virginia",
+    "others": {
+     "270toWin": [
+      49.8,
+      41.0
+     ],
+     "Silver Bulletin": [
+      49.5,
+      43.2
+     ],
+     "The Hill/DDHQ": [
+      50.1,
+      45.1
+     ]
+    }
+   }
+  }
+ }
+}

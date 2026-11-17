@@ -2723,12 +2723,20 @@ async def bot_caller_pass(guild, snap: dict):
         for rid, now_at in snap["races"].items():
             if now_at[2] != "proj" or any(p["outlet"] == BOT_OUTLET for p in store.procalls(rid)):
                 continue
-            call = AUTO.decide_now(TR.series(snaps, rid), rid)
+            if rid in (snap.get("fc") or {}):         # the forecast's rule: the chance of winning, held
+                pts = [(s["ts"], s["fc"][rid][0], s["fc"][rid][3]) for s in snaps if rid in (s.get("fc") or {})]
+                if not pts or pts[-1][0] != snap["ts"]:
+                    pts.append((snap["ts"], snap["fc"][rid][0], snap["fc"][rid][3]))
+                call = AUTO.decide_prob(pts, rid)
+                why = (f"The desk's own bot: the forecast has had this at {max(call.margin, 1 - call.margin):.1%} or better for "
+                       f"{call.held:.0f} minutes. It's a voice to beat, never an official call.") if call else ""
+            else:
+                call = AUTO.decide_now(TR.series(snaps, rid), rid)
+                why = (f"The desk's own bot: the projection has held at {abs(call.margin):.1f} points "
+                       f"for {call.held:.0f} minutes. It's a voice to beat, never an official call.") if call else ""
             key = (now_at[4] if call.side == "D" else "R") if call else None
             if key in options_for(rid):
-                await log_outlet_call(guild, rid, key, BOT_OUTLET, 0,
-                                      source=f"The desk's own bot: the projection has held at {abs(call.margin):.1f} points "
-                                             f"for {call.held:.0f} minutes. It's a voice to beat, never an official call.")
+                await log_outlet_call(guild, rid, key, BOT_OUTLET, 0, source=why)
     except Exception:
         log.exception("The bot caller failed")
 

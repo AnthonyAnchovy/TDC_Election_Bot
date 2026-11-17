@@ -1,0 +1,38 @@
+{|class="wikitable sortable" style="text-align:center"
+|- valign=bottom
+! State
+! [[Cook Partisan Voting Index|PVI]]
+! Incumbent
+! Last race
+! [[Cook Political Report|Cook]]<br />{{Small|November 5, 2018<ref>{{cite web|url=https://example.org|title=Cook}}</ref>}}
+! [[Inside Elections|IE]]<br />{{Small|November 1, 2018}}
+! [[Sabato's Crystal Ball|Sabato]]<br />{{Small|November 5, 2018}}
+! Winner
+|-
+! [[#Alabama|Alabama]]
+| style="background-color:#FFB6B6" data-sort-value=14 | R+14
+| style="background-color:#FFB6B6" | {{sort|117|[[Kay Ivey]]}} (R)
+| style="background-color:#FFB6B6" data-sort-value=63.6 | 63.6% R
+| style="color:black;background:#f88" data-sort-value=4|Safe R
+<!--IE--> | style="color:black;background:#f88" data-sort-value=4|Safe R
+| style="color:black;background:#faa" data-sort-value=3|Likely R ^
+|style="background-color:#FFB6B6" data-sort-value="59.5" | Ivey<br/>59.46% R
+|-
+! [[#Alaska|Alaska]]
+| style="background-color:#FFB6B6" data-sort-value=9 | R+9
+| style="background-color:#DCDCDC" | {{sort|133|[[Bill Walker]]}} (I)
+| style="background-color:#DCDCDC" data-sort-value=0 | 48.1% I
+| style="color:black;background:#fcc" data-sort-value=1.9|Lean R {{Small|(flip)}}
+<!--IE--> | style="color:black;background:#fdd" data-sort-value=0.9|Tilt R {{Small|(flip)}}
+| style="color:black;background:#fff" data-sort-value=0|Tossup
+|style="background-color:#FFB6B6" data-sort-value="51.4" | [[Mike Dunleavy|Dunleavy]]<br/>51.44% R {{small|(flip)}}
+|-
+! [[#Maine|Maine]]
+| 3 | x
+| y
+| z
+| ?? something odd
+| Toss up D
+| Possible
+| winner
+|}

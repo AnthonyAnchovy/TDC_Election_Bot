@@ -1,0 +1,782 @@
+==General election==
+===Polling===
+'''Aggregate polls'''
+{| class="wikitable sortable" style="text-align:center;font-size:90%;line-height:17px"
+!Source of poll<br/>aggregation
+!Dates<br/>administered
+!Dates<br/>updated
+! style="width:100px;" |Jon<br />Ossoff (D)
+! style="width:100px;" |Mike Collins (R)
+! style="width:100px;" |Other/<wbr/>Undecided{{Efn|Calculated by taking the difference of 100% and all other candidates combined.|name=|group=}}
+!Margin
+|-
+|[[270toWin]]<ref name="270General">{{cite web |title=2026 Polls: Georgia Senate |url=https://www.270towin.com/2026-senate-polls/georgia |website=[[270toWin]] |access-date=November 3, 2026}}</ref>
+|October 6 – November 2, 2026<!--Remember that dates listed on 270toWin are poll *publication dates*, not the dates when the polls were *administered*-->
+|November 2, 2026
+|{{party shading/Democratic}} |'''54.0%'''
+|44.4%
+|1.6%
+|{{party shading/Democratic}} |'''Ossoff +9.6%'''
+|-
+|[[Decision Desk HQ]]<ref name="DDHQGeneral">{{cite web |title=Georgia Senate General Ballot Test |url=https://votes.decisiondeskhq.com/races/2026-11-03/georgia-us-senate-general-election/polling |website=[[Decision Desk HQ]] |access-date=November 3, 2026}}</ref>
+|through November 2, 2026
+|November 2, 2026
+|{{party shading/Democratic}} |'''53.1%'''
+|43.3%
+|3.6%
+|{{party shading/Democratic}} |'''Ossoff +9.8%'''
+|-
+|[[FiftyPlusOne]]<ref>{{Cite web |title=Georgia General Senate Election |url=https://fiftyplusone.news/polls/senate/general/georgia |access-date=November 3, 2026 |website=[[FiftyPlusOne]]}}</ref>
+|through November 2, 2026
+|November 3, 2026
+|{{party shading/Democratic}} |'''52.5%'''
+|42.9%
+|4.6%
+|{{party shading/Democratic}} |'''Ossoff +9.6%'''
+|-
+|[[RealClearPolitics]]<ref>{{cite web |title=2026 Georgia Senate – Collins vs. Ossoff|url=https://www.realclearpolling.com/polls/senate/general/2026/georgia/ossoff-vs-collins|access-date=November 3, 2026 |website=RealClearPolitics.com}}</ref>
+|September 15 – November 2, 2026
+|November 2, 2026
+|{{party shading/Democratic}}|'''51.9%'''
+|43.3%
+|4.8%
+|{{party shading/Democratic}}|'''Ossoff +8.6%'''
+|-
+|''[[Silver Bulletin]]''<ref name="Silver"/>
+|through November 2, 2026
+|November 3, 2026
+|{{party shading/Democratic}} |'''52.8%'''
+|43.4%
+|3.8%
+|{{party shading/Democratic}} |'''Ossoff +9.4%'''
+|-
+| colspan="3" |'''Average'''
+|{{party shading/Democratic}}|'''52.9%'''
+|43.5%
+|3.6%
+|{{party shading/Democratic}}|'''Ossoff +9.4%'''
+|}
+
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />{{nowrap|of error}}
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Mike<br />Collins (R)
+! Other
+! Undecided
+|-
+|style="text-align:left;"|Research Co.<ref>{{cite web |last1=Canseco |first1=Mario |title=Florida Stays Red, Texas Could See Senate Swing in U.S. Election |url=https://researchco.ca/2026/11/02/midterms-2026-two/ |website=Research Co. |date=November 2, 2026}}</ref>
+|October 31 – November 2, 2026
+|450 (LV)
+|±{{nbsp}}4.6%
+|{{party shading/Democratic}}|'''52%'''
+|42%
+|{{sdash}}
+|6%
+|-
+|style="text-align:left;"|InsiderAdvantage (R)<ref>{{cite web |title=It Figures…In Matt Towery and InsiderAdvantage's Final Public Poll at the End of a 26 Year Career, Georgia's Governor's Race has a .3% Separation! InsiderAdvantage's Final Georgia Governor's Survey: Lance Bottoms 49, Jackson 49…Ossoff Leads Collins by 7 Points |url=https://insideradvantage.com/it-figures-in-matt-towery-and-insideradvantages-final-public-poll-at-the-end-of-a-26-year-career-georgias-governors-race-has-a-3-separation-insideradvantages-final-georgia-governors-su/ |website=InsiderAdvantage |date=November 2, 2026}}</ref>
+|October 31 – November 2, 2026
+|2,500 (LV)
+|±&nbsp;2.0%
+|{{party shading/Democratic}}|'''53%'''
+|46%
+|{{sdash}}
+|1%
+|-
+|style="text-align:left;"|Echelon Insights (R)<ref>{{cite web |title=NetChoice/Echelon Insights Poll: Voters Rank AI Regulation Far Behind Cost of Living, Want One National AI Standard |url=https://netchoice.org/netchoice-echelon-insights-poll-voters-rank-ai-regulation-far-behind-cost-of-living-want-one-national-ai-standard/ |website=NetChoice |access-date=27 October 2026 |date=October 27, 2026}}</ref>{{efn-ua|Poll conducted for [[NetChoice]]}}
+|October 16–23, 2026
+|508 (LV)
+|±&nbsp;5.2%
+|{{party shading/Democratic}}|'''55%'''
+|40%
+|3%{{efn|Allen Buckley (L) with 3%}}
+|2%
+|-
+|style="text-align:left;"|ActiVote<ref>{{cite web|url=https://www.activote.net/polls/2026/ga-u-s-senate/|title=Ossoff Leads Collins in Georgia Senate Race |website=ActiVote|access-date=October 20, 2026|date=October 20, 2026}}</ref>
+|October 6–20, 2026
+|400 (LV)
+|±&nbsp;4.9%
+|{{party shading/Democratic}}|'''54%'''
+|46%
+|{{sdash}}
+|{{sdash}}
+|-
+|rowspan=3 style="text-align:left;"|Quantus Insights (R)<ref>{{cite web|title=Georgia Statewide Survey |url=https://drive.google.com/file/d/1e2r7nm_omQkzU9N5XySW6BidnadoY3vB/view |website=Quantus Insights|date=October 19, 2026 |access-date=October 19, 2026}}</ref>
+|rowspan="3"|October 15–17, 2026
+|rowspan="3"|755 (LV)
+|rowspan="3"|±&nbsp;3.8%
+|{{party shading/Democratic}}|'''52%'''
+|45%
+|{{sdash}}
+|3%
+|-
+|{{party shading/Democratic}}|'''53%'''{{efn|Leaners pushed}}
+|45%
+|{{sdash}}
+|2%
+|-
+|{{party shading/Democratic}}|'''54%'''{{efn|Two-way}}
+|46%
+|{{sdash}}
+|{{sdash}}
+|-
+|style="text-align:left;"|[[University of Georgia School of Public and International Affairs|University of Georgia]]<ref>{{cite web |last1=Mitchell |first1=Tia |title=AJC poll: Jon Ossoff leads Mike Collins in Georgia's U.S. Senate race |url=https://www.ajc.com/politics/2026/10/ajc-poll-ossoff-leads-collins-in-georgias-us-senate-race/ |publisher=[[The Atlanta Journal-Constitution]] |access-date=October 22, 2026 |date=October 21, 2026 |url-access=subscription}}</ref>{{Efn-ua|Poll conducted for ''[[The Atlanta Journal-Constitution]]''}}
+|October 7–15, 2026
+|1,000 (LV)
+|±&nbsp;3.1%
+|{{party shading/Democratic}}|'''48%'''
+|40%
+|{{sdash}}
+|12%
+|-
+|style="text-align:left;"|[[Trafalgar Group]] (R)<ref>{{Cite web |url=https://www.thetrafalgargroup.org/wp-content/uploads/2026/10/GA-General-Report-1010.pdf |title=Georgia Statewide General Election Survey |work=[[Trafalgar Group]] |date=October 10, 2026 |access-date=October 12, 2026}}</ref>
+|October 7–9, 2026
+|1,101 (LV)
+|±{{nbsp}}2.9%
+|{{party shading/Democratic}}|'''51%'''
+|43%
+|{{sdash}}
+|6%
+|-
+|style="text-align:left;"|InsiderAdvantage (R)<ref>{{cite web |title=InsiderAdvantage Georgia Survey: Jackson Leads by Two in Race for Governor; Ossoff Leads by Eight in Senate Contest |url=https://insideradvantage.com/insideradvantage-georgia-survey-jackson-leads-by-two-in-race-for-governor-ossoff-leads-by-eight-in-senate-contest/ |website=InsiderAdvantage |date=September 25, 2026 |access-date=September 25, 2026}}</ref>
+|September 22–23, 2026
+|1,200 (LV)
+|±&nbsp;4.0%
+|{{party shading/Democratic}}|'''50%'''
+|42%
+|{{sdash}}
+|8%
+|-
+|rowspan="3" style="text-align:left;"|Big Data Poll (R)<ref>{{cite web |title=Peach State Poll: Jon Ossoff Opens Up Lead Over Mike Collins in Georgia |url=https://www.bigdatapoll.com/blog/peach-state-poll-jon-ossoff-opens-up-lead-over-mike-collins-in-georgia/ |publisher=Big Data Poll |access-date=September 25, 2026 |date=September 24, 2026}}</ref>{{Efn-ua|Poll sponsored by the Public Polling Project}}
+|rowspan="3"|September 21–23, 2026
+|721 (RV)
+|rowspan="3"|±&nbsp;4.0%
+|{{party shading/Democratic}}|'''51%'''
+|40%
+|{{sdash}}
+|9%
+|-
+|rowspan="2"|678 (LV)
+|{{party shading/Democratic}}|'''52%'''
+|41%
+|{{sdash}}
+|7%
+|-
+|{{party shading/Democratic}}|'''55%'''{{Efn|name=Leaners|With voters who lean towards a given candidate}}
+|45%
+|{{sdash}}
+|{{sdash}}
+|-
+|style="text-align:left;" rowspan="3"|[[YouGov]]<ref>{{cite web|url=https://d3nkl3psvxxpe9.cloudfront.net/documents/ttw_ga_20260915.pdf|title=GeorgiaGeneralElection2026|work=[[YouGov]]|date=September 23, 2026|access-date=September 23, 2026}}</ref>
+|rowspan="3"|September 15–18, 2026
+|3,416 (RV)
+|±&nbsp;2.7%
+|{{party shading/Democratic}}|'''51%'''
+|41%
+|2%{{efn|"Someone else" & "I will not vote in this race" with 1%}}
+|6%
+|-
+|3,301 (LV){{Efn|Loose likely voters.}}
+|±&nbsp;2.8%
+|{{party shading/Democratic}}|'''52%'''
+|42%
+|2%{{efn|"Someone else" & "I will not vote in this race" with 1%}}
+|5%
+|-
+|3,071 (LV){{Efn|Strict likely voters.}}
+|±&nbsp;2.9%
+|{{party shading/Democratic}}|'''51%'''
+|43%
+|1%{{efn|"I will not vote in this race" with 1%}}
+|5%
+|-
+|rowspan=2 style="text-align:left;"|Quantus Insights (R)<ref>{{cite web|title=Georgia Senate Survey Report - 9/18/26 |url=https://drive.google.com/file/d/1zqVNjagPrRDYJ4sIg6aKe3G0ggfv7yek/view|website=Quantus Insights|access-date=September 18, 2026}}</ref>
+|rowspan="2"|September 14–16, 2026
+|rowspan="2"|645 (LV)
+|rowspan="2"|±&nbsp;4.3%
+|{{party shading/Democratic}}|'''48%'''
+|44%
+|1%
+|7%
+|-
+|{{party shading/Democratic}}|'''49%'''{{efn|Leaners pushed}}
+|45%
+|1%
+|5%
+|-
+|style="text-align:left;"|[[Rasmussen Reports]] (R)<ref>{{cite web|title=Election 2026: Georgia Senate|url=https://www.rasmussenreports.com/public_content/politics/elections/election_2026/election_2026_georgia_senate|website=Rasmussen Reports|access-date=September 15, 2026}}</ref>
+|September 14, 2026
+|1,019 (LV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}}|'''51%'''
+|42%
+|{{sdash}}
+|6%
+|-
+|style="text-align:left;"|[[Trafalgar Group]] (R)<ref>{{cite web|title=Georgia General Statewide Survey|url=https://www.thetrafalgargroup.org/wp-content/uploads/2026/09/GA-General-Full-Report-0912.pdf|website=The Trafalgar Group|access-date=September 13, 2026}}</ref>
+|September 10–12, 2026
+|1,091 (LV)
+|±&nbsp;2.9%
+|{{party shading/Democratic}}|'''49%'''
+|43%
+|1%{{Efn|Allen Buckley with 1%}}
+|7%
+|-
+|style="text-align:left;"|InsiderAdvantage (R)<ref>{{cite web|title=Georgia Survey of Likely Voters|url=https://jamesmagazinega.com/wp-content/uploads/2026/08/InsiderAdvantage-Poll-8.18.26-Crosstabs.jpg|website=James Magazine|date=August 18, 2026|access-date=August 18, 2026}}</ref>
+|August 16–17, 2026
+|800 (LV)
+|±&nbsp;3.5%
+|{{party shading/Democratic}}|'''50%'''
+|43%
+|{{sdash}}
+|7%
+|-
+|style="text-align:left;"|Fabrizio Ward (R)/Impact Research (D)<ref>{{cite web |title=Georgia Voter Survey |url=https://www.aarp.org/content/dam/aarp/research/topics/voter-opinion-research/politics/2026-midterm-election-poll-georgia.doi.10.26419-2fres.01065.004.pdf |publisher=[[AARP]] |date=July 23, 2026 |access-date=July 23, 2026}}</ref>{{Efn-ua|name=AARP|Poll commissioned by [[AARP]]}}
+|July 13–16, 2026
+|1,060 (LV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}}|'''52%'''
+|43%
+|{{sdash}}
+|5%
+|-
+|style="text-align:left;"|Wick<ref>{{cite web|url=https://wick.io/research-georgia-election-survey-june-2026|title=What 1,175 likely Georgia voters told us in June|website=Wick|date=July 8, 2026|access-date=July 8, 2026}}</ref>
+|June 27–30, 2026
+|1,175 (LV)
+|±&nbsp;2.9%
+|{{party shading/Democratic}}|'''47%'''
+|43%
+|{{sdash}}
+|10%
+|-
+|style="text-align:left;"|Beacon Research (D)/<br/>Shaw & Co. Research (R)<ref>{{cite news |title=GEORGIA SENATE AND GOVERNOR |url=https://static.foxnews.com/foxnews.com/content/uploads/2026/07/fox_june-23-27-2026_complete_georgia_topline_july-1-release.pdf |access-date=July 1, 2026 |publisher=Fox News |date=July 1, 2026}}</ref>{{Efn-ua|name=Fox|Poll conducted for [[Fox News]]}}
+|June 23–27, 2026
+|1,002 (RV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}}|'''56%'''
+|43%
+|{{sdash}}
+|1%
+|-
+|- style="background:lightyellow;"
+| style="border-right-style:hidden; background:lightyellow;" |
+| style="border-right-style:hidden; " | June 16, 2026
+| colspan="16"| Republican primary runoff
+|-
+|- style="background:lightyellow;"
+| style="border-right-style:hidden; background:lightyellow;" |
+| style="border-right-style:hidden; " | May 19, 2026
+| colspan="16"| Primary elections
+|-
+|style="text-align:left;"|Echelon Insights (R)<ref name="EchelonApr2026"/>{{efn-ua|name=Net}}
+|April 3–9, 2026
+|407 (LV)
+|±&nbsp;6.5%
+|{{party shading/Democratic}}|'''51%'''
+|44%
+|{{sdash}}
+|5%
+|-
+|style="text-align:left;"|[[Emerson College]]<ref name="EmersonFeb2026"/>{{efn-ua|name=Nexstar}}
+|February 28 – March 2, 2026
+|1,000 (LV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}} |'''48%'''
+|43%
+|{{sdash}}
+|9%
+|-
+|style="text-align:left;"|Quantus Insights (R)<ref name="QuantusSept2025"/>
+|September 9–12, 2025
+|624 (RV)
+|±&nbsp;4.3%
+|'''38%'''
+|'''38%'''
+|{{sdash}}
+|23%
+|-
+|style="text-align:left;"|TIPP Insights<ref name="TIPP poll">{{Cite web|url=https://tippinsights.com/mike-collins-takes-early-lead-in-georgia-senate-showdown-but-plurality-of-voters-are-undecided/|title=Mike Collins Takes Early Lead In Georgia Senate Showdown — But Plurality Of Voters Are Undecided|website=TIPP Insights|date=August 8, 2025|access-date=August 8, 2025}}</ref>{{efn-ua|name=LAW}}
+|July 28 – August 1, 2025
+|2,956 (RV)
+|±&nbsp;1.8%
+|{{party shading/Democratic}} |'''45%'''
+|44%
+|3%
+|8%
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalMay2025"/>
+|May 15–17, 2025
+|800 (LV)
+|±&nbsp;3.4%
+|{{party shading/Democratic}} |'''46%'''
+|43%
+|{{sdash}}
+|11%
+|-
+|style="text-align:left;"|[[Trafalgar Group]] (R)<ref name="TrafApr25">{{cite web |title=Georgia US Senate Statewide Survey – April 2025 |url=https://www.thetrafalgargroup.org/wp-content/uploads/2025/04/GA-26-US-Senate-0428_Full-Report.pdf |website=The Trafalgar Group | date=April 29, 2025 |access-date=April 29, 2025}}</ref>
+|April 24–27, 2025
+|1,426 (LV)
+|±&nbsp;2.9%
+|{{party shading/Democratic}} |'''48%'''
+|43%
+|3%
+|6%
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN"/>{{efn-ua|name=CFG}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|{{party shading/Democratic}} |'''44%'''
+|34%
+|{{sdash}}
+|22%
+|}
+
+<!-- = = = don't edit the line below = = = -->
+{{hidden begin|titlestyle=background:#cff|title=Hypothetical polling|contentstyle=border:solid 1px silver; padding:8px; background:var(--background-color-base); color:var(--color-base);}}
+<!-- = = = don't edit the line above = = = -->
+
+'''Jon Ossoff vs. Derek Dooley'''
+
+'''Aggregate polls'''
+{| class="wikitable sortable" style="text-align:center;font-size:90%;line-height:17px"
+!Source of poll<br/>aggregation
+!Dates<br/>administered
+!Dates<br/>updated
+! style="width:100px;" |Jon<br />Ossoff (D)
+! style="width:100px;" |Derek<br />Dooley (R)
+! style="width:100px;" |Other/<wbr/>Undecided{{Efn|Calculated by taking the difference of 100% and all other candidates combined.|name=|group=}}
+!Margin
+|-
+|[[RealClearPolitics]]<ref>{{cite web |title=2026 Georgia Senate – Dooley vs. Ossoff|url=https://www.realclearpolling.com/polls/senate/general/2026/georgia/ossoff-vs-dooley|access-date=November 13, 2025 |website=RealClearPolitics.com}}</ref>
+|July 28, 2025 – March 2, 2026
+|March 5, 2026
+|{{party shading/Democratic}}|'''45.0%'''
+|38.3%
+|16.7%
+|{{party shading/Democratic}}|'''Ossoff +6.7%'''
+|-
+|Race to the WH|<ref name="rtwhpoll">{{cite web |title=2026 Senate Polling Average – Track All the Latest Polls |url=https://www.racetothewh.com/senate/26polls |website=Race to the WH |access-date=November 18, 2025}}</ref>
+|June 30, 2025 – March 5, 2026
+|March 5, 2026
+|{{party shading/Democratic}}|'''48.4%'''
+|41.5%
+|10.1%
+|{{party shading/Democratic}}|'''Ossoff +6.8%'''
+|-
+| colspan="3" |'''Average'''
+|{{party shading/Democratic}}|'''46.7%'''
+|39.9%
+|13.4%
+|{{party shading/Democratic}}|'''Ossoff +6.75%'''
+|}
+
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Derek<br />Dooley (R)
+! Other
+! Undecided
+|-
+|style="text-align:left;"|[[Emerson College]]<ref name="EmersonFeb2026"/>{{efn-ua|name=Nexstar}}
+|February 28 – March 2, 2026
+|1,000 (LV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}} |'''49%'''
+|41%
+|{{sdash}}
+|10%
+|-
+|style="text-align:left;"|Quantus Insights (R)<ref name="QuantusSept2025"/>
+|September 9–12, 2025
+|624 (RV)
+|±&nbsp;4.3%
+|{{party shading/Democratic}} |'''42%'''
+|35%
+|{{sdash}}
+|22%
+|-
+|style="text-align:left;"|TIPP Insights<ref name="TIPAugust25"/>{{efn-ua|name=LAW}}
+|July 28 – August 1, 2025
+|2,956 (RV)
+|±&nbsp;1.8%
+|{{party shading/Democratic}} |'''44%'''
+|39%
+|4%
+|14%
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalJune2025"/>
+|June 16–18, 2025
+|610 (LV)
+|±&nbsp;3.9%
+|{{party shading/Democratic}} |'''50%'''
+|41%
+|{{sdash}}
+|9%
+|}
+
+'''Jon Ossoff vs. Buddy Carter'''
+
+'''Aggregate polls'''
+{| class="wikitable sortable" style="text-align:center;font-size:90%;line-height:17px"
+!Source of poll<br/>aggregation
+!Dates<br/>administered
+!Dates<br/>updated
+! style="width:100px;" |Jon<br />Ossoff (D)
+! style="width:100px;" |Buddy<br />Carter (R)
+! style="width:100px;" |Other/<wbr/>Undecided{{Efn|Calculated by taking the difference of 100% and all other candidates combined.|name=|group=}}
+!Margin
+|-
+|[[RealClearPolitics]]<ref>{{cite web |title=2026 Georgia Senate – Carter vs. Ossoff|url=https://www.realclearpolling.com/polls/senate/general/2026/georgia/ossoff-vs-carter|access-date=November 13, 2025 |website=RealClearPolitics.com}}</ref>
+|May 15, 2025 – March 2, 2026
+|March 5, 2026
+|{{party shading/Democratic}} |'''44.3%'''
+|40.8%
+|14.9%
+|{{party shading/Democratic}} |'''Ossoff +3.5%'''
+|-
+|Race to the WH<ref name="rtwhpoll" />
+|January 16, 2025 – April 9, 2026
+|April 21, 2026
+|{{party shading/Democratic}}|'''49.6%'''
+|43.8%
+|6.6%
+|{{party shading/Democratic}}|'''Ossoff +5.8%'''
+|-
+| colspan="3" |'''Average'''
+|{{party shading/Democratic}}|'''47.0%'''
+|42.3%
+|10.8%
+|{{party shading/Democratic}}|'''Ossoff +4.7%'''
+|}
+
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Buddy<br />Carter (R)
+! Other
+! Undecided
+|-
+|style="text-align:left;"|Echelon Insights (R)<ref name="EchelonApr2026">{{cite web|url=https://netchoice.org/wp-content/uploads/2026/04/NetChoice-Apr-2026-National-Antitrust-Survey-Topline.pdf|title=NetChoice — April 2026 Antitrust Survey — Topline|work=Echelon Insights|access-date=April 21, 2026}}</ref>{{efn-ua|name=Net|Poll commissioned by [[NetChoice]]}}
+|April 3–9, 2026
+|407 (LV)
+|±&nbsp;6.5%
+|{{party shading/Democratic}}|'''52%'''
+|43%
+|{{sdash}}
+|5%
+|-
+|style="text-align:left;"|[[Emerson College]]<ref name="EmersonFeb2026"/>{{efn-ua|name=Nexstar}}
+|February 28 – March 2, 2026
+|1,000 (LV)
+|±&nbsp;3.0%
+|{{party shading/Democratic}} |'''47%'''
+|44%
+|{{sdash}}
+|9%
+|-
+|style="text-align:left;"|Quantus Insights (R)<ref name="QuantusSept2025"/>
+|September 9–12, 2025
+|624 (RV)
+|±&nbsp;4.3%
+|{{party shading/Democratic}} |'''40%'''
+|37%
+|{{sdash}}
+|22%
+|-
+|style="text-align:left;"|TIPP Insights<ref name="TIPAugust25"/>{{efn-ua|name=LAW|Poll sponsored by League of American Workers}}
+|July 28 – August 1, 2025
+|2,956 (RV)
+|±&nbsp;1.8%
+|{{party shading/Democratic}} |'''44%'''
+|40%
+|3%
+|13%
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalJune2025">{{Cite tweet|user=bluestein||first=Greg|last=Bluestein|number=1939633570688938308|title=A new survey by Cygnal — the go-to polling firm of Gov. Brian Kemp and other key Republicans — explains why Insurance Commissioner John King is likely to flood the airwaves with his backstory as his Senate campaign against Democratic incumbent Jon Ossoff heats up. #gapol}}</ref>
+|June 16–18, 2025
+|610 (LV)
+|±&nbsp;3.9%
+|{{party shading/Democratic}} |'''49%'''
+|42%
+|{{sdash}}
+|9%
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalMay2025">{{Cite web|url=https://acrobat.adobe.com/id/urn:aaid:sc:US:90ddd7f9-bdbc-46ef-aeb2-c5a88db84a3d?viewer%21megaVerb=group-discover|title=Cygnal – Survey of 2024 General Election Voters – Georgia Statewide|website=[[Adobe Acrobat]]|date=May 22, 2025|access-date=May 22, 2025}}</ref>
+|May 15–17, 2025
+|800 (LV)
+|±&nbsp;3.4%
+|{{party shading/Democratic}} |'''46%'''
+|42%
+|{{sdash}}
+|12%
+|-
+|style="text-align:left;"|Tyson Group (R)<ref name="TYSONGASEN"/>
+|January 30–31, 2025
+|600 (LV)
+|±&nbsp;4.0%
+|{{party shading/Democratic}} |'''47%'''
+|39%
+|{{sdash}}
+|13%
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN"/>{{efn-ua|name=CFG}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|{{party shading/Democratic}} |'''45%'''
+|32%
+|{{sdash}}
+|23%
+|}
+
+'''Jon Ossoff vs. Brad Raffensperger'''
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Brad<br />{{nowrap|Raffensperger (R)}}
+! Other
+! Undecided
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalMay2025"/>
+|May 15–17, 2025
+|800 (LV)
+|±&nbsp;3.4%
+|'''44%'''
+|'''44%'''
+|{{sdash}}
+|12%
+|-
+|style="text-align:left;"|[[Trafalgar Group]] (R)<ref name="TrafApr25"/>
+|April 24–27, 2025
+|1,426 (LV)
+|±&nbsp;2.9%
+|{{party shading/Democratic}} |'''46%'''
+|38%
+|10%
+|6%
+|-
+|style="text-align:left;"|''[[Atlanta Journal-Constitution]]''<ref name="AJCApirl2025"/><ref name="AJC crosstabs">{{cite web |author1=M.V. Hood III |title=AJC 2025 SPRING SURVEY |url=https://s3.documentcloud.org/documents/25922540/ajc-poll-april-2025.pdf |publisher=University of Georgia School of Public & International Affairs |access-date=May 2, 2025 |date=April 28, 2025}}</ref>
+|April 15–24, 2025
+|1,000 (RV)
+|±&nbsp;3.1%
+|{{party shading/Democratic}} |'''48%'''
+|39%
+|{{sdash}}
+|3%
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN"/>{{efn-ua|name=CFG}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|{{party shading/Democratic}} |'''46%'''
+|32%
+|{{sdash}}
+|22%
+|}
+
+'''Jon Ossoff vs. Brian Kemp'''
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Brian<br />Kemp (R)
+! Undecided
+|-
+|style="text-align:left;"|''[[Atlanta Journal-Constitution]]''<ref name="AJCApirl2025">{{Cite web|url=https://www.ajc.com/politics/georgia-senate-seat-would-be-toss-up-between-kemp-and-ossoff/ODLMO73SKZCT3IDYG3VWX2T4AE/|title=AJC poll: Kemp neck and neck with Ossoff in possible Georgia Senate matchup|first=Greg|last= Bluestein|website=[[Atlanta Journal-Constitution]]|date=May 1, 2025|access-date=May 1, 2025}}</ref><ref name="AJC crosstabs"/>
+|April 15–24, 2025
+|1,000 (RV)
+|±&nbsp;3.1%
+|46%
+|{{party shading/Republican}} |'''49%'''
+|5%
+|-
+|style="text-align:left;"|Quantus Insights (R)<ref>{{cite web|url=https://drive.google.com/file/d/1y1OMfSEOT4Y1_ABcW5Ap5cHAjyPr9kie/view|title=February 2025 – Georgia 2026 Senate race|work=Quantus Insights|date=February 14, 2025|access-date=February 14, 2025}}</ref>
+|February 11–13, 2025
+|800 (RV)
+|±&nbsp;3.5%
+|45%
+|{{party shading/Republican}} |'''48%'''
+|7%
+|-
+|style="text-align:left;"|Tyson Group (R)<ref name="TYSONGASEN">{{cite web|url=https://www.nj.com/politics/2025/02/trump-loving-marjorie-taylor-greene-gets-some-bad-polling-news.html|title=Trump-loving Marjorie Taylor Greene gets some bad polling news|first=Lauren|last=Sforza|website=[[NJ.com]]|date=February 13, 2025|access-date=March 3, 2025}}</ref>
+|January 30–31, 2025
+|600 (LV)
+|±&nbsp;4.0%
+|42%
+|{{party shading/Republican}} |'''49%'''
+|8%
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN">{{cite web|url=https://www.politico.com/news/2025/01/16/kemp-ossoff-poll-georgia-senate-00198719|title=GOP poll shows Kemp beating Ossoff in hypothetical Georgia Senate matchup|first=Natalie|last=Allison|website=Politico|date=January 16, 2025}}</ref>{{efn-ua|name=CFG|Poll sponsored by [[Club for Growth]]}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|40%
+|{{party shading/Republican}} |'''46%'''
+|14%
+|}
+
+'''Jon Ossoff vs. John King'''
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| John<br />King (R)
+! Undecided
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalJune2025"/>
+|June 16–18, 2025
+|610 (LV)
+|±&nbsp;3.9%
+|{{party shading/Democratic}} |'''50%'''
+|40%
+|10%
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalMay2025"/>
+|May 15–17, 2025
+|800 (LV)
+|±&nbsp;3.4%
+|{{party shading/Democratic}} |'''45%'''
+|42%
+|13%
+|-
+|style="text-align:left;"|''[[Atlanta Journal-Constitution]]''<ref name="AJCApirl2025"/><ref name="AJC crosstabs"/>
+|April 15–24, 2025
+|1,000 (RV)
+|±&nbsp;3.1%
+|{{party shading/Democratic}} |'''51%'''
+|38%
+|11%
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN"/>{{efn-ua|name=CFG}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|{{party shading/Democratic}} |'''47%'''
+|31%
+|22%
+|}
+
+'''Jon Ossoff vs. Marjorie Taylor Greene'''
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Marjorie Taylor<br />Greene (R)
+! Other
+! Undecided
+|-
+|style="text-align:left;"|[[Trafalgar Group]] (R)<ref name="TrafApr25"/>
+|April 24–27, 2025
+|1,426 (LV)
+|±&nbsp;2.9%
+|{{party shading/Democratic}} |'''48%'''
+|37%
+|8%
+|7%
+|-
+|style="text-align:left;"|''[[Atlanta Journal-Constitution]]''<ref name="AJCApirl2025"/><ref name="AJC crosstabs"/>
+|April 15–24, 2025
+|1,000 (RV)
+|±&nbsp;3.1%
+|{{party shading/Democratic}} |'''54%'''
+|37%
+|{{sdash}}
+|9%
+|-
+|style="text-align:left;"|Tyson Group (R)<ref name="TYSONGASEN"/>
+|January 30–31, 2025
+|600 (LV)
+|±&nbsp;4.0%
+|{{party shading/Democratic}} |'''51%'''
+|39%
+|{{sdash}}
+|9%
+|}
+
+'''Jon Ossoff vs. Rich McCormick'''
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"|Key:<br />A – all adults<br />RV – registered voters<br />LV – likely voters<br />V – unclear}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Rich<br />McCormick (R)
+! Undecided
+|-
+|style="text-align:left;"|WPA Intelligence (R)<ref name="WPAINTELGASEN"/>{{efn-ua|name=CFG}}
+|January 14–15, 2025
+|500 (LV)
+|±&nbsp;4.4%
+|{{party shading/Democratic}} |'''44%'''
+|33%
+|23%
+|}
+
+'''Jon Ossoff vs. Kelly Loeffler'''<br />
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Kelly<br />Loeffler
+! Undecided
+|-
+|style="text-align:left;"|Cygnal (R)<ref name="CygnalMay2025"/>
+|May 15–17, 2025
+|800 (LV)
+|±&nbsp;3.4%
+|{{party shading/Democratic}} |'''46%'''
+|43%
+|11%
+|-
+|}
+
+'''Jon Ossoff vs. Generic Republican'''<br />
+{| class="wikitable" style="font-size:90%;text-align:center;"
+|- valign=bottom
+! Poll source
+! Date(s)<br />administered
+! Sample<br />size{{efn|name="Key"}}
+! Margin<br />of error
+! style="width:100px;"| Jon<br />Ossoff (D)
+! style="width:100px;"| Generic<br />Republican
+! Undecided
+|-
+|style="text-align:left;"|Cygnal (R)<ref>{{Cite web|url=https://www.ajc.com/politics/politically-georgia/vote-to-block-transgender-bill-could-hurt-jon-ossoff-new-poll-finds/C4BYVU4YPNH7BDKLH3UUQUIVOM/|title=Vote to block transgender bill could hurt Jon Ossoff, new poll finds|first1=Greg|last1=Bluestein|first2=Tia|last2=Mitchell|first3=Patricia|last3=Murphy|first4=Adam|last4=Beam|website=The Atlanta Journal-Constitution|date=March 12, 2025|archive-url=https://archive.today/20250312152248/https://www.ajc.com/politics/politically-georgia/vote-to-block-transgender-bill-could-hurt-jon-ossoff-new-poll-finds/C4BYVU4YPNH7BDKLH3UUQUIVOM/|archive-date=March 12, 2025|access-date=March 12, 2025}}</ref><ref name="AJC crosstabs"/>
+|March 9–10, 2025
+|600 (LV)
+|±&nbsp;4.0%
+|'''44%'''
+|'''44%'''
+|16%
+|}
+{{hidden end}}
+

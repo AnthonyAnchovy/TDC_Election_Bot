@@ -1,0 +1,19 @@
+== Final pre-election predictions ==
+{{collapse top|title=Ratings}}
+{| class="wikitable sortable"
+|-
+! State
+! [[Cook Political Report|Cook]]<br />{{small|Nov 7, 2022}}
+! Result
+|-
+! Ohio
+| {{USRaceRating|Likely|R}}
+| Vance 53.3% R
+{{collapse bottom|}}
+
+== Gains and holds ==
+{| class="wikitable"
+|-
+! Other
+| 1
+|}

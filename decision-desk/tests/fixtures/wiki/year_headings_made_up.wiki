@@ -1,0 +1,39 @@
+A hand-written page in Wikipedia's layout, with invented polls (no real race): dates with no year sit under year headings.
+
+==Polling==
+===2026===
+{| class="wikitable"
+! Poll source !! Date(s)<br />administered !! Sample<br />size !! Margin<br />of error !! Pat<br />Smith (D) !! Lee<br />Jones (R) !! Undecided
+|-
+| [[Alpha Research]]<ref>Internal poll commissioned by Smith for Senate</ref> || Oct 1–5 || 1,024 (LV) || ±3.1% || '''48%''' || 44% || 8%
+|-
+| Beta Poll (R) || September 28 – October 2 || 800 (RV) || ±3.5% || 45% || '''47%''' || 8%
+|-
+| Gamma Survey || Dec 28 – Jan 3 || 500 (A) || ±4.4% || 41% || 40% || 19%
+|-
+| Delta Group || Oct 7 || 600 || – || 47% || 46% || 7%
+|}
+
+===2025===
+{| class="wikitable"
+! Poll source !! Date(s) administered !! Sample size !! Pat Smith (D) !! Lee Jones (R) !! Other
+|-
+| colspan="6" | 2025
+|-
+| Epsilon || Nov 3–6 || 700 (LV) || 43% || 45% || 12%
+|-
+| Zeta || Mid-November || 700 (LV) || 43% || 45% || 12%
+|}
+
+====Hypothetical match-ups====
+{| class="wikitable"
+! Poll source !! Date(s) administered !! Sample size !! Pat Smith (D) !! Robin Doe (R) !! Undecided
+|-
+| Alpha Research || Oct 1–5 || 1,024 (LV) || 47% || 43% || 10%
+|}
+
+{| class="wikitable"
+! Poll source !! Date(s) administered !! Sample size !! Pat Smith (D) !! Lee Jones (R) !! Robin Doe (I) !! Undecided
+|-
+| Alpha Research || Oct 1–5, 2026 || 1,024 (LV) || 44% || 41% || 9% || 6%
+|}

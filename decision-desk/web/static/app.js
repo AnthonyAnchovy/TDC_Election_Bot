@@ -17,7 +17,17 @@ const app = {
 };
 
 // ------------------------------------------------------------------ talking to the server
+/* A static copy of the site (python -m web.export) has no server behind it: every answer is a file saved beside
+   the page when the copy was made, and nothing can be saved. */
+async function staticApi(path) {
+  const name = path.replace(/^\/api\//, "").replace(/[^a-z0-9]+/gi, "-");
+  const res = await fetch(`data/${name}.json`);
+  if (!res.ok) throw new Error("This is a saved copy of the site, and that page wasn't saved with it.");
+  return res.json();
+}
+
 async function api(path, opts = {}) {
+  if (window.DESK_STATIC) return staticApi(path);
   const res = await fetch(path, { credentials: "same-origin", ...opts,
     headers: { "Content-Type": "application/json", "X-Desk": "1", ...(opts.headers || {}) } });
   const body = await res.json().catch(() => ({}));
@@ -253,6 +263,11 @@ function reviewTab() {
     ${app.data.hidden ? "Everyone's picks stay hidden until predictions close." : "Other people can see your picks as soon as you save."}</p>`;
 }
 
+// What a page's clock says about refreshing: a saved copy (web/export.py) doesn't change until it's exported again.
+function refreshNote() {
+  return window.DESK_STATIC ? "Saved copy" : "Updates every 20 seconds";
+}
+
 function predictView() {
   const d = app.data, pack = d.races.pack;
   const draft = pack.example ? '<div class="banner">This data pack is a template with placeholder names. It shows what a single contest looks like.</div>' : "";
@@ -260,7 +275,8 @@ function predictView() {
     return `<section class="hero"><span class="kicker">The prediction game · ${esc(pack.name)}</span>
       <h1>Call every race before the polls close.</h1>
       <p>${esc(pack.summary)} Your picks are scored as the desk calls each race on the night.</p>
-      <a class="btn" href="/login">Sign in with Discord</a>
+      ${window.DESK_STATIC ? `<p class="muted">This is a saved copy of the site, so picks can't be made here. Sign in on the live site.</p>`
+        : `<a class="btn" href="/login">Sign in with Discord</a>`}
       ${d.dev ? ' <a class="btn ghost" href="/login?as=1&name=Dev%20user">Dev sign-in</a>' : ""}
       <p class="muted" style="font-size:14px;margin-top:14px">It asks Discord only who you are and whether you're in the server.</p></section>`;
   }
@@ -401,7 +417,7 @@ async function nightView() {
   const cards = n.bodies.filter((b) => b.majority);
   const other = n.bodies.filter((b) => !b.majority).map((b) => `${esc(b.name)}: ${Object.entries(b.counts).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")} · ${b.uncalled} uncalled`);
   return `<div class="head"><div><span class="kicker">The night · ${esc(app.data.races.pack.name)}</span><h1>Where the desk stands</h1></div>
-      <div class="clock">Updates every 20 seconds<b>as of ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</b></div></div>
+      <div class="clock">${refreshNote()}<b>as of ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</b></div></div>
     ${cards.length ? `<div class="two">${cards.map(bodyCard).join("")}</div>` : ""}
     <h2 style="font-size:26px;margin:28px 0 12px">Latest calls</h2>
     ${feed ? `<ul class="feed">${feed}</ul>` : '<p class="muted">Nothing has been called yet. Calls appear here as the desk makes them in Discord.</p>'}
@@ -420,12 +436,13 @@ function redraw() {
   }
   const load = async () => {
     try {
-      const html = await (showing === "board" ? boardView() : nightView());
+      const views = { board: boardView, night: nightView, results: resultsView, desk: deskView, model: modelView };
+      const html = await views[showing]();
       if (app.route === showing) main.innerHTML = html;      // they may have moved on while it loaded
     } catch (err) { if (app.route === showing) main.innerHTML = `<div class="banner">${esc(err.message)}</div>`; }
   };
   load();
-  if (showing === "night") app.nightTimer = setInterval(load, 20000);
+  if (["night", "results", "desk"].includes(showing)) app.nightTimer = setInterval(load, 20000);
 }
 
 function who() {
@@ -434,6 +451,10 @@ function who() {
     `<option value="${esc(p.id)}" ${p.id === d.pack ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>` : "";
   const servers = d.servers.length > 1 ? `<select id="server" aria-label="Server">${d.servers.map((s) =>
     `<option value="${esc(s.id)}" ${s.id === d.server ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>` : "";
+  if (window.DESK_STATIC) {       // a saved copy: nobody can sign in, and it says how old it is
+    box.innerHTML = `<span class="muted">Saved copy · ${new Date(window.DESK_STATIC * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>`;
+    return;
+  }
   if (!me) { box.innerHTML = `${packs}<a class="btn small" href="/login">Sign in</a>`; return; }
   const img = me.avatar ? `<img alt="" src="https://cdn.discordapp.com/avatars/${esc(me.id)}/${esc(me.avatar)}.png?size=64">` : "";
   box.innerHTML = `${packs}${servers}${img}<span>${esc(me.name)}</span><button class="btn ghost small" id="logout">Sign out</button>`;
@@ -441,7 +462,9 @@ function who() {
 
 function route() {
   const r = location.hash.replace("#/", "");
-  app.route = ["predict", "board", "night"].includes(r) ? r : "predict";
+  // before picks lock the game is the front page; once the night starts, the results are
+  const front = app.data.has_model && app.data.now > Date.parse(app.data.deadline) / 1000 ? "results" : "predict";
+  app.route = ["predict", "board", "night", "results", "desk", "model"].includes(r) ? r : front;
   redraw();
 }
 

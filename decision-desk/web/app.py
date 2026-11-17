@@ -26,6 +26,7 @@ import json
 import math
 import os
 import secrets
+import time
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -37,6 +38,7 @@ from fastapi.staticfiles import StaticFiles
 
 import clock
 import competitive as CMP
+import feeds as FEEDS
 import packs
 import picks as P
 import races as R
@@ -305,7 +307,8 @@ async def state(request: Request):
                "open": P.is_open(store(), int(user["uid"]), cfg) if user else clock.time() < P.deadline(cfg).timestamp(),
                "points": P.points(cfg), "races": P.catalogue(), "map": us_map(),
                "fills": {"safe": P.safe_fill(), "ratings": P.ratings_fill()},
-               "dev": os.getenv("DESK_WEB_DEV") == "1" and _local(request)}
+               "dev": os.getenv("DESK_WEB_DEV") == "1" and _local(request),
+               "has_model": bool(FEEDS.countywatch())}
         if user:
             out["entry"] = entry_of(int(user["uid"]))
             names = store().setting("names", {})
@@ -430,6 +433,39 @@ async def night(request: Request):
                 "house": next((b for b in bodies if b["key"] == "house"), None)}
 
 
+# ------------------------------------------------------------------ the outlook: forecasts, in plain words and in full
+@app.get("/api/outlook")
+async def outlook_api(request: Request):
+    """Every race's forecast, what the chambers add up to, the national read and the feeds' health. Never an error:
+    if the numbers can't be worked out, the last good ones come back marked stale (outlook.latest)."""
+    import outlook
+    with on(request) as at:
+        return outlook.latest(store(), key=(at.server,))
+
+
+@app.get("/api/model")
+async def model_api():
+    """How the forecast did on the replayed elections (python backtest.py --json web/static/backtest.json)."""
+    import cw_forecast as CF
+    try:
+        tables = json.loads((HERE / "static" / "backtest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        tables = None
+    return {"backtest": tables, "settings": CF.HP}
+
+
+@app.get("/healthz")
+async def healthz():
+    """For an uptime checker: the site is answering, and how old its numbers are."""
+    import countywatch_run as CWR
+    try:
+        fetched = CWR.live_cache().get("fetched")
+    except Exception:
+        fetched = None
+    now = time.time()
+    return {"ok": True, "now": now, "results_fetched": fetched, "results_age": now - fetched if fetched else None}
+
+
 # ------------------------------------------------------------------ pages and files
 @app.exception_handler(HTTPException)
 async def http_error(_request: Request, exc: HTTPException):
@@ -441,7 +477,7 @@ async def index():
     """The page, with its script and stylesheet addressed by when they last changed, so an update is picked up at
     once and an unchanged file stays cached."""
     html = (HERE / "static" / "index.html").read_text(encoding="utf-8")
-    for name in ("app.js", "app.css"):
+    for name in ("app.js", "outlook.js", "app.css"):
         html = html.replace(f"/static/{name}", f"/static/{name}?v={int((HERE / 'static' / name).stat().st_mtime)}")
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 

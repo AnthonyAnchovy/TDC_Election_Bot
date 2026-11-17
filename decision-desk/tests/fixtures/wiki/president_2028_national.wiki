@@ -1,0 +1,282 @@
+== Opinion polling ==
+{{See also|Opinion polling on the second Trump presidency}}
+
+=== General election ===
+==== Nationwide ====
+===== JD Vance vs. Kamala Harris =====
+
+{| class="wikitable" style="font-size:90%;text-align:center;line-height:17px"
+|-
+! rowspan=2 style="width:200px;"|Poll source
+! rowspan=2 style="width:200px;"|Date(s)<br/>administered
+! rowspan=2 style="width:100px;"|Sample<br/>size{{efn|name="Key"|Key:<br />A – all adults<br />RV – registered voters<br />LV – likely voters<br />V – unclear}}
+! style="width:100px;"|[[JD Vance|Vance]]<br/><small>{{nobold|[[Republican Party (US)|(R)]]}}</small>
+! style="width:100px;"|[[Kamala Harris|Harris]]<br/><small>{{nobold|[[Democratic Party (US)|(D)]]}}</small>
+! Undecided
+|-
+! data-sort-type="number" style="background:{{party color|Republican Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Democratic Party (US)}};"|
+|-
+| [https://emersoncollegepolling.com/august-2026-national-poll/ Emerson College]
+|August 16–17, 2026
+|1,000 (LV)
+|45%
+|{{Party shading/Democratic}} | '''49%'''
+|6%
+|-
+| [https://zogbyanalytics.com/images/ZA070626/Crosstabs%20Zogby%20Likely%20Voters%20070626.pdf Zogby]
+|July 1–4, 2026
+|1,003 (LV)
+|43%
+|{{Party shading/Democratic}} | '''48%'''
+|9%
+|-
+|[https://www.yahoo.com/news/politics/articles/kamala-harris-tops-jd-vance-074104414.html TPSI]
+|May 21, 2026
+|893 (LV)
+|39%
+|{{Party shading/Democratic}} | '''47%'''
+|14%
+|-
+|[https://www.newsweek.com/jd-vances-chances-of-beating-harris-newsom-in-2028-election-poll-11362016 Zogby]
+|January 1–7, 2026
+|891 (LV)
+|42.1%
+|{{Party shading/Democratic}} | '''48.5%'''
+|9.4%
+|-
+|[https://pro.morningconsult.com/analysis/2028-presidential-polling-primary-november-2025 Morning Consult]
+|November 14–16, 2025
+|2,201 (RV)
+|42%
+|{{Party shading/Democratic}} | '''43%'''
+|15%
+|-
+|[https://overtoninsights.com/wp-content/uploads/2025/07/July-2025-Poll.pdf Overton Insights]
+|June 23–26, 2025
+|1,200 (RV)
+|42%
+|{{Party shading/Democratic}} | '''45%'''
+|12%
+|- style="background:lightyellow;"
+| style="border-right-style:hidden; background:lightyellow;" |
+| style="border-right-style:hidden; " |January 20, 2025
+| colspan="13" | [[Second inauguration of Donald Trump]]
+|-
+| [https://docs.google.com/spreadsheets/d/1ci0xpqxyX4XKKdVjeijssSxKARFxkBYmQeLjES1pcac/edit?gid=1780005197#gid=1780005197 On Point/SoCal Strategies]
+|December 23, 2024
+| 656 (A)
+|41%
+|{{Party shading/Democratic}} | '''43%'''
+|16%
+|-
+| [https://drive.google.com/file/d/1D6ZAYUN8ius5Euw52-5uX7AVnpx414qG/view American Pulse Research & Polling]
+| December 17–20, 2024
+| 661 (LV)
+|46%
+|{{Party shading/Democratic}} | '''47%'''
+|7%
+|}
+
+===== JD Vance vs. Gavin Newsom =====
+
+{| class="wikitable" style="font-size:90%;text-align:center;line-height:17px"
+|-
+! rowspan=2 style="width:200px;"|Poll source
+! rowspan=2 style="width:200px;"|Date(s)<br/>administered
+! rowspan=2 style="width:100px;"|Sample<br/>size{{Efn|name="Key"}}
+! style="width:100px;"|[[JD Vance|Vance]]<br/><small>{{nobold|[[Republican Party (US)|(R)]]}}</small>
+! style="width:100px;"|[[Gavin Newsom|Newsom]]<br/><small>{{nobold|[[Democratic Party (US)|(D)]]}}</small>
+! Undecided
+|-
+! data-sort-type="number" style="background:{{party color|Republican Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Democratic Party (US)}};"|
+|-
+|[https://d3nkl3psvxxpe9.cloudfront.net/documents/The_Bulwark_x_Pablo_Torre_Finds_Out_poll_results.pdf The Bulwark/Pablo Torre Finds Out/YouGov]
+|October 10–14, 2026
+|1,417 (A)
+|36%
+|{{Party shading/Democratic}} | '''41%'''
+|23%
+|-
+|[https://www.uml.edu/docs/2026-October-National-Topline_tcm18-423714.pdf UMass Lowell/YouGov]
+|October 2–4, 2026
+|1,000 (LV)
+|42%
+|{{Party shading/Democratic}} | '''46%'''
+|12%
+|-
+|[https://emersoncollegepolling.com/august-2026-national-poll/ Emerson College]
+|August 16–17, 2026
+|1,000 (LV)
+|44%
+|{{Party shading/Democratic}} | '''49%'''
+|7%
+|-
+| [https://zogbyanalytics.com/images/ZA070626/Crosstabs%20Zogby%20Likely%20Voters%20070626.pdf Zogby]
+|July 1–4, 2026
+|1,003 (LV)
+|{{Party shading/Republican}} | '''45%'''
+|38%
+|7%
+|-
+|[https://overtoninsights.com/wp-content/uploads/2026/05/Key-Toplines-May-2026-Overton-Insights-Poll.pdf Overton Insights]
+|May 16–20, 2026
+|1,377 (V)
+|39%
+|{{Party shading/Democratic}} | '''44%'''
+|9%
+|-
+|[https://www.uml.edu/docs/2026-Nat-Pol-March-Topline_tcm18-417813.pdf UMass Lowell]{{dead link|date=October 2026}}
+|March 26–30, 2026
+|1000 (RV){{Efn|Another candidate 2%, Not vote 17%}}
+|{{Party shading/Republican}} | '''36%'''
+|33%
+|12%
+|-
+|[https://www.newsweek.com/jd-vances-chances-of-beating-harris-newsom-in-2028-election-poll-11362016 Zogby]
+|January 1–7, 2026
+|891 (LV)
+|{{Party shading/Republican}} | '''44.6%'''
+|41%
+|14.3%
+|-
+|[https://www.theargumentmag.com/p/the-covid-political-backlash-disappeared The Argument/Verasight]
+|November 10–17, 2025
+|1,508 (RV)
+|46.4%
+|{{Party shading/Democratic}} | '''53.6%'''
+| –
+|-
+|[https://pro.morningconsult.com/analysis/2028-presidential-polling-primary-november-2025 Morning Consult]
+|November 14–16, 2025
+|2,201 (RV)
+|{{Party shading/Republican}} | '''42%'''
+|41%
+|17%
+|-
+|[https://overtoninsights.com/wp-content/uploads/2025/11/November-2025-Poll-Crosstabs.pdf Overton Insights]
+|October 27–29, 2025
+|1,200 (RV)
+|43%
+|{{Party shading/Democratic}} | '''46%'''
+|11%
+|-
+|[https://www.uml.edu/news/press-releases/2025/national-poll-10292025.aspx YouGov]
+|October 16–20, 2025
+|1,000 (A)
+|32%
+|{{Party shading/Democratic}} | '''36%'''
+|32%
+|-
+|[https://echelonin.wpenginepowered.com/wp-content/uploads/October-2025-Voter-Omnibus-Topline-External-2.pdf Echelon Insights]
+|October 16–20, 2025
+|1,010 (LV)
+|46%
+|{{Party shading/Democratic}} | '''47%'''
+|7%
+|-
+|[https://emersoncollegepolling.com/october-2025-poll/ Emerson College]
+|October 13–14, 2025
+|1,000 (RV)
+|{{Party shading/Republican}} | '''45.5%'''
+|44.9%
+|9.6%
+|-
+|[https://leger360.com/wp-content/uploads/2025/09/Leger_Can_US-Relations_Aug2025.pdf Leger360]
+|August 29–31, 2025
+|849 (A)
+|46%
+|{{Party shading/Democratic}} | '''47%'''
+|7%
+|-
+|[https://www.yahoo.com/news/politics/article/poll-gavin-newsom-leads-2028-democratic-primary-field-edges-out-trump-in-head-to-head-matchup-180307176.html YouGov/Yahoo]
+|August 29 – September 2, 2025
+|1,690 (A)
+|41%
+|{{Party shading/Democratic}} | '''49%'''
+|10%
+|-
+|[https://emersoncollegepolling.com/august-2025-national/ Emerson College]
+|August 25–26, 2025
+|1,000 (RV)
+|{{Party shading/Republican}} | '''44.4%'''
+|43.5%
+|12.1%
+|-
+|[https://docs.google.com/spreadsheets/d/1Bj9_tUbMG1yCnME1rc7ggQF7qt8mmxetIfD7bQL167w/edit?gid=1183487657#gid=1183487657 On Point/SoCal Strategies]
+|August 18, 2025
+|700 (A)
+|37%
+|{{Party shading/Democratic}} | '''39%'''
+|23%
+|-
+|[https://emersoncollegepolling.com/july-2025-national-poll/ Emerson College]
+|July 21–22, 2025
+|1,400 (RV)
+|{{Party shading/Republican}} | '''45.3%'''
+|42.1%
+|12.6%
+|- style="background:lightyellow;"
+| style="border-right-style:hidden; background:lightyellow;" |
+| style="border-right-style:hidden; " |January 20, 2025
+| colspan="11" | [[Second inauguration of Donald Trump]]
+|-
+| [https://docs.google.com/spreadsheets/d/1ci0xpqxyX4XKKdVjeijssSxKARFxkBYmQeLjES1pcac/edit?gid=1780005197#gid=1780005197 On Point/SoCal Strategies]
+| December 23, 2024
+| 656 (A)
+|{{Party shading/Republican}} | '''37%'''
+|34%
+|29%
+|}
+
+===== JD Vance vs. Gavin Newsom vs. Aaron Rodgers as an Independent =====
+
+{| class="wikitable" style="font-size:90%;text-align:center;line-height:17px"
+|-
+! rowspan=2 style="width:200px;"|Poll source
+! rowspan=2 style="width:200px;"|Date(s)<br/>administered
+! rowspan=2 style="width:100px;"|Sample<br/>size{{Efn|name="Key"}}
+! style="width:100px;"|[[JD Vance|Vance]]<br/><small>{{nobold|[[Republican Party (US)|(R)]]}}</small>
+! style="width:100px;"|[[Gavin Newsom|Newsom]]<br/><small>{{nobold|[[Democratic Party (US)|(D)]]}}</small>
+! style="width:100px;"|[[Aaron Rodgers|Rodgers]]<br/><small>{{nobold|[[Independent politician|(I)]]}}</small>
+! Undecided
+|-
+! data-sort-type="number" style="background:{{party color|Republican Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Democratic Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Independent politician}};"|
+|-
+|[https://d3nkl3psvxxpe9.cloudfront.net/documents/The_Bulwark_x_Pablo_Torre_Finds_Out_poll_results.pdf The Bulwark/Pablo Torre Finds Out/YouGov]
+|October 10–14, 2026
+|1,417 (A)
+|35%
+|{{Party shading/Democratic}} | '''37%'''
+|7%
+|21%
+|}
+
+===== JD Vance vs. Gavin Newsom vs. Stephen A. Smith as an Independent =====
+
+{| class="wikitable" style="font-size:90%;text-align:center;line-height:17px"
+|-
+! rowspan=2 style="width:200px;"|Poll source
+! rowspan=2 style="width:200px;"|Date(s)<br/>administered
+! rowspan=2 style="width:100px;"|Sample<br/>size{{Efn|name="Key"}}
+! style="width:100px;"|[[JD Vance|Vance]]<br/><small>{{nobold|[[Republican Party (US)|(R)]]}}</small>
+! style="width:100px;"|[[Gavin Newsom|Newsom]]<br/><small>{{nobold|[[Democratic Party (US)|(D)]]}}</small>
+! style="width:100px;"|[[Stephen A. Smith|Smith]]<br/><small>{{nobold|[[Independent politician|(I)]]}}</small>
+! Undecided
+|-
+! data-sort-type="number" style="background:{{party color|Republican Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Democratic Party (US)}};"|
+! data-sort-type="number" style="background:{{party color|Independent politician}};"|
+|-
+|[https://d3nkl3psvxxpe9.cloudfront.net/documents/The_Bulwark_x_Pablo_Torre_Finds_Out_poll_results.pdf The Bulwark/Pablo Torre Finds Out/YouGov]
+|October 10–14, 2026
+|1,417 (A)
+|34%
+|{{Party shading/Democratic}} | '''37%'''
+|6%
+|23%
+|}
+

@@ -48,3 +48,14 @@ decision-desk/countywatch/ms_token.json
 Thumbs.db
 .vscode/
 .idea/
+
+# what the weekly feed check wrote (feedcheck.py)
+decision-desk/feed_status.json
+decision-desk/feed_report.md
+
+# a saved static copy of the website (python -m web.export)
+decision-desk/site/
+
+# what the intake wrote of a night's county pulls (intake.py), one log per state
+decision-desk/countywatch/snapshots/
+decision-desk/research/

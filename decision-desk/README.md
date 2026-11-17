@@ -191,7 +191,7 @@ Kentucky comes from New York Times data (see below). Once 20 or more counties ar
 **State by state:**
 - Automatic: GA, NC, FL, MN, NE, VA (bellwether), IA, SC (Clarity: the bot finds the Nov 3 election by date, or use `/countyfeed`), AK (district results arrive after 1 AM ET).
 - Alaska is projected by vote type, not by finished districts (`cw_alaska.py`): no district finishes until its absentees are counted, up to 15 days later. The votes still expected come from each vote type's 2024 numbers (`countywatch/ak_modes24.json`) and the swing seen so far. Its first-choice margin puts Heikes (REP) on the Republican side and leaves out Daniel J. Sullivan; ranked-choice rounds aren't modeled. If a shared workbook predates this, run `python cw_cloud.py patch-alaska` once.
-- Ohio, Texas and South Carolina try their own sites first and fall back on New York Times data when a site blocks the bot, is down or has no votes yet. Kansas reads New York Times data directly. The grab button still works for Ohio, Texas and Kansas as a backup: a grabbed file is used until the feed's numbers next change.
+- Ohio, Texas and South Carolina try their own sites first and fall back on New York Times data when a site blocks the bot, is down or has no votes yet. A state's `fallback` in `feeds.json` can be one source or a list, tried in order: the first source stays in use while it has votes, and the bot switches when it has been stale for 10 minutes while a later one is moving with more votes, and goes back when the first moves again. A blocked source is left alone for a while. Kansas reads New York Times data directly. The grab button still works for Ohio, Texas and Kansas as a backup: a grabbed file is used until the feed's numbers next change.
 - New York Times data: MI, ME, MS, NH, KY and KS (checked every 30 seconds with the others). This isn't a state feed or a published one, so NYT can change or block it, and its Nov 3 addresses can't be confirmed until they go up: `HTTP 404` in `/countyrefresh` after polls close means the file isn't there. If NYT uses a different address, change `url` for that state in `countywatch/feeds.json`; no restart needed. Keep someone ready to enter these states by hand with `/countyset` (Michigan: county clerk sites; Mississippi: counties post PDFs; Kentucky: behind Akamai's bot check) until the feed has proved itself. Numbers typed in always win over the feed. A county counts as in once its precincts are in and at least 95% of its expected vote is counted, or at 98.5% of its expected vote with at least 80% of its precincts in (a tiny precinct or an empty Maine township can stay unreported forever).
 
 **Dropping files in:** save any results file into `countywatch/inbox` (the bot creates the folder) and it's loaded within 10 seconds, then moved to `inbox/done`. The file name should include the state, like `TX results.csv` or `Texas.xlsx`; otherwise the bot works it out from the county names. A plain table works if it has a County column plus either one column per candidate (headed with names or Dem/Rep) or Candidate/Party/Votes rows. Optional columns: % reporting, precincts reporting and total precincts, and a Final/Complete column marked Y. A newer feed pull for the same state replaces a loaded file.
@@ -296,12 +296,162 @@ Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and rest
 | `/react image` | Anyone | Posts a reaction image from `assets/reactions/`. Save an image there and its file name is what you type. None are shipped. |
 | `/drinkinggame [on\|off]` | Admin to change | Drinking-game lines on calls: a flip, an upset, a retraction, an outlet beating the desk. Off by default, per server. Rules are in `drinking.py`, or a pack's `drinking.json`. |
 
-**The Bot.** On the night the bot makes its own calls on Senate races from the projection alone, and posts them to the
+**The Bot.** On the night the bot makes its own calls on Senate races from the forecast alone, and posts them to the
 board as an outlet called "The Bot". They feed `/scoreboard`, so the desk is timed against it, and they never make
-anything official. It calls when the projected lead has held on one side, by enough, for long enough: a 15-point lead
-for 20 minutes, 8 points for 40, 4 points for 75, and never under 4. Against 2026 it called 14 of 17 Senate races, none
-wrong, and left Alaska, Florida and Mississippi alone; it was a median 83 minutes slower than the desk. Set
-`"bot_caller": false` in `config.json` to switch it off. The thresholds are at the top of `autocaller.py`.
+anything official. It calls when the forecast gives one side a 99.5% chance or better, results (not polls or other
+states) carry at least half of that forecast, and it has stayed there for 8 minutes. In 960 simulated races across
+five replayed elections that rule made no wrong call (`python backtest.py`). Set `"bot_caller": false` in
+`config.json` to switch it off. The thresholds are in `autocaller.py`. With `"model": "classic"` the bot goes back to
+2026's rule: a 15-point projected lead held for 20 minutes, 8 points for 40, 4 points for 75.
+
+## The forecast
+On election night 2026 each state's number came from `cw_model.project()`: finished counties' swing, applied to the
+counties still counting. It was right by morning and rough before that. Georgia sat at its 2024 margin (R+1) until
+its first county finished, then read D+23.5; it ended D+18. New Hampshire and Maine, which report by town, had no
+projection until morning. `cw_forecast.py` now sits on top of every state's projection at once:
+
+- **A starting point before votes.** Each state starts from its final poll and its baseline, moved by the swing other
+  states are showing and by how far the polls are missing tonight.
+- **Counties compared by what they're like.** A county's swing is its state's swing plus a tilt for race, education,
+  size and past vote, fitted across all states together.
+- **Early counts discounted.** A half-counted county is evidence only as far as it has earned, and a state's early
+  votes leaning one way is estimated and taken out, not mixed into the final margin.
+- **Finished means finished.** A county is done when every precinct is in with most of its expected vote, or when its
+  count has stopped moving for an hour. On the night Ohio ended with 1 of 88 counties marked complete.
+- **A fitted range and a chance of winning**, which is what The Bot calls on.
+
+`python backtest.py` replays five elections county by county (2018, 2020, 2022, 2024 and 2026) and prints the forecast
+against `project()` alone. Across the five, the average miss falls from 7.9 points to 5.2 before a state's first vote,
+from 4.7 to 2.1 with 15-35% counted, and from 1.9 to 0.9 with 65-90% counted; the wrong side is shown ahead less often
+(22% to 17% before any vote, 14% to 8% with 15-35% counted, 6% to 3% with 65-90% counted). In 960 simulated races
+(12 nights each) the bot's calling rule called 916 and made no wrong call; half of the calls came with under 47% of
+the vote counted. Unless a night's county counts were recorded (below), the reporting order is simulated, so the
+replay tests the arithmetic, not the feeds. The field, `/trend`, The Bot and the website use the forecast.
+`/counties`, `/needs`, the alerts and the workbook still show `project()`'s numbers. `"model": "classic"` in
+`config.json` puts the field back on `project()` too.
+
+**There is no untouched test left.** 2018 was used to find and fix the last wrong call (below), so all five elections
+have now shaped the model in some way. The next honest test is a real recorded night: `snapshots/` logs from a live
+night, replayed with `backtest.py`. County results for 2016 and 2018 come from the MIT Election Data and Science Lab.
+
+One check was kept clean: the width of the range (`CAL`, `OUT_CAL`). Fitted on 2018-2024 alone, the best widths are
+narrower (0.8 and 0.6 against 1.0 and 0.75). On 2026, which that fit never saw, the narrower range held the result 90%
+of the time, as a 90% range should, but missed by more than 2.6 of its own widths 1.9% of the time (1% is right) and
+made one wrong call in 20 replays of the night. The wider widths in use made no wrong call there, and in the other four
+years cost one call in about 500 (506 against 507). They stay.
+
+**The 2026 polls' weight (tried, not kept).** A pack's `polls.json` can say how many polls each state's number rests on
+(`n_eff`), and the pre-election model widens a poll's range when it rests on few. 2026's doesn't say, so every state
+gets 3. Giving the eight states that rested on a single Times/Siena poll 1, and the aggregators' averages 2 to 8, made
+the 2026 replay slightly worse (average miss before any vote 6.9 to 7.2 points, one fewer call, none wrong): those
+single polls were good ones. So 2026 keeps the flat 3. `backtest.py` uses a pack's own `n_eff` for its own election,
+as the live bot does.
+
+**House seats.** `cw_forecast.from_totals` forecasts a race known only by its running total and the share of precincts
+in, starting from what its rating has meant historically. `python backtest.py --totals` tests it on 56 past statewide
+races replayed as totals only. It did no better than the House board's simple rule (rating times the share not in,
+plus the count times the share in) until 90% was counted, so the board still uses the simple rule.
+
+**Sizing a county that is still counting.** The forecast no longer takes a county's final vote from one number. It
+weighs what the county usually casts at tonight's pace against votes counted divided by the share of precincts in,
+trusting the second less the fewer precincts are in (a county can post its whole early vote before its first
+precinct). A county never ends below the votes already counted, and a county with no precinct count that is past its
+expected vote still expects a little more, with real doubt about how much.
+
+**When a county is finished.** A county whose feed has no precinct count, but whose count is being timed, is finished
+only once its count has stopped moving (an hour, with most of the expected vote in). Reaching its expected vote doesn't
+finish it: in a year when turnout runs ahead, a county can pass that with a tenth still to come. Replays had shown
+forecasts nine of their own ranges away from the result for this reason.
+
+**An outlier can't steer the fit.** A place that sits more than three expected misses from the pattern has its weight
+cut by the square of how far out it is, so one wild county barely moves the result. This came from 2018, when sixteen
+North Carolina counties had no Democratic votes at all (an uncontested House seat) and read as 70-point swings; the
+plain fit explained them with a huge tilt and a huge early-vote lean and called the state for the wrong side. The
+early-vote lean is also held to 0.40 at most, and everything else is refitted around it.
+
+**The intake check and the snapshot log.** Every county pull goes through `intake.py` before the bot believes it. A
+whole pull is refused if it is empty, lists only a handful of counties from a feed that had listed them all, has
+many counties suddenly at zero, or looks like test data (finished numbers in the first minutes after polls close). A
+short first pull from a feed that has never listed every county is let through with a note, so the first counties of the
+night aren't lost. A single county that falls a long way, or jumps far past its expected vote, is held at its last good
+number and noted; if the new number is still there on the third pull running, it is believed. If the whole state's total
+falls by over 10% it is refused, then believed after 6 pulls running. Held numbers show on the Analyst desk's Feeds
+tile. Each accepted change is appended to `countywatch/snapshots/<state>.jsonl` (only the counties that changed, with
+the time and the source), and a new night's `reset_night` moves the old logs into a `rehearsal-` folder. The folder is
+in `.gitignore`.
+
+**Recorded-night replay.** If `snapshots/` holds a state's log, `backtest.py` replays that state in the order its
+counties really reported, instead of simulating an order. Use `--snapshots <folder>` to point at another folder,
+`--simulate` or `--no-extras` to leave the recorded night or the sections below out.
+
+**Early vote.** Three uses of early vote were tested, on 2026 only: no early vote from 2022 or 2024 is in the repo, so
+those years can't say. The backtest prints each one with and without it (figures from `python backtest.py`).
+- County turnout from North Carolina's early vote by county helps: the average miss in each county's starting turnout
+  falls from 11.1% to 4.3%, and the forecast is slightly better. It is on (`EV_COUNTY_TURNOUT`).
+- State early vote totals as a turnout start do not help: the miss goes from 11.2% to 11.5%. It is off
+  (`EV_STATE_TURNOUT`).
+- The party registration of early voters in the starting point helps a little before the first vote (average miss 5.66
+  to 5.32 points in the latest run) but hurts once counting begins (3.51 to 3.76 up to 15% counted). It is off
+  (`EV_REG`).
+
+`countywatch/early_before.csv` is UF Election Lab's file of the 2024 early vote at this point before the election,
+unmodified, used to compare this year's early vote with last cycle's. Credit: UF Election Lab, licence CC BY-NC-ND.
+
+**Past polls.** `countywatch/polls_history.json` holds the final polling average for 2022 and 2024 (18 averages, taken
+from Wikipedia's polling aggregate tables); 14 races are marked as gaps because no average could be found, and those
+states are left out of the check. With them, the average miss before any vote falls from 5.1 to 4.0 points in 2022
+and from 3.5 to 3.1 in 2024 (10 states each). Once counting starts the difference is small.
+
+**Features a pack chooses.** What tells places apart (the "tilts") comes from the pack's `features` list: names of
+`baseline.csv` columns, of past contests (a contest's own margin), or `{"name": "logpop", "scale": 0.6}` to fix a
+feature's size by hand. Left alone, each feature is divided by how far places sit from their state's average, so
+any column works without choosing a scale. A name that matches nothing counts as zero everywhere and does nothing;
+the bot doesn't warn about it. With no list a pack gets 2026's five (race, education, size, past vote).
+
+**Learning the night's noise.** The forecast assumes places stray from what their make-up predicts by a set amount
+(`SE`). As places finish it measures how far they really stray, as a multiple of that (shown as `noise`, 1 is as
+expected), and widens the range for the vote still out to match. It also widens, never narrows, how far one state's
+swing may sit from the national swing, when states with results show more. This is on by default (`LEARN`). On the
+five replayed elections it reads about 0.65 to 1.1 at the end of the night, and about 2 when counties are made 6
+points noisier. `python backtest.py --stress` replays elections unlike the ones the settings were chosen on (places
+noisier, a wrong starting guess for `SE`, no features) with learning off and on, and prints how often the 90% range
+held the result. In the readings so far learning keeps it close to 90% where fixed settings fall short.
+
+**Races with more than two candidates.** `cw_multi.py` forecasts a first round with many names: each candidate's
+share with a range, and the chance of finishing first, making the top two, winning outright, or going to a runoff.
+It forecasts each candidate against everyone else with the same model, makes the shares add to 1, then draws
+possible finishes where nobody ends below the votes already counted. Before any place reports it is the poll (or an
+even split) with a wide range, and says so. It does not count ranked-choice rounds. `python backtest.py --multi`
+tests it on made-up four-candidate races over the pack's real places: no real many-candidate election is in the
+data, so it shows the arithmetic and the honesty of its ranges, not how a real city behaves. It is not yet wired
+into the bot or the website: no feed reader produces its rows, and the workbook, alerts, auto-caller and website
+still assume two sides.
+
+**For another election.** What belongs to one election is in the pack's `feeds.countywatch` block, not in the code.
+The block's `contests` lists the past contests in the pack's `baseline.csv` (which columns are each side's votes and
+everyone's), `baseline` says which contest the night is measured from and at which one's turnout, and `backtests` lists
+the elections `backtest.py` replays (one of them can be the pack's own election, marked `"result": "live"`). A pack
+that says nothing gets 2026's meaning. `python backtest.py --pack <id>` runs another pack's elections.
+`"not_comparable": ["NE"]` lists places whose baseline is a different kind of race (Nebraska's is its own 2024 race),
+so their swing isn't used for other states. `"forecast": {"SE": 0.05}` overrides any of the model's settings (`HP` in
+`cw_forecast.py`). The settings were fitted on statewide partisan generals, so a city race by ward or a primary has
+no party baseline to hold its places together: widen its range by raising `SE`, `SS`, `SG0` and `SP` until a backtest
+of that kind of election says otherwise. `feeds.problems` rejects a `forecast` that isn't named numbers and a
+`not_comparable` place that isn't one of the pack's states.
+
+## Feed check
+`python feedcheck.py` runs the bot's own readers against every source it uses on the night: each state's county feed
+and every backup in order (it also lists the states that have only one source) against the state's last real election, the results files, the NYT files, the early vote tracker and
+the Bluesky accounts. It prints `ok`, `warn` (can't be checked from here: a site that blocks automated visitors, or a
+file that only exists around election day) or `FAIL` for each, and exits 1 if anything failed. GitHub runs it every
+Monday (`.github/workflows/feeds.yml`): a failure turns the run red and opens an issue titled "Feed check: a results
+source is broken", which closes itself when everything reads again. Run it by hand from the Actions tab too. A push
+that changes a feed reader or the feed settings (`cw_feeds.py`, `results.py`, `feeds.json`, `results_sources.json`,
+a pack's `pack.json`) runs it on that branch as well; only runs on the main branch open or close the issue.
+
+On the night, the Analyst desk's Feeds tile shows each state's backups and any held numbers, and the table *Where each
+state's numbers are coming from* lists every source in order with the one in use, when it last answered, when its
+numbers last changed and its last error.
 
 ## Data packs, servers and the global board
 The bot isn't tied to one election. Everything about an election (its races, who can win them, what they add up to,
@@ -327,10 +477,26 @@ whole general election or one contest, such as a mayoral race.
 - `docs/data-packs.md` explains how to write a pack, and what isn't general yet.
 
 ## The website
-The same prediction game in a browser: click states on a map or pick candidates by name, call the House, fill in the
-battleground seats, and watch a completion bar. It also has the leaderboard and a page that follows the desk's calls
-on the night. It shares the bot's database, so a pick saved on the site is the pick the bot scores, and the bot posts
-each website save to the board.
+One place for the whole night:
+
+- **Results** is for anyone. Each race in a sentence, a bar for each side's chance of winning, the Senate's odds and
+  likeliest seat count, with a short guide to reading it. No margins, no jargon.
+- **Analyst desk** is for people who read margins. Every race's forecast, 90% range, chance, votes counted and left,
+  what the trailing side needs against what it's on pace for, swing and poll miss; a "What to watch" list worked out
+  from the numbers (a count and a forecast that disagree, races ready to call, feeds in trouble); and per race, the
+  night's chart, where the outstanding vote is, key counties against their tie lines and the forecast's workings.
+- **The model** explains the forecast and shows how it did on five replayed elections.
+- **Predictions**, **Leaderboard** and **Calls** are the game and the desk's calls, as before. Before picks lock the
+  site opens on Predictions; after, on Results.
+
+It shares the bot's database, so a pick saved on the site is the pick the bot scores, and the bot posts each website
+save to the board.
+
+**Staying up.** The results pages never show an error because the numbers hiccuped: if a forecast can't be worked
+out, the last good one is served with a note saying how old it is, and a browser that loses the site keeps showing
+the last numbers it had. `/healthz` is there for an uptime checker. And `python -m web.export --every 60` writes
+the whole site as plain files to `site/` every minute: point any static host at that folder and the pages stay up
+when this PC doesn't. The copy is read-only (no sign-in or saving picks) and includes the leaderboard's names.
 
 ```
 pip install -r requirements.txt

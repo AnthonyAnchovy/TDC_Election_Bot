@@ -1,0 +1,42 @@
+{| class="wikitable sortable sticky-header-multi" style="font-size:95%;
+
+|- style="vertical-align:bottom"
+! State
+! [[Cook Partisan Voting Index|PVI]]
+! Incumbent
+! Last<br/>election{{efn|name=Last_election|The last elections for this group of senators were in 2008.}}
+! [[Cook Political Report|Cook]]<br/>{{Small|Oct. 29, 2014}}<ref name="cook">{{Cite web |title=Cook |url=http://example.org}}</ref>
+! [[Rothenberg Political Report|Rothenberg]]<br/>{{Small|Oct. 29, 2014}}
+! [[FiveThirtyEight|538]]<br/>{{Small|Oct. 29, 2014}}
+! Winner
+
+|-
+! [[#Alabama|Alabama]]
+<!--CPVI-->| {{party shading/Republican}} | {{sort|114|R+14}}
+| {{party shading/Republican}} | [[Jeff Sessions]]
+| {{party shading/Republican}} | 63.4%
+| style="background:#f66" | {{sort|108|Safe R}}
+| style="background:#f66" | {{sort|108|Safe R}}
+| style="background:#f66" | {{sort|100|SafeR}}
+| {{party shading/Republican}} data-sort-value="97.3" | Sessions<br/>(97.3%)
+
+|-
+! [[#Kansas|Kansas]]
+<!--CPVI-->| {{party shading/Republican}} | {{sort|112|R+12}}
+| {{party shading/Republican}} | [[Pat Roberts]]
+| {{party shading/Republican}} | 60.0%
+| style="background:#fcc" | {{sort|103|Lean R}}
+| style="background:#fff" | {{sort|100|Tossup}}
+| style="background:#ccc" | {{sort|098|Lean I {{small|(flip)}}}}
+| {{party shading/Republican}} data-sort-value="53.3" | Roberts<br/>(53.3%)
+
+|-
+! [[#Vermont|Vermont]]
+<!--CPVI-->| {{party shading/Democratic}} | {{sort|100|D+13}}
+| {{party shading/Independent}} | [[Bernie Sanders]]
+| 71.0%
+| style="background:#bbf" | {{sort|001|Safe D}}
+|
+| style="background:#bbf" | n/a
+| Winner
+|}
