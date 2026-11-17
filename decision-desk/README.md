@@ -449,6 +449,10 @@ source is broken", which closes itself when everything reads again. Run it by ha
 that changes a feed reader or the feed settings (`cw_feeds.py`, `results.py`, `feeds.json`, `results_sources.json`,
 a pack's `pack.json`) runs it on that branch as well; only runs on the main branch open or close the issue.
 
+Florida's results server sends a certificate that leads to a GoDaddy root Python doesn't know yet, so every request
+failed. `trust.py` gives that one host GoDaddy's published cross-certificate (`certs/`), which links the new root to an
+older one Python already trusts. No new root is trusted, and no other site is affected.
+
 On the night, the Analyst desk's Feeds tile shows each state's backups and any held numbers, and the table *Where each
 state's numbers are coming from* lists every source in order with the one in use, when it last answered, when its
 numbers last changed and its last error.

@@ -20,6 +20,7 @@ import aiohttp
 
 import capture
 import clock
+import trust
 
 UA = "DecisionDeskDiscordBot/1.0 (friend-group election night bot)"
 RETRY = {429, 500, 502, 503, 504}
@@ -91,7 +92,7 @@ async def fetch(url: str, *, source: str, timeout: float = 45, tries: int = 3, b
         try:
             async with _session(timeout=aiohttp.ClientTimeout(total=timeout),
                                 headers={"User-Agent": UA, **(headers or {})}) as s:
-                async with s.get(f"{url}?t={int(clock.time())}" if bust else url) as r:
+                async with s.get(f"{url}?t={int(clock.time())}" if bust else url, ssl=trust.ssl_for(url)) as r:
                     body = await r.read()
                     capture.payload(source, url, r.status, body, dict(r.headers))
                     if r.status == 200:

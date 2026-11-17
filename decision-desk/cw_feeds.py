@@ -39,6 +39,7 @@ import aiohttp
 import capture
 import feeds as FEEDS
 import packs
+import trust
 
 HERE = Path(__file__).parent
 UA = "DecisionDeskDiscordBot/1.0 (friend-group election night bot)"
@@ -532,7 +533,8 @@ async def _get(session, url: str, conditional: bool = False, skip_cache: bool = 
             headers["If-None-Match"] = etag
         if lm:
             headers["If-Modified-Since"] = lm
-    async with session.get(f"{url}?t={int(time.time())}" if skip_cache else url, headers=headers) as r:
+    async with session.get(f"{url}?t={int(time.time())}" if skip_cache else url, headers=headers,
+                           ssl=trust.ssl_for(url)) as r:
         if r.status == 304:
             raise NotModified()
         body = await r.read()

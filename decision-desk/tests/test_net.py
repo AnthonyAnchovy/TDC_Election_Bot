@@ -43,7 +43,7 @@ class FakeNet:
     async def __aexit__(self, *exc):
         return False
 
-    def get(self, url):
+    def get(self, url, **_kw):
         self.urls.append(url)
         step = self.script.pop(0)
         if isinstance(step, Exception):
@@ -234,3 +234,13 @@ def test_a_feed_that_never_answered_still_raises(wire, monkeypatch):
     wire(FakeResponse(404))
     with pytest.raises(RuntimeError, match="HTTP 404"):
         asyncio.run(LIVE.fetch_state("FL", force=True))
+
+
+def test_floridas_extra_certificate_is_used_for_floridas_results_site_and_nowhere_else():
+    import ssl
+    import trust
+    fl = trust.ssl_for("https://flelectionfiles.floridados.gov/enightfilespublic/20261103_ElecResultsFL.txt")
+    assert isinstance(fl, ssl.SSLContext) and fl.verify_mode == ssl.CERT_REQUIRED and fl.check_hostname
+    assert not fl.verify_flags & getattr(ssl, "VERIFY_X509_PARTIAL_CHAIN", 0)     # a link in the chain, not a root
+    assert trust.ssl_for("https://results.enr.clarityelections.com/GA/") is True
+    assert trust.ssl_for("https://floridados.gov.example.com/") is True
