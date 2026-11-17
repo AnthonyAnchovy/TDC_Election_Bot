@@ -48,6 +48,8 @@ jobs:
           echo "code=$?" >> "$GITHUB_OUTPUT"
           cat feed_report.md >> "$GITHUB_STEP_SUMMARY"
           cat feed_report.md
+          # each broken source as its own annotation, shown on the run's page
+          python -c "import json; [print(f'::error title={r[\"kind\"]} {r[\"name\"]}::{r[\"detail\"]}') for r in json.load(open('feed_status.json'))['rows'] if r['status'] == 'FAIL']" || true
       - uses: actions/upload-artifact@v4
         with:
           name: feed-status
