@@ -517,6 +517,11 @@ def _retry_after(value: str | None) -> float | None:
 def _is_challenge(status: int, headers, body: bytes) -> bool:
     ctype = (headers.get("Content-Type") or "").lower()
     head = body[:4000].lower()
+    # Amazon's web firewall answers a visitor it wants to test with 202 and a script, not the file. Clarity's results
+    # sites (Iowa, South Carolina) do this to GitHub's machines (feed check, Nov 2026). A results file never comes as 202.
+    if status == 202 and (headers.get("x-amzn-waf-action") or b"awswaf" in head or not body.strip()
+                          or "text/html" in ctype):
+        return True
     return (status in (403, 503, 429) and (b"just a moment" in head or b"challenge-platform" in head
                                             or b"cf-chl" in head or headers.get("cf-mitigated")
                                             or b"access denied" in head)) or \

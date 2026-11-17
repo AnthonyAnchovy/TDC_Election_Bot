@@ -244,3 +244,11 @@ def test_floridas_extra_certificate_is_used_for_floridas_results_site_and_nowher
     assert not fl.verify_flags & getattr(ssl, "VERIFY_X509_PARTIAL_CHAIN", 0)     # a link in the chain, not a root
     assert trust.ssl_for("https://results.enr.clarityelections.com/GA/") is True
     assert trust.ssl_for("https://floridados.gov.example.com/") is True
+
+
+def test_amazons_202_challenge_reads_as_a_bot_check_not_a_broken_feed():
+    import cw_feeds as FD
+    assert FD._is_challenge(202, {"x-amzn-waf-action": "challenge"}, b"<script>...</script>")
+    assert FD._is_challenge(202, {"Content-Type": "text/html"}, b"<html>awsWafCookieDomainList</html>")
+    assert FD._is_challenge(202, {}, b"")
+    assert not FD._is_challenge(200, {"Content-Type": "application/json"}, b'{"ok": 1}')
