@@ -283,6 +283,7 @@ async function modelView() {
       <h2 class="sect">In plain words</h2>
       <ol>
         <li><b>It starts from a guess.</b> Before votes arrive, each state starts at its final poll and its last result, adjusted as other states report: if the polls are missing everywhere tonight, a state still waiting is moved too.</li>
+        <li><b>It weighs polls by who took them.</b> Pollsters with a strong record, or that meet the New York Times' standard (careful sampling, open about their methods, accurate before), count more, using Silver Bulletin's ratings. When a race's polls disagree, its starting range is wider. Every poll can still miss the same way, as they understated Republicans in 2016, 2020 and 2024 and Democrats in 2026, so that is allowed for too.</li>
         <li><b>It learns from finished counties.</b> A county that has finished counting shows how far that kind of place moved since last time. Counties are compared by who lives there (race, education, size, how they voted before), across every state at once.</li>
         <li><b>It distrusts early counts.</b> The first votes out of a county are usually one voting method, and lean one way. A half-counted county only moves the forecast as far as it has earned.</li>
         <li><b>It fills in the rest.</b> Every county still counting gets an estimated final result, and they are added up into a statewide margin with a range around it.</li>

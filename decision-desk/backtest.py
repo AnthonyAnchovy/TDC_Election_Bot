@@ -319,6 +319,10 @@ def run(years=None, nights: int = 12, seed: int = 7, hp: dict | None = None, ste
                 # the pack's own election uses the poll counts its polls.json gives, as the live bot does
                 counts = F.poll_counts() if year == live_year() else None
                 polls, shared_sd = F.night_polls(polls, counts, midterm=midterm, office="SEN" if midterm else "PRES")
+                if F.settings(hp)["POLL_QUALITY"] and year == live_year():
+                    # the pack's own polls, weighted by pollster as the live bot does (cw_quality)
+                    polls, shared_q = F.quality_polls(polls, midterm=midterm)
+                    shared_sd = shared_q or shared_sd
                 if shared_sd:
                     yhp["SD0"] = shared_sd
             if rough:

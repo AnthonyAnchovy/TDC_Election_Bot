@@ -99,7 +99,9 @@ HP = {
     "PRE_WIDTHS": True,   # each poll's width from the pre-election model (history/error_model.json), not SP and SD0.
                           # Before any vote it cut the miss in all three elections with polls (4.64 to 4.56 points on
                           # average, Brier .080 to .075), and changed no call
-    "ROBUST": 3.0,     # a place this many of its own expected misses from the fit stops pulling harder on it (_robust)
+    "POLL_QUALITY": True, # each state's poll from cw_quality: pollsters weighted by record and the Times' select rule,
+                          # its width grown by few polls and by polls that disagree (history/poll_quality.json)
+    "ROBUST": 3.0,    # a place this many of its own expected misses from the fit stops pulling harder on it (_robust)
     "ALONE": False,    # this place has no other states to learn from (a city on its own): no national swing in its prior
     "S0": 0.10,        # how far a place with no poll and no other states may sit from its baseline
     # Early vote (early_inputs). Each switch is on only if backtest.py's early vote section says it helps.
@@ -503,9 +505,63 @@ def night_inputs(polls: dict[str, float], hp: dict | None = None) -> tuple[dict,
         return polls, hp
     year = packs.active().election_day().year
     out, shared = night_polls(polls, poll_counts(), office="SEN" if year % 4 == 2 else "PRES", midterm=year % 4 == 2)
+    if settings(hp)["POLL_QUALITY"]:
+        better, shared_q = quality_polls(out, midterm=year % 4 == 2)
+        out, shared = better, shared_q or shared
     if shared:
         hp["SD0"] = shared
     return out, hp
+
+
+def quality_polls(polls: dict, by_race: dict[str, list[dict]] | None = None, records: dict | None = None,
+                  midterm: bool = True, model: dict | None = None) -> tuple[dict, float | None]:
+    """The polls with each state's number and width from cw_quality: a quality-weighted average of the race's
+    polls in its last three weeks, and a width that grows with few polls and with polls that disagree, plus the
+    Times/Siena-style gap between two weightings where the pack's polls.json gives one ("pub" and "old"). States
+    without polls of their own keep what `polls` gave them. Returns (polls, the shared miss) as fractions; the
+    shared miss is None when there is no fit on file (history/poll_quality.json).
+
+    by_race: {state: polls} to use; by default the pack's countywatch/polls.csv, rated with Silver Bulletin's
+    ratings (live). records: pollster records for a replay of a past year (cw_quality.track_records)."""
+    import cw_quality as Q
+    model = Q.load_fit() if model is None else model
+    if not model:
+        return polls, None
+    hp = model["hp"]
+    if by_race is None:
+        by_race = pack_poll_rows()
+        avg = {st: Q.live_average(ps, hp) for st, ps in by_race.items()}
+    else:
+        avg = {st: Q.average(ps, records or {}, hp) for st, ps in by_race.items()}
+    try:
+        gaps_src = json.loads((M.CW_DIR / "polls.json").read_text(encoding="utf-8")).get("states", {})
+    except (OSError, ValueError):
+        gaps_src = {}
+    out = dict(polls)
+    for st, a in avg.items():
+        if not a:
+            continue
+        g = gaps_src.get(st) or {}
+        gap = 0.0
+        if g.get("pub") is not None and g.get("old") is not None:
+            who = set(Q._parts(g.get("source", ""))) - {""}
+            share = sum(v for k, v in a["shares"].items() if who & set(Q._parts(k)))
+            gap = abs(g["old"] - g["pub"]) * share
+        out[st] = {"m": a["margin"] / 100, "sd": Q.own_sd(a, model, gap) / 100}
+    return out, model["shared"]["midterm" if midterm else "presidential"] / 100
+
+
+def pack_poll_rows() -> dict[str, list[dict]]:
+    """{state: its polls in the last three weeks} from the active pack's countywatch/polls.csv, or {}."""
+    import csv
+    import cw_quality as Q
+    try:
+        with open(M.CW_DIR / "polls.csv", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+    except OSError:
+        return {}
+    races = Q.from_pack_rows(rows, packs.active().election_day().date().isoformat())
+    return {race.split("-")[0]: ps for race, ps in races.items()}
 
 
 def poll_counts() -> dict[str, float]:

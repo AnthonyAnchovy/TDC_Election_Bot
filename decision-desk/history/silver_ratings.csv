@@ -1,0 +1,545 @@
+# Silver Bulletin pollster ratings, January 2026 edition (Datawrapper chart GiFps, created 2026-01-09, read
+# 2026-11-17 from https://datawrapper.dwcdn.net/GiFps/7/dataset.csv). Credit: Nate Silver / Silver Bulletin.
+# plus_minus: Predictive Plus-Minus, points of error against other polls of the same race (below 0 is better).
+# bias: mean-reverted bias, points, D side +.
+pollster,grade,plus_minus,bias,polls
+The Washington Post,A+,-1.089,.9,98
+Marquette University Law School,A/B,-0.997,.32,17
+Research & Polling Inc.,A+,-0.975,-.55,44
+OnMessage Inc.,A,-0.85,-1.23,32
+Data Orbital,A/B,-0.831,.08,18
+TIPP Insights,A,-0.812,-.07,51
+Cygnal,A,-0.804,2.04,58
+The New York Times/Siena College,A,-0.795,1.41,116
+Monmouth University,A,-0.772,2,131
+SurveyUSA,A,-0.657,.09,871
+CBS News/The New York Times,A,-0.652,.27,66
+Public Opinion Strategies,A,-0.641,-1.28,80
+AtlasIntel,A,-0.636,-.04,93
+Emerson College,A,-0.61,.61,320
+Siena College,A,-0.604,.12,67
+Muhlenberg College,A-,-0.577,-.11,36
+Echelon Insights,A-,-0.552,-.19,19
+University of North Florida,A/B,-0.543,1.58,14
+Beacon Research/Shaw & Co. Research,A-,-0.532,1.34,63
+Hart Research Associates/Public Opinion Strategies,A-,-0.525,.85,37
+Public Policy Institute of California,A/B,-0.524,-1,18
+Grove Insight,A/B,-0.52,.47,29
+MassINC Polling Group,A/B,-0.496,-.55,22
+Suffolk University,A-,-0.496,.71,112
+Susquehanna Polling & Research Inc.,A-,-0.446,.43,56
+Greenberg Quinlan Rosner,A-,-0.446,2.18,62
+Mason-Dixon Polling & Strategy,A-,-0.439,-.5,446
+Landmark Communications,A-,-0.41,.83,41
+Marist College,A-,-0.402,.52,213
+Angus Reid Global,A/B,-0.395,-.98,32
+National Journal,A/B,-0.387,-.11,12
+The Winston Group,A/B,-0.383,1.03,11
+Los Angeles Times,A/B,-0.381,-.14,37
+Stockton University,A/B,-0.379,.84,12
+Greenberg Quinlan Rosner/American Viewpoint,A/B,-0.378,-.52,8
+University of Massachusetts Lowell,A-,-0.371,1.29,38
+Concord Public Opinion Partners,A/B,-0.351,-.02,4
+Christopher Newport University,A/B,-0.34,.81,16
+University of Connecticut,A/B,-0.34,-.13,11
+Elway Research,A/B,-0.331,.63,21
+Tarrance Group,A/B,-0.321,-.87,32
+Field Research Corp. (Field Poll),A/B,-0.319,-.55,25
+Fairleigh Dickinson University,A/B,-0.317,.02,22
+Garin-Hart-Yang Research Group,A-,-0.297,1.73,33
+Western New England University,A/B,-0.286,-.32,11
+OH Predictive Insights,B+,-0.282,.55,22
+Opinion Dynamics,A/B,-0.267,-.25,34
+Alaska Survey Research,A/B,-0.264,1.77,16
+Princeton Survey Research Associates International,A/B,-0.263,.38,35
+Lake Research Partners/The Tarrance Group,A/B,-0.262,-.6,33
+Elon University,A/B,-0.256,.36,8
+National Research,A/B,-0.247,-.35,15
+Abt Associates,A/B,-0.235,.67,13
+Pharos Research Group,F,-0.233,.68,33
+University of California Berkeley,A/B,-0.228,.32,8
+Strategic Vision LLC,F,-0.218,-1.41,133
+GfK Group,A/B,-0.215,.19,21
+Quinnipiac University,B+,-0.211,.59,229
+Dittman Research,A/B,-0.206,.81,10
+Temple University,A/B,-0.203,-.17,6
+Michigan State University,A/B,-0.19,-.04,2
+Selzer,B+,-0.181,1.27,59
+Franklin & Marshall College,A/B,-0.181,.56,25
+KRC Research,A/B,-0.179,.07,22
+"Fabrizio, Lee & Associates",A/B,-0.173,-.3,11
+RKM Research and Communications Inc.,A/B,-0.161,-.11,35
+Florida Atlantic University/Mainstreet Research,B+,-0.152,1.36,25
+North Star Opinion Research,A/B,-0.134,-.63,13
+Gallup,B+,-0.124,-.57,84
+KAConsulting,A/B,-0.112,-1.67,12
+Public Religion Research Institute,A/B,-0.111,.01,1
+Saint Anselm College,A/B,-0.111,-.28,14
+Vox Populi Polling,A/B,-0.108,.33,19
+Public Opinion Strategies/Hamilton Campaigns (Texas Credit Union League),A/B,-0.103,0,2
+Wirthlin Worldwide,A/B,-0.101,-.13,4
+University of Arkansas,A/B,-0.094,.9,10
+Glengariff Group,A/B,-0.093,.84,16
+Belden Russonello,A/B,-0.085,.04,3
+Indiana University,A/B,-0.085,.02,2
+Knowledge Networks,A/B,-0.081,.25,4
+Louis Harris & Associates,A/B,-0.067,.01,2
+RAND (American Life Panel),A/B,-0.061,.13,4
+EPIC-MRA,B+,-0.052,.22,58
+Lake Research Partners,A/B,-0.05,.65,12
+University of Florida,A/B,-0.045,.03,1
+Ohio State University,A/B,-0.041,-.04,1
+Gordon S. Black Corp.,A/B,-0.041,-.11,2
+InsiderAdvantage,B+,-0.038,.32,208
+Rasmussen Reports,B+,-0.026,-1.35,797
+Pew Research Center,A/B,-0.023,.63,25
+Public Policy Polling,B+,-0.012,.88,468
+Pan Atlantic Research,A/B,-0.01,.61,17
+Polling Company/Global Strategy Group,A/B,-0.004,-.16,4
+GQR Research/Public Opinion Strategies,A/B,-0.003,.1,1
+Harvard University,A/B,-0.001,.08,1
+Fleming & Associates,B/C,0.008,-.48,18
+RRH Elections,B/C,0.01,-.26,15
+WPA Intelligence,B/C,0.017,-.8,20
+Florida Atlantic University,B/C,0.028,.51,9
+Leger,B/C,0.028,.25,13
+University of Cincinnati (Ohio Poll),B/C,0.047,-1.09,39
+SEA Polling & Strategic Design,B/C,0.052,.45,14
+Harper Polling,B/C,0.054,.39,14
+Research Co.,B,0.061,1.43,85
+Harstad Strategic Research,B/C,0.07,.49,11
+Blueprint Polling,B/C,0.072,-.52,8
+Praecones Analytica,B/C,0.074,-.11,5
+East Carolina University,B/C,0.075,1.32,18
+New England College Polling Center,B/C,0.076,-1.03,19
+Ciruli Associates,B/C,0.079,-.53,20
+Clemson University,B/C,0.08,.02,8
+J.L. Partners,B/C,0.086,.39,10
+Mellman Group,B/C,0.092,1.69,28
+St. Norbert College,B/C,0.095,-.01,12
+Strategies 360,B/C,0.099,1.15,9
+Blum & Weprin Associates,B/C,0.103,-.55,19
+Lee Business School (University of Nevada Las Vegas),B/C,0.104,.14,5
+YouGov,B,0.111,1.08,521
+Ward Research,B/C,0.115,-.33,15
+Landmark Communications/Rosetta Stone Communications,B/C,0.117,1.05,11
+Middle Tennessee State University,B/C,0.136,.43,5
+Civiqs,B,0.141,2.83,43
+University of Georgia,B/C,0.143,.05,7
+Research 2000,F,0.146,1.19,278
+Clarity Campaign Labs,B/C,0.148,1.23,16
+Yankelovich Partners Inc.,B/C,0.164,-.03,7
+Trafalgar Group,B,0.177,-1.88,143
+Wick,B/C,0.179,-1.19,16
+Keating Research,B/C,0.192,.17,6
+RMG Research,B,0.197,3.25,28
+Ipsos,B,0.198,1.89,116
+co/efficient,B,0.202,-2.69,24
+Redfield & Wilton Strategies,B,0.208,2.28,45
+Starboard Communications,B/C,0.215,.29,4
+Strategic National,B/C,0.237,.34,4
+GBAO,B/C,0.239,1.36,14
+Big Village,B,0.243,.22,107
+Pasquines,B/C,0.25,.06,4
+Ragnar Research Partners,B/C,0.253,.24,3
+RBI Strategies & Research,B/C,0.261,.28,4
+Impact Research,B/C,0.265,1.32,22
+CVOTER,B/C,0.27,-.19,6
+Patriot Polling,B,0.284,-.4,22
+Market Shares Corp.,B/C,0.291,-.9,25
+Benenson Strategy Group,B/C,0.291,1.04,12
+Spry Strategies,B/C,0.293,-.35,5
+ROI Rocket,B/C,0.294,0,3
+Cardinal Point Analytics (CardinalGPS),B/C,0.294,-.28,3
+Optimus Analytics,B/C,0.295,-.48,17
+State Navigate,B/C,0.307,-.25,2
+University of South Alabama,B/C,0.311,-.33,9
+Lucid,B/C,0.312,1.67,25
+Frederick Polls,B/C,0.327,.55,8
+Axis Research,B/C,0.327,-.1,2
+"Fabrizio, Lee & Associates/GBAO",B/C,0.327,-.11,2
+Edgewater Research/My People Vote,B/C,0.333,-.05,3
+Kiley & Company,B/C,0.335,.31,5
+University of Washington,B/C,0.337,.04,9
+Maine People's Resource Center,B/C,0.344,.1,14
+RT Strategies,B/C,0.346,.84,45
+David Binder Research,B/C,0.351,.07,3
+Louisville Courier-Journal,B/C,0.356,-.17,10
+Ogden & Fry,B/C,0.356,-.01,3
+Riley Research Associates,B/C,0.359,-.06,7
+Market Research Institute Inc.,B/C,0.36,.08,11
+BSP Research/Shaw & Company Research,B/C,0.366,-.07,2
+Schoen Cooperman Research,B/C,0.376,-.02,2
+Gravis Marketing/Kaplan Strategies,B-,0.379,1.3,158
+Iowa State University,B/C,0.39,0,3
+DFM Research,B/C,0.39,1.22,10
+Tufts University,B/C,0.393,.37,3
+McKeon & Associates,B/C,0.394,.15,3
+Financial Dynamics,B/C,0.394,-.34,15
+Latino Decisions,B/C,0.4,.17,2
+Alabama State University,B/C,0.4,0,4
+Richard Day Research,B/C,0.4,-.35,11
+Tulchin Research,B/C,0.401,-.06,3
+Keating Research/OnSight Public Affairs/Melanson,B/C,0.416,-.09,3
+BK Strategies,B/C,0.427,.31,3
+University of New Orleans,B/C,0.427,.27,13
+Orion Strategies,B/C,0.428,.08,4
+Cherry Communications,B/C,0.428,.36,8
+Zogby Analytics,B-,0.432,-.59,495
+Winthrop University,B/C,0.432,0,3
+John Zogby Strategies,B/C,0.433,.39,4
+GS Strategy Group,B/C,0.435,-.33,2
+DCCC,B/C,0.435,1.6,10
+JMC Analytics,B/C,0.436,-.65,13
+OpinionWorks,B/C,0.436,-.48,7
+IVR Polls,B/C,0.439,0,4
+Quantus Insights,B/C,0.443,-1.05,9
+OnPoint,B/C,0.445,.02,6
+Focaldata,B/C,0.446,1.3,9
+MSR Group,B/C,0.446,.08,6
+Marshall Marketing,B/C,0.449,-.16,4
+Google Consumer Surveys,B/C,0.449,-.08,24
+Southern Media & Opinion Research,B/C,0.451,.07,7
+Wiese Research Associates,B/C,0.453,.74,7
+High Point University,B/C,0.454,0,5
+Master Image,B/C,0.456,0,2
+Douglas Fulmer & Associates,B/C,0.456,0,2
+Meeting Street Insights,B/C,0.458,.55,5
+AYTM,B/C,0.459,.52,4
+Global Strategy Group,B/C,0.46,1.61,26
+Missouri State University,B/C,0.461,.23,3
+Dan Jones & Associates,B/C,0.462,.76,40
+The Washington Post/George Mason University Schar School of Policy and Government,B/C,0.463,-.19,1
+Northern Arizona University,B/C,0.467,-.18,4
+Harris Insights & Analytics,B-,0.467,-1.05,193
+MWR Strategies,B/C,0.469,-.03,2
+PSB Research,B/C,0.471,1.89,19
+Potomac Incorporated,B/C,0.473,-.23,8
+Torchlight Strategies,B/C,0.474,0,1
+Gotham Polling & Analytics,B/C,0.474,-.17,1
+M3 Strategies,B/C,0.474,-.16,1
+Basswood Research,B/C,0.475,-.16,4
+University of Wisconsin (Madison),B/C,0.478,.53,8
+APC Research,B/C,0.479,.13,2
+Voter/Consumer Research,B/C,0.483,-.07,8
+CJ&N,B/C,0.485,.07,3
+Stetson University,B/C,0.487,1.37,4
+El Nuevo D√É¬≠a/The Research Office,B/C,0.488,0,4
+Moore Information Group,B/C,0.492,-1.56,18
+Fabrizio Lee & Associates/Impact Research,B/C,0.496,.03,1
+Ethridge & Associates LLC,B/C,0.496,-.04,6
+CWS Research,B/C,0.496,0,1
+MFour Mobile Research,B/C,0.5,-.13,2
+The Tyson Group,B/C,0.5,.09,14
+Big Ten,B/C,0.502,.63,10
+Montana State University Billings,B/C,0.504,1.62,11
+Slingshot Strategies,B/C,0.506,.35,2
+Market Decisions Research,B/C,0.506,-.05,4
+Big Data Poll,F,0.508,-.34,6
+University of Massachusetts (Amherst),B/C,0.512,-.12,11
+Park Street Strategies,B/C,0.514,0,1
+Data Targeting,B/C,0.514,-.16,1
+NewsNation,B/C,0.514,.07,1
+American Viewpoint,B/C,0.514,-.54,9
+Blumenthal Research Daily,F,0.514,-.12,2
+Magellan Strategies,B/C,0.515,-.38,18
+Braun Research,B/C,0.52,.91,6
+Virginia Commonwealth University,B/C,0.522,.05,8
+Bendixen & Amandi International,B/C,0.523,.09,2
+Strategic Research Associates,B/C,0.527,.3,5
+Global Strategy Group/National Research (Philadelphia Inquirer),B/C,0.528,-.23,4
+Mason Strategies,B/C,0.53,.07,1
+1892 Polling,B/C,0.53,-.02,1
+Rethink Priorities,F,0.531,.29,2
+Pacific Market Research,B/C,0.532,-.5,2
+Targoz Market Research,B-,0.533,1.31,26
+Scripps Howard,B/C,0.536,-.11,5
+The Polling Company Inc./National Research Inc.,B/C,0.537,-.09,1
+CSP Polling,F,0.537,.08,1
+Forward Strategies,B/C,0.538,.05,2
+National Public Affairs,B/C,0.538,.01,1
+Personal Marketing Research,B/C,0.538,0,3
+University of Houston,B/C,0.544,0,1
+Targeted Persuasion,B/C,0.544,0,1
+Singularis Group,B/C,0.544,-.02,1
+IMGE Insights,B/C,0.545,-.4,2
+KG Polling,F,0.547,.15,2
+"Drake Research & Strategy, Inc.",B/C,0.548,-.01,8
+Purple Strategies,B/C,0.551,-.26,4
+University of Wisconsin-Milwaukee,B/C,0.551,-.05,3
+Jim Meader (KELOLAND-TV),B/C,0.553,.19,4
+Columbus Dispatch,B/C,0.554,.8,22
+Washington College,B/C,0.555,.23,1
+Richmond Times-Dispatch,B/C,0.555,.12,4
+Behavior Research Center (Rocky Mountain Poll),B/C,0.556,.34,7
+University of Southern California,B/C,0.556,1.27,13
+Mercyhurst University,B/C,0.557,-.02,1
+Odney,B/C,0.557,.05,1
+Montgomery Research,B/C,0.557,-.24,1
+Remington Research Group,B-,0.557,1.28,55
+Thirty-Ninth Street Strategies,B/C,0.557,-.07,1
+University of Tennessee,B/C,0.559,-.07,2
+Diamond State Consulting Group,B/C,0.56,.1,1
+GreatBlue Research,B/C,0.561,-.02,2
+Market Solutions Group,B/C,0.563,0,4
+Frank N. Magid Associates Inc.,B/C,0.564,.34,5
+Reconnect Research/Probolsky Research,B/C,0.565,-.13,2
+Myers Research & Strategic Services,B/C,0.566,.11,2
+University of New Hampshire,B-,0.567,2.05,150
+Garin-Hart-Yang/Global Strategy Group,B/C,0.567,-.02,1
+Valley Research,B/C,0.568,.32,8
+Quest Research Group,B/C,0.568,-.1,5
+West Chester University,B/C,0.569,.08,7
+Manhattanville College,B/C,0.569,-.13,3
+The Polling Company Inc.,B/C,0.57,-.85,7
+DHM Research,B/C,0.57,-.07,14
+The Citadel,B/C,0.572,.3,3
+Franklin Pierce University,B/C,0.572,.58,17
+Seven Letter Insight,B/C,0.574,.12,1
+JMC Analytics/Bold Blue Campaigns,B/C,0.574,-.84,5
+Baruch College Survey Research,B/C,0.575,0,2
+Crantford Research,B/C,0.577,.05,1
+Rivercity Polling,B/C,0.577,-.13,1
+Lincoln Institute,B/C,0.579,-.08,2
+Centre College,B/C,0.581,.12,1
+Victory Research,B/C,0.582,.26,11
+Florida International University/Univision,B/C,0.585,.03,1
+Penta,B/C,0.585,-.13,1
+Becker Institute,B/C,0.59,.27,5
+War Room Logistics,B/C,0.591,0,1
+Zimmerman & Associates/Marketing Intelligence,B/C,0.591,.15,3
+Cromer Group,B/C,0.597,-.06,1
+Canisius College,B/C,0.598,0,1
+Central Surveys Inc.,B/C,0.598,.02,1
+Morningside College,B/C,0.599,0,1
+OurProgress (The Progress Campaign),F,0.6,0,1
+BIGresearch,B/C,0.601,-.02,1
+Wood Communications Group,B/C,0.601,.02,1
+Escalent,B/C,0.603,-.01,1
+Cooper & Secrest,B/C,0.603,-.03,1
+Analytical Group,B/C,0.606,.04,1
+Minneapolis Star Tribune,B/C,0.606,.62,14
+Rossman Group,B/C,0.608,.08,1
+Dynamics Marketing,B/C,0.608,.03,1
+Vox Populi Communications,B/C,0.608,0,1
+Diversified Research Inc,B/C,0.608,-.05,1
+QEV Analytics,B/C,0.611,0,1
+Wick Communications,B/C,0.612,.04,1
+"Lauer, Lalley, Victoria",B/C,0.612,-.01,1
+Southeastern Louisiana University,B/C,0.613,.07,8
+Market Trends Pacific,B/C,0.614,.05,1
+CallFire,B/C,0.614,-.34,4
+HighGround Inc.,B/C,0.615,-.09,6
+Triumph Campaigns,B/C,0.617,-.12,1
+Neighborhood Research and Media,B/C,0.618,-.04,3
+Paradigm,B/C,0.619,.37,2
+20/20 Insight,B/C,0.621,.41,8
+Victoria Research & Consulting,B/C,0.622,.1,1
+Jorge Ben√É¬≠tez,B/C,0.625,0,4
+Strategy Research,B/C,0.625,-.39,2
+Iona University,B/C,0.626,.09,1
+ASA Marketing Group,B/C,0.626,.08,1
+Dartmouth College,B/C,0.627,0,3
+African American Research Collaborative,B/C,0.628,.12,1
+New Mexico State University,B/C,0.628,0,1
+NRECA Market Research,B/C,0.628,.05,1
+TargetSmart,B/C,0.629,.45,3
+Probolsky Research,B/C,0.629,-.53,3
+Clarus Research Group,B/C,0.631,.23,3
+Beacon Research,B/C,0.632,0,5
+Old Dominion University,B/C,0.635,.11,1
+West Virginia Research Center,B/C,0.636,.12,2
+Deltapoll,B/C,0.636,.24,1
+Rice University,B/C,0.637,.13,2
+Alloy Analytics,B/C,0.637,-.21,1
+Illinois Wesleyan University,B/C,0.638,-.25,3
+Multi-Quest International,B/C,0.639,0,4
+Independent Market Research,B/C,0.639,.09,2
+Dixie Strategies,B/C,0.64,-.9,11
+Aspen Media & Market Research,B/C,0.643,0,3
+Marketing Research Institute,B/C,0.644,-.08,1
+The Florida Poll,B/C,0.644,.21,5
+Dynata,B/C,0.645,0,2
+Merrill Poll,B/C,0.645,0,2
+SmithJohnson Opinion Research,B/C,0.646,-.15,1
+Global Strategy Group/GBAO (Navigator Research),B/C,0.647,.82,4
+Harper Polling/Clarity Campaign Labs,B/C,0.651,.26,1
+TMR Research,B/C,0.655,.13,2
+CrossTarget,B/C,0.655,-.3,2
+Hellenthal & Associates,B/C,0.657,.29,5
+Howey Politics/DePauw University,B/C,0.66,.07,7
+A&A Research,B/C,0.661,-.11,1
+Decision Forecasting,B/C,0.662,-.04,3
+Premise,B/C,0.662,.21,1
+Feldman Group,B/C,0.663,.16,2
+Data for Progress,C+,0.665,1.59,114
+American Pulse Research & Polling,B/C,0.67,.41,2
+"California State University, Bakersfield",B/C,0.67,-.1,1
+Southern Opinion Research,B/C,0.671,.01,2
+Sky Research,B/C,0.671,-.28,1
+University of Nevada Las Vegas,B/C,0.671,0,1
+St. Pete Polls,C+,0.673,.69,31
+Detroit Free Press,B/C,0.673,.1,1
+University of Illinois at Chicago,B/C,0.674,-.12,1
+Southern Research Group,B/C,0.675,.09,1
+Great Lakes Strategies Group,B/C,0.68,-.15,1
+Swayable,C+,0.681,3.8,89
+University of North Carolina,B/C,0.681,.16,1
+Tulsa Surveys,B/C,0.682,-.1,1
+Public Strategies Inc.,B/C,0.682,0,6
+Abacus Associates,B/C,0.682,.13,2
+MarketAide Services Inc.,B/C,0.683,.12,1
+Kimball Political Consulting,B/C,0.684,-.77,6
+Liberty Opinion Research,B/C,0.684,0,1
+MarblePort,B/C,0.684,-.3,2
+Opinion Consultants,B/C,0.687,-.19,2
+Forman Center,B/C,0.688,.18,2
+SocialSphere,B/C,0.688,-.31,2
+TeleResearch Corporation,B/C,0.689,0,1
+Hill Research Consultants,B/C,0.69,-.14,6
+Arthur J. Finkelstein & Associates,B/C,0.69,-.15,1
+Bannon Communications Research,B/C,0.69,.25,2
+Hays Research Group,B/C,0.691,.74,9
+"Normington, Petts & Associates",B/C,0.692,.69,12
+SMS Research & Marketing Services,B/C,0.693,-.13,1
+Patinkin Research Strategies,B/C,0.693,.76,4
+Baselice & Associates,B/C,0.695,.23,2
+GaPundit.com,B/C,0.696,.42,2
+Zata3,B/C,0.697,-.15,2
+Castleton University,B/C,0.698,0,3
+Glover Park Group,B/C,0.702,-.26,1
+Ed Renwick/Loyola University New Orleans,B/C,0.708,.7,10
+Hoffman Research Group,B/C,0.711,-.55,3
+A2 Insights,B/C,0.713,-.89,2
+Auburn University,B/C,0.716,.61,2
+LIT Data,B/C,0.716,0,4
+Jeffrey Stonecash,B/C,0.718,-.17,1
+Lycoming College Polling Institute,B/C,0.72,.37,3
+PSI,B/C,0.723,-.03,3
+Ohio University,B/C,0.724,.26,2
+The Kitchens Group,B/C,0.725,.19,1
+Neighbor,B/C,0.726,-.14,1
+Lester & Associates,B/C,0.727,0,1
+Rainmaker Media Group,B/C,0.729,.21,1
+Cometrends,B/C,0.729,.3,1
+Lauer Johnson Research,B/C,0.732,.2,1
+brilliant corners Research & Strategies,B/C,0.732,.49,1
+Gonzales Research & Marketing Strategies Inc.,B/C,0.733,-.51,10
+Consumer Logic,B/C,0.733,.23,2
+Gazette Communications,B/C,0.735,.18,2
+University of Colorado (Boulder),B/C,0.736,.39,2
+Morning Consult,C+,0.738,3.37,114
+Overtime Politics,F,0.739,0,12
+St. Cloud State University,B/C,0.741,1.53,17
+University of Texas at Tyler,B/C,0.741,.77,10
+Minnesota State University,B/C,0.743,.35,4
+Change Research,C+,0.744,2.68,115
+Y2 Analytics,B/C,0.747,1.08,8
+Data West Polling,B/C,0.748,.29,2
+Univision/Latino Decisions/North Star Opinion Research,B/C,0.749,1.06,7
+WCIA-TV,B/C,0.751,-.3,2
+Datamar Analytics,B/C,0.753,-.21,8
+New Frontier Strategy,B/C,0.755,0,2
+University of Alabama at Birmingham,B/C,0.755,-.26,2
+Nelson Research,B/C,0.756,-.29,1
+Bold Decision,B/C,0.758,.39,1
+VCreek/AMG,B/C,0.76,.31,1
+Digital Research,B/C,0.76,.1,21
+Hickman Analytics,B/C,0.764,.34,1
+Hunt Research,B/C,0.764,.4,1
+EMC Research,B/C,0.765,1.11,15
+Saguaro Strategies,B/C,0.772,.3,2
+Open Model Project,B/C,0.774,-.43,2
+Consultor√É¬≠a Acad√É¬©mica e Investigaci√É¬≥n Social LLC,B/C,0.774,0,2
+RMS Research,B/C,0.774,.25,3
+East Tennessee State University,B/C,0.778,.66,2
+Colby College,B/C,0.78,1.59,6
+Victory Insights,B/C,0.78,.96,9
+Opinium,B/C,0.796,.56,2
+Thomas Partners Strategies/Optimus,B/C,0.798,-.73,2
+SSRS,C+,0.798,2.78,47
+Zia Poll,B/C,0.798,-.65,4
+Global Marketing Research Services,B/C,0.798,.38,1
+Capital Survey Research Center,B/C,0.802,.02,13
+The Justice Collaborative Institute,B/C,0.818,.51,2
+Baydoun Consulting,B/C,0.823,-.75,6
+Arizona State University,B/C,0.83,.43,8
+Bluegrass Community and Technical College,B/C,0.832,.84,2
+Marketing Resource Group (MRG),B/C,0.835,.25,10
+Victory Enterprises,B/C,0.844,-.39,1
+Phillips Academy,B/C,0.844,-.89,7
+GCR & Associates,B/C,0.844,0,1
+Clout Research,B/C,0.848,-1.56,16
+Brandwatch Qriously,B/C,0.851,.72,3
+Schapiro Group,B/C,0.861,0,2
+Millersville University,B/C,0.864,-.48,5
+Miami Univerity,B/C,0.866,.69,2
+Hampton University,B/C,0.871,-.63,4
+Bainbridge Media Group,B/C,0.876,.36,1
+Massie & Associates,B/C,0.892,-.4,2
+Loras College,B/C,0.896,1.27,18
+University of Iowa,B/C,0.899,-.24,3
+Constituent Dynamics,B/C,0.909,0,7
+Survation,B/C,0.912,.61,2
+DeSales University,B/C,0.919,.57,1
+Greg Smith & Associates,B/C,0.919,.72,5
+Cole Hargrave Snodgrass & Associates,B/C,0.925,.07,5
+Roanoke College,B/C,0.93,.63,23
+Kiaer Research,B/C,0.941,.81,2
+Hendrix College,B/C,0.942,1.79,18
+Marketing Workshop,B/C,0.942,.26,8
+Momentum Analysis,B/C,0.947,.28,3
+Craciun Research Group,B/C,0.948,.58,1
+Western Kentucky University,B/C,0.966,.7,4
+Market Research Insight,B/C,0.971,-.45,27
+IZQ Strategies,B/C,0.983,0,1
+Citizen Data,B/C,0.985,2.34,12
+Truedot,B/C,1.036,.95,2
+Baldwin Wallace University,B/C,1.041,1.29,4
+Amber Integrated,B/C,1.06,1.87,8
+BWD Global,B/C,1.078,-.11,2
+Repass,B/C,1.089,.06,4
+Rutgers University,B/C,1.091,.97,19
+We Ask America,C,1.095,-.78,56
+Carroll Strategies,B/C,1.097,-1.51,5
+Glascock Group,B/C,1.109,.19,2
+Tomahawk Strategies,B/C,1.11,.78,1
+ccAdvertising,B/C,1.13,-2.24,33
+Center Street PAC,B/C,1.133,1.55,4
+Thomas Partners Strategies,B/C,1.136,-1.04,2
+American Research Group,C,1.142,.07,280
+Dane & Associates,B/C,1.151,-.72,2
+GOP Calls,B/C,1.152,-.81,2
+McLaughlin & Associates,B/C,1.163,-1.7,29
+Mitchell Research & Communications,C,1.164,.94,82
+Riggs Research Services,B/C,1.165,.66,1
+Meredith College,B/C,1.167,1.05,6
+FM3 Research,B/C,1.18,1.84,11
+Saint Leo University Polling Institute,B/C,1.191,1.38,6
+CPEC,B/C,1.197,0,2
+SoonerPoll.com,B/C,1.197,2.66,26
+TargetPoint,B/C,1.207,0,2
+University of Minnesota,B/C,1.251,.43,10
+Elucd,B/C,1.254,0,4
+Target Insyght,B/C,1.256,-.49,6
+"Island Analytics & Marketing, LLC",B/C,1.264,0,1
+Trafalgar Group/Insider Advantage,B/C,1.268,-1.91,3
+Opinion Research Associates,B/C,1.287,1.61,14
+Capen Analytics,B/C,1.29,0,1
+Merriman River Group,C/D,1.322,-2.76,25
+Brigham Young University,C/D,1.371,1.6,4
+Triton Polling & Research,C/D,1.382,.98,3
+University of Wyoming,C/D,1.461,2.22,5
+RABA Research,C/D,1.473,2.44,9
+Point Blank Political,C/D,1.495,0,6
+The Political Matrix/The Listener Group,C/D,1.514,1.45,12
+SurveyMonkey,D+,1.634,4.63,268
+TCJ Research,F,1.649,-4.07,132
+Brown University,C/D,1.674,-.2,14
+Indiana University-Purdue University Fort Wayne (Downs Center),C/D,1.766,0,3
+Long Island University,C/D,1.77,1.88,4
+Nielson Brothers Polling,C/D,2.004,3.05,11
+Ascend Action,C/D,2.235,3.35,6
+Jayhawk Consulting Services,C/D,2.292,2.27,2
+Fort Hays State University,C/D,2.495,-1.1,6
+The Dartmouth Poll,C/D,3.686,4.4,4

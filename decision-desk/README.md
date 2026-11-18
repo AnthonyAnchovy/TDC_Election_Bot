@@ -300,8 +300,10 @@ Put a fake time in `.env`, e.g. `DESK_FAKE_NOW=2026-11-03T19:05-05:00`, and rest
 board as an outlet called "The Bot". They feed `/scoreboard`, so the desk is timed against it, and they never make
 anything official. It calls when the forecast gives one side a 99% chance or better, results (not polls or other
 states) carry at least half of that forecast, and it has stayed there for 8 minutes. In 960 simulated races across
-five replayed elections that rule made no wrong call (`python backtest.py`). It called at 99.5% until Nov 2026; on
-the replays no threshold down to 95% made a wrong call, and 99% calls half the races by 41% counted instead of 47%. Set `"bot_caller": false` in
+five replayed elections that rule made no wrong call (`python backtest.py`). It called at 99.5% until Nov 2026. On
+20 replays of each election 99.5%, 99% and 98% all made no wrong call (half the calls by 48%, 42% and 35% counted).
+The edge case is Mississippi 2026, which ended D+0.3: replaying 2026 alone, 99% called it for the wrong side once in
+20 nights with 94% counted; 99.5% never did. That race is the one the desk itself called and took back. Set `"bot_caller": false` in
 `config.json` to switch it off. The thresholds are in `autocaller.py`. With `"model": "classic"` the bot goes back to
 2026's rule: a 15-point projected lead held for 20 minutes, 8 points for 40, 4 points for 75.
 
@@ -322,9 +324,9 @@ projection until morning. `cw_forecast.py` now sits on top of every state's proj
 - **A fitted range and a chance of winning**, which is what The Bot calls on.
 
 `python backtest.py` replays five elections county by county (2018, 2020, 2022, 2024 and 2026) and prints the forecast
-against `project()` alone. Across the five, the average miss falls from 7.9 points to 5.2 before a state's first vote,
-from 4.7 to 2.1 with 15-35% counted, and from 1.9 to 0.9 with 65-90% counted; the wrong side is shown ahead less often
-(22% to 17% before any vote, 14% to 8% with 15-35% counted, 6% to 3% with 65-90% counted). In 960 simulated races
+against `project()` alone. Across the five, the average miss falls from 7.9 points to 4.9 before a state's first vote,
+from 4.7 to 2.0 with 15-35% counted, and from 1.9 to 0.8 with 65-90% counted; the wrong side is shown ahead less often
+(22% to 14% before any vote, 14% to 7% with 15-35% counted, 6% to 3% with 65-90% counted). In 960 simulated races
 (12 nights each) the bot's calling rule called 918 and made no wrong call; half of the calls came with under 42% of
 the vote counted. Unless a night's county counts were recorded (below), the reporting order is simulated, so the
 replay tests the arithmetic, not the feeds. The field, `/trend`, The Bot and the website use the forecast.
@@ -341,12 +343,36 @@ of the time, as a 90% range should, but missed by more than 2.6 of its own width
 made one wrong call in 20 replays of the night. The wider widths in use made no wrong call there, and in the other four
 years cost one call in about 500 (506 against 507). They stay.
 
-**The 2026 polls' weight (tried, not kept).** A pack's `polls.json` can say how many polls each state's number rests on
-(`n_eff`), and the pre-election model widens a poll's range when it rests on few. 2026's doesn't say, so every state
-gets 3. Giving the eight states that rested on a single Times/Siena poll 1, and the aggregators' averages 2 to 8, made
-the 2026 replay slightly worse (average miss before any vote 6.9 to 7.2 points, one fewer call, none wrong): those
-single polls were good ones. So 2026 keeps the flat 3. `backtest.py` uses a pack's own `n_eff` for its own election,
-as the live bot does.
+**Which polls to trust.** A count of polls says little on its own: in 2026 the eight states resting on a single
+Times/Siena poll missed by 0 points on average, while averages of up to twenty polls missed by about 6, all the same
+way. `cw_quality.py` builds each state's starting point from its own polls instead of one number per state:
+
+- **Pollster quality.** A pollster that meets two of the Times' three tests for a "select" pollster (probability
+  sampling, AAPOR Transparency Initiative or Roper Center membership, a good track record), and isn't paid by a party
+  or campaign, counts three times. Each poll is also weighted by its pollster's track record: Silver Bulletin's
+  Predictive Plus-Minus (`history/silver_ratings.csv`, the January 2026 edition, credit Nate Silver / Silver
+  Bulletin). On 2026, which those ratings predate, the average miss across 12 Senate races fell from 4.56 to 4.11
+  points, most of it from the select rule. Replaying 2008-2024 with pollsters rated only on earlier years, races with
+  four or more polls went from 4.04 to 3.93 (2016-2024: 4.54 to 4.33).
+- **Disagreement.** Polls of one race that sit far apart mean a race that is hard to poll: races whose polls were 6+
+  points apart missed by 5.7 points, races whose polls agreed by 3.7. Each race's range now grows with how far its
+  polls disagree as well as with how few there are (fitted on 2008-2018, checked on 2020-2024).
+- **Two weightings.** Where a pollster publishes its number under two weightings (Times/Siena 2026 gave its new and
+  its pre-2026 weighting, 3 to 5 points apart, in `polls.json` as `pub` and `old`), half the gap, times that
+  pollster's share of the race's average, is added to the race's range. It is the pollster saying how much of its
+  answer is its correction for who doesn't respond. There is no history to test this on.
+- **The miss all polls share** is refitted with 2026 in (`history/poll_quality.json`): 2.1 points in midterms, 3.3 in
+  presidential years, with fat tails. Its direction isn't assumed: polls understated Republicans in 2016, 2020 and
+  2024 and Democrats by 4.5 in 2026, and pollsters change their methods after each miss. On the night it is learned
+  from the states that report first.
+
+On the 2026 county replay this cut the miss before any vote from 6.0 to 4.9 points and the wrong side shown ahead from
+22% to 12%; once counting starts the two agree. Before any vote the 90% range held 80% of the time, short of 90%:
+2026's shared miss was twice the usual. `python tools/build_poll_archive.py` rebuilds `history/polls_final.csv`
+(538's final-three-weeks polls, 2000-2024, CC BY 4.0, plus 2026 from the pack's `countywatch/polls.csv`, read from
+Wikipedia, see `polls_credit.txt`); `python cw_quality.py` prints the replay and `--fit` refits the widths. Alaska's
+2026 polls are left out: its tables list two candidates named Dan Sullivan and the reader can't tell which is the
+Republican. `"POLL_QUALITY": false` in the pack's `forecast` block goes back to one number per state.
 
 **House seats.** `cw_forecast.from_totals` forecasts a race known only by its running total and the share of precincts
 in, starting from what its rating has meant historically. `python backtest.py --totals` tests it on 56 past statewide
